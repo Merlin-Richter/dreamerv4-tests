@@ -1,0 +1,75 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Generated datasets (bouncing.npy, occluded.npy, *_actions.npy, *_states.npy, …) ──
+*.npy
+*.npz
+
+# ── Model checkpoints & weights ──
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+
+# ── Diagnostic / training visualization outputs (_recon_montage.png, _dense_*.png, …) ──
+_*.png
+_*.jpg
+_*.jpeg
+
+# ── Common ML artifact dirs ──
+checkpoints/
+outputs/
+runs/
+logs/
+wandb/
+data/
+datasets/
+cache/
+.cache/
+
+# ── Archives & large binary blobs ──
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.parquet
+*.feather
+*.arrow
