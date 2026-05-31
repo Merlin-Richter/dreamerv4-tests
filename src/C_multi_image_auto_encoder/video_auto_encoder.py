@@ -1,3 +1,5 @@
+import math
+
 import torch
 import torch.nn as nn
 from dataclasses import dataclass
@@ -43,8 +45,17 @@ class Attention(nn.Module):
         assert int(self.head_dim) == self.head_dim
         self.head_dim = int(self.head_dim)
 
-        self.scale = 1/(self.head_dim ** 0.5)
-        
+        # Learnable per-head attention temperature.
+        # q/k are RMSNorm'd below (QK-norm), which caps |q.k|. With the textbook 1/sqrt(d)
+        # scale (calibrated for UN-normalized q,k) the logits stay ~O(1) over all keys, so
+        # softmax is near-uniform and the latent cross-attention degenerates to mean-pooling
+        # -> image-invariant latents -> the decoder can only reconstruct the mean image.
+        # We init the scale ~4x sharper than 1/sqrt(d) to escape that uniform-attention basin
+        # and let it adapt; clamped for stability (cf. Swin-v2 cosine attention).
+        self.base_scale = 1/(self.head_dim ** 0.5)
+        self.logit_scale = nn.Parameter(torch.full((self.n_heads, 1, 1, 1, 1), math.log(4.0)))
+        self.max_logit_scale = math.log(100.0)
+
         self.q_norm = nn.RMSNorm(self.head_dim)
         self.k_norm = nn.RMSNorm(self.head_dim)
         self.soft_cap_act = nn.Tanh()
@@ -109,7 +120,8 @@ class Attention(nn.Module):
             q = torch.concat((q_first * self.cos[:T] + -q_second * self.sin[:T], q_second * self.cos[:T] + q_first * self.sin[:T]), dim=-1)
             k = torch.concat((k_first * self.cos[:T] + -k_second * self.sin[:T], k_second * self.cos[:T] + k_first * self.sin[:T]), dim=-1)
 
-        attn_scores = (q @ k.transpose(-2, -1)) * self.scale
+        scale = self.base_scale * torch.exp(self.logit_scale.clamp(max=self.max_logit_scale))
+        attn_scores = (q @ k.transpose(-2, -1)) * scale
         attn_scores = self.soft_cap_act(attn_scores / self.soft_cap) * self.soft_cap
         attn_scores = attn_scores.masked_fill(mask, float('-inf'))
 

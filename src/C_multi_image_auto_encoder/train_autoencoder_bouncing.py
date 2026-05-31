@@ -24,7 +24,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 import lpips
@@ -283,7 +283,25 @@ def main():
         model = AutoEncoder(cfg).to(device)
 
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
-    scheduler = CosineAnnealingLR(opt, T_max=args.epochs, eta_min=1e-6)
+    # Per-STEP warmup -> constant -> late-cosine-cooldown. The latent-collapse escape is a
+    # saddle-point plateau that only ignites after ~2k steps and needs SUSTAINED lr to complete;
+    # a plain CosineAnnealingLR over few epochs decays through the escape window and freezes the
+    # tokenizer in the collapsed (gray-mush) basin. Keep lr flat through the escape, cool down
+    # only in the final 25% for crisp convergence. See memory: qk-norm-attention-temperature.
+    total_steps = max(1, len(train_loader) * args.epochs)
+    warmup_steps = max(200, int(0.05 * total_steps))
+    decay_start = int(0.75 * total_steps)
+    eta_min_ratio = 1e-6 / args.lr
+
+    def lr_lambda(step):
+        if step < warmup_steps:
+            return (step + 1) / warmup_steps
+        if step < decay_start:
+            return 1.0
+        p = (step - decay_start) / max(1, total_steps - decay_start)
+        return eta_min_ratio + (1.0 - eta_min_ratio) * 0.5 * (1.0 + np.cos(np.pi * p))
+
+    scheduler = LambdaLR(opt, lr_lambda)
     loss_fn = nn.MSELoss()
     # lpips_loss_fn = lpips.LPIPS(net='vgg').to(device)
     use_amp = device == "cuda"
@@ -326,6 +344,7 @@ def main():
             opt.zero_grad()
             loss.backward()
             opt.step()
+            scheduler.step()
             train_loss += loss.item()
 
         model.eval()
@@ -355,8 +374,6 @@ def main():
             f"Epoch {epoch + 1} | train MSE: {train_mse:.6f} | val MSE: {val_mse:.6f} "
             f"| train_clip_offset={train_off} | lr: {current_lr:.2e}"
         )
-
-        scheduler.step()
 
         torch.save(
             {"model_state_dict": model.state_dict(), "config": asdict(cfg)},
