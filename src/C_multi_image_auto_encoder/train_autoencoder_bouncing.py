@@ -252,7 +252,7 @@ def main():
             "to form at least one full clip."
         )
     cfg = AutoEncoderConfig(
-        img_input_H=h, img_input_W=w, max_temporal_length=chunk_len, mae_max_mask=0
+        img_input_H=h, img_input_W=w, max_temporal_length=chunk_len
     )
 
     train_ds = ChunkClipDataset(train_eps, chunk_len, start_offset=0)
@@ -266,6 +266,48 @@ def main():
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False)
     device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # --- latent-collapse health probe -------------------------------------------------
+    # MSE is a misleading health signal here: trivial curtain frames + the static background
+    # dominate it, so a fully-collapsed ("gray mush") tokenizer can still show a healthy-looking
+    # MSE. The real signal is whether DISTINCT frames get DISTINCT latents. We hold out a fixed
+    # set of revealed (curtain-up) frames and each epoch report their pairwise latent cosine
+    # (->1.0 == collapsed, <0.7 == escaped) and per-image output std (~0.01 == mean mush,
+    # >0.04 == rendering real content). Auto-uses <frames>_actions.npy to pick revealed frames;
+    # falls back to random distinct frames (noisier, since curtain frames are near-identical).
+    probe = None
+    n_probe = 64
+    actions_path = args.frames.with_name(args.frames.stem + "_actions.npy")
+    if actions_path.is_file():
+        acts_all = np.load(actions_path)  # (N, T) 0=revealed 1=curtain
+        val_acts = acts_all[val_idx.numpy()]
+        pframes = []
+        for ei in range(val_acts.shape[0]):
+            rev = np.where(val_acts[ei] == 0)[0]
+            if len(rev):
+                pframes.append(val_eps[ei, rev[0]])
+            if len(pframes) >= n_probe:
+                break
+        if pframes:
+            probe = torch.stack(pframes).unsqueeze(1).to(device)  # (P,1,H,W,3)
+            print(f"[health] latent-collapse probe: {probe.shape[0]} revealed frames from {actions_path.name}")
+    if probe is None:
+        ne = min(n_probe, val_eps.shape[0])
+        probe = val_eps[torch.arange(ne), 0].unsqueeze(1).to(device)  # frame 0 of distinct eps
+        print(f"[health] latent-collapse probe: {probe.shape[0]} random frames (no actions file; metric noisier)")
+
+    def latent_health():
+        model.eval()
+        with torch.no_grad():
+            with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=(device == "cuda")):
+                z = model.encoder(probe).float()
+                pred = model(probe).float()
+        p = z.shape[0]
+        zf = z.reshape(p, -1)
+        zf = zf / (zf.norm(dim=1, keepdim=True) + 1e-6)
+        cos = (zf @ zf.T)[~torch.eye(p, dtype=torch.bool, device=zf.device)].mean().item()
+        pstd = pred.reshape(p, -1).std(1).mean().item()
+        return cos, pstd
 
     if args.checkpoint.is_file() and not args.fresh:
         payload = torch.load(args.checkpoint, map_location=device, weights_only=False)
@@ -303,7 +345,7 @@ def main():
 
     scheduler = LambdaLR(opt, lr_lambda)
     loss_fn = nn.MSELoss()
-    # lpips_loss_fn = lpips.LPIPS(net='vgg').to(device)
+    # lpips_loss_fn = lpips.LPIPS(net='alex').to(device)
     use_amp = device == "cuda"
 
     args.checkpoint.parent.mkdir(parents=True, exist_ok=True)
@@ -343,6 +385,11 @@ def main():
                 loss = loss_fn(pred, batch_x) # + 0.2 * lpips_val
             opt.zero_grad()
             loss.backward()
+            # Gradient clipping: without it, a single large-gradient batch under bf16 can land a
+            # destructive update that spikes the loss and knocks the model back into the latent-
+            # collapse basin (observed as lat_cos jumping ~0.36 -> ~0.99 mid-training). Standard
+            # transformer safeguard; keeps the escape monotonic.
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             opt.step()
             scheduler.step()
             train_loss += loss.item()
@@ -363,15 +410,18 @@ def main():
 
         train_mse = train_loss / len(train_loader)
         val_mse = val_loss / len(val_loader)
+        lat_cos, pred_std = latent_health()
         current_lr = opt.param_groups[0]["lr"]
         epoch_bar.set_postfix(
             train=f"{train_mse:.6f}",
             val=f"{val_mse:.6f}",
-            tr_off=train_off,
+            lat_cos=f"{lat_cos:.3f}",
+            pstd=f"{pred_std:.4f}",
             lr=f"{current_lr:.2e}",
         )
         print(
             f"Epoch {epoch + 1} | train MSE: {train_mse:.6f} | val MSE: {val_mse:.6f} "
+            f"| latent_cos: {lat_cos:.3f} (<0.7=escaped) | pred_std: {pred_std:.4f} (>0.04=content) "
             f"| train_clip_offset={train_off} | lr: {current_lr:.2e}"
         )
 

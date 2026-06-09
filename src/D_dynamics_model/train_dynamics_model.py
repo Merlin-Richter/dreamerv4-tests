@@ -19,6 +19,9 @@ Or from repo root:
 
 Visualize a rollout from a saved checkpoint (OpenCV window; needs a display):
     python src/D_dynamics_model/train_dynamics_model.py --test-checkpoint
+
+Interactive single-frame rollout (4-frame dynamics context, key 0/1 actions):
+    python src/D_dynamics_model/play_dynamics_checkpoint.py
 """
 
 import argparse

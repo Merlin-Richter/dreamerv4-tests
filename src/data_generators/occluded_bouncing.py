@@ -49,14 +49,44 @@ CURTAIN_COLOR = (52, 48, 60)  # BGR
 WINDOW_TITLE = "Occluded bouncing [Q/ESC=quit  SPACE=pause]"
 
 
+def _dark_color(rng: np.random.Generator, val_lo: int = 50, val_hi: int = 95) -> np.ndarray:
+    """One dark but hueful BGR colour — random hue, moderate saturation, low value."""
+    hue = int(rng.integers(0, 180))
+    sat = int(rng.integers(140, 220))
+    val = int(rng.integers(val_lo, val_hi))
+    hsv = np.array([[[hue, sat, val]]], dtype=np.uint8)
+    return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)[0, 0]
+
+
 def make_background(rng: np.random.Generator, img_size: int) -> np.ndarray:
-    """Smooth, dense, low-frequency texture: a small random colour grid bilinearly upsampled.
+    """Smooth dark gradient between 2-3 random hue anchors (e.g. dark blue → dark orange).
 
     Low frequency keeps it easy for a patch (ViT) tokenizer while still filling every pixel.
     """
-    lo = rng.integers(40, 215, size=(4, 4, 3)).astype(np.uint8)
-    bg = cv2.resize(lo, (img_size, img_size), interpolation=cv2.INTER_LINEAR)
-    return bg
+    c_a = _dark_color(rng)
+    c_b = _dark_color(rng)
+    if rng.random() < 0.5:
+        # Two-colour gradient (horizontal or vertical).
+        if rng.random() < 0.5:
+            corners = np.array([[c_a, c_b], [c_a, c_b]], dtype=np.uint8)
+        else:
+            corners = np.array([[c_a, c_a], [c_b, c_b]], dtype=np.uint8)
+    else:
+        # Three-colour gradient: three distinct corners, fourth repeats one anchor.
+        c_c = _dark_color(rng)
+        repeat = c_a if rng.random() < 0.5 else c_b
+        corners = np.array([[c_a, c_b], [c_c, repeat]], dtype=np.uint8)
+    return cv2.resize(corners, (img_size, img_size), interpolation=cv2.INTER_LINEAR)
+
+
+def _bright_ball_color(rng: np.random.Generator) -> tuple[int, int, int]:
+    """High-value, saturated BGR colour that pops against the dark background."""
+    hue = int(rng.integers(0, 180))
+    sat = int(rng.integers(180, 256))
+    val = int(rng.integers(225, 256))
+    hsv = np.array([[[hue, sat, val]]], dtype=np.uint8)
+    b, g, r = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)[0, 0]
+    return int(b), int(g), int(r)
 
 
 # ---------------------------------------------------------------------------
@@ -111,7 +141,7 @@ class OccludedBouncingEnv:
     def reset(self, seed: int = 42) -> "OccludedBouncingEnv":
         self.rng = np.random.default_rng(seed)
         self.bg = make_background(self.rng, self.img_size)
-        self.color = tuple(int(v) for v in self.rng.integers(80, 256, size=3))
+        self.color = _bright_ball_color(self.rng)
         margin = self.radius + 1
         self.x = float(self.rng.uniform(margin, self.img_size - margin))
         self.y = float(self.rng.uniform(margin, self.img_size - margin))
