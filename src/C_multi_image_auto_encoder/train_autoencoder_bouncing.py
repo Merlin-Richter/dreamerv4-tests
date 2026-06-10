@@ -44,15 +44,23 @@ from video_auto_encoder import AutoEncoder, AutoEncoderConfig
 
 
 class ChunkClipDataset(Dataset):
-    """Fixed-length clips along time: ``[start + j*L : start + (j+1)*L]`` per episode."""
+    """Fixed-length clips along time: ``[start + j*L : start + (j+1)*L]`` per episode.
+
+    ``frames`` stays memory-mapped uint8 on disk (``np.load(..., mmap_mode="r")``); each clip is
+    converted to float32 only on access, so the full dataset is never materialized in RAM.
+    ``episode_indices`` selects this split's episodes without copying (fancy-indexing a memmap
+    would silently pull the whole subset into memory).
+    """
 
     def __init__(
         self,
-        episodes: torch.Tensor,
+        frames: np.ndarray,
+        episode_indices: np.ndarray,
         chunk_len: int,
         start_offset: int = 0,
     ) -> None:
-        self.episodes = episodes
+        self.frames = frames  # (N, T, H, W, 3) uint8
+        self.episode_indices = np.asarray(episode_indices)
         self.chunk_len = int(chunk_len)
         self.start_offset = int(start_offset)
         self._rebuild_index()
@@ -64,12 +72,12 @@ class ChunkClipDataset(Dataset):
     def _rebuild_index(self) -> None:
         o = self.start_offset
         L = self.chunk_len
-        n_eps, T = self.episodes.shape[0], self.episodes.shape[1]
+        T = self.frames.shape[1]
         pairs: list[tuple[int, int]] = []
-        for ep in range(n_eps):
+        for ep in self.episode_indices:
             n_chunks = (T - o) // L
             for j in range(n_chunks):
-                pairs.append((ep, o + j * L))
+                pairs.append((int(ep), o + j * L))
         self._pairs = pairs
 
     def __len__(self) -> int:
@@ -77,7 +85,8 @@ class ChunkClipDataset(Dataset):
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         ep, start = self._pairs[idx]
-        clip = self.episodes[ep, start : start + self.chunk_len].clone()
+        clip_u8 = np.asarray(self.frames[ep, start : start + self.chunk_len])
+        clip = torch.from_numpy(clip_u8.astype(np.float32) / 255.0)
         return clip, clip
 
 
@@ -93,7 +102,7 @@ def run_test_checkpoint(args: argparse.Namespace) -> None:
     if not args.checkpoint.is_file():
         raise FileNotFoundError(f"Checkpoint not found: {args.checkpoint}")
 
-    raw = np.load(args.frames)
+    raw = np.load(args.frames, mmap_mode="r")
     if raw.ndim != 5 or raw.shape[-1] != 3:
         raise ValueError(f"Expected (N, T, H, W, 3), got {raw.shape}")
 
@@ -228,7 +237,9 @@ def main():
         run_test_checkpoint(args)
         return
 
-    raw = np.load(args.frames)
+    # Memory-mapped uint8; clips are converted to float32 per-batch in the dataset, so RAM
+    # stays at ~the touched pages instead of a full 4x float32 copy of the dataset.
+    raw = np.load(args.frames, mmap_mode="r")
     if raw.ndim != 5 or raw.shape[-1] != 3:
         raise ValueError(f"Expected (N, T, H, W, 3), got {raw.shape}")
 
@@ -237,17 +248,14 @@ def main():
         raise ValueError(
             f"Temporal training splits by episode; need at least 2 episodes, got n={n}."
         )
-    x = torch.from_numpy(raw.astype(np.float32) / 255.0)
 
     n_val = max(1, int(round(n * args.val_fraction)))
     n_val = min(n_val, n - 1)
     n_train = n - n_val
     g = torch.Generator().manual_seed(0)
     perm = torch.randperm(n, generator=g)
-    val_idx = perm[:n_val]
-    train_idx = perm[n_val:]
-    train_eps = x[train_idx]
-    val_eps = x[val_idx]
+    val_idx = perm[:n_val].numpy()
+    train_idx = perm[n_val:].numpy()
 
     base = AutoEncoderConfig(img_input_H=h, img_input_W=w)
     chunk_len = args.context_length if args.context_length is not None else base.max_temporal_length
@@ -262,8 +270,8 @@ def main():
         img_input_H=h, img_input_W=w, max_temporal_length=chunk_len
     )
 
-    train_ds = ChunkClipDataset(train_eps, chunk_len, start_offset=0)
-    val_ds = ChunkClipDataset(val_eps, chunk_len, start_offset=args.val_offset % (chunk_len + 1))
+    train_ds = ChunkClipDataset(raw, train_idx, chunk_len, start_offset=0)
+    val_ds = ChunkClipDataset(raw, val_idx, chunk_len, start_offset=args.val_offset % (chunk_len + 1))
     if len(train_ds) == 0 or len(val_ds) == 0:
         raise ValueError(
             f"No clips with L={chunk_len}, val_offset={args.val_offset}. "
@@ -282,25 +290,29 @@ def main():
     # (->1.0 == collapsed, <0.7 == escaped) and per-image output std (~0.01 == mean mush,
     # >0.04 == rendering real content). Auto-uses <frames>_actions.npy to pick revealed frames;
     # falls back to random distinct frames (noisier, since curtain frames are near-identical).
+    def probe_frame(ep: int, ti: int) -> torch.Tensor:
+        """Single frame from the memmap as float32 in [0,1]."""
+        return torch.from_numpy(np.asarray(raw[ep, ti]).astype(np.float32) / 255.0)
+
     probe = None
     n_probe = 64
     actions_path = args.frames.with_name(args.frames.stem + "_actions.npy")
     if actions_path.is_file():
         acts_all = np.load(actions_path)  # (N, T) 0=revealed 1=curtain
-        val_acts = acts_all[val_idx.numpy()]
+        val_acts = acts_all[val_idx]
         pframes = []
         for ei in range(val_acts.shape[0]):
             rev = np.where(val_acts[ei] == 0)[0]
             if len(rev):
-                pframes.append(val_eps[ei, rev[0]])
+                pframes.append(probe_frame(int(val_idx[ei]), int(rev[0])))
             if len(pframes) >= n_probe:
                 break
         if pframes:
             probe = torch.stack(pframes).unsqueeze(1).to(device)  # (P,1,H,W,3)
             print(f"[health] latent-collapse probe: {probe.shape[0]} revealed frames from {actions_path.name}")
     if probe is None:
-        ne = min(n_probe, val_eps.shape[0])
-        probe = val_eps[torch.arange(ne), 0].unsqueeze(1).to(device)  # frame 0 of distinct eps
+        ne = min(n_probe, len(val_idx))
+        probe = torch.stack([probe_frame(int(val_idx[i]), 0) for i in range(ne)]).unsqueeze(1).to(device)
         print(f"[health] latent-collapse probe: {probe.shape[0]} random frames (no actions file; metric noisier)")
 
     def latent_health():

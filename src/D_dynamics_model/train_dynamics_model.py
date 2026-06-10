@@ -56,12 +56,19 @@ class ChunkClipDataset(Dataset):
     """Fixed-length clips along time: ``[start + j*L : start + (j+1)*L]`` per episode.
 
     Mirrors the tokenizer's dataset so clip boundaries shift across epochs.
+
+    ``frames`` stays memory-mapped uint8 on disk (``np.load(..., mmap_mode="r")``); each clip is
+    converted to float32 only on access, so the full dataset is never materialized in RAM.
+    ``episode_indices`` selects this split's episodes without copying (fancy-indexing a memmap
+    would silently pull the whole subset into memory). ``actions`` is the full (N, T) tensor,
+    indexed with the same absolute episode indices.
     """
 
-    def __init__(self, episodes: torch.Tensor, chunk_len: int, start_offset: int = 0,
-                 actions: torch.Tensor = None) -> None:
-        self.episodes = episodes
-        self.actions = actions  # (n_eps, T) long, or None for unlabeled video
+    def __init__(self, frames: np.ndarray, episode_indices: np.ndarray, chunk_len: int,
+                 start_offset: int = 0, actions: torch.Tensor = None) -> None:
+        self.frames = frames  # (N, T, H, W, 3) uint8
+        self.episode_indices = np.asarray(episode_indices)
+        self.actions = actions  # (N, T) long, or None for unlabeled video
         self.chunk_len = int(chunk_len)
         self.start_offset = int(start_offset)
         self._rebuild_index()
@@ -72,11 +79,11 @@ class ChunkClipDataset(Dataset):
 
     def _rebuild_index(self) -> None:
         o, L = self.start_offset, self.chunk_len
-        n_eps, T = self.episodes.shape[0], self.episodes.shape[1]
+        T = self.frames.shape[1]
         pairs: list[tuple[int, int]] = []
-        for ep in range(n_eps):
+        for ep in self.episode_indices:
             for j in range((T - o) // L):
-                pairs.append((ep, o + j * L))
+                pairs.append((int(ep), o + j * L))
         self._pairs = pairs
 
     def __len__(self) -> int:
@@ -84,7 +91,8 @@ class ChunkClipDataset(Dataset):
 
     def __getitem__(self, idx: int):
         ep, start = self._pairs[idx]
-        clip = self.episodes[ep, start:start + self.chunk_len].clone()
+        clip_u8 = np.asarray(self.frames[ep, start:start + self.chunk_len])
+        clip = torch.from_numpy(clip_u8.astype(np.float32) / 255.0)
         if self.actions is None:
             return clip
         act = self.actions[ep, start:start + self.chunk_len].clone()
@@ -133,7 +141,7 @@ def run_test_checkpoint(args: argparse.Namespace) -> None:
     if not args.checkpoint.is_file():
         raise FileNotFoundError(f"Checkpoint not found: {args.checkpoint}")
 
-    raw = np.load(args.frames)
+    raw = np.load(args.frames, mmap_mode="r")
     if raw.ndim != 5 or raw.shape[-1] != 3:
         raise ValueError(f"Expected (N, T, H, W, 3), got {raw.shape}")
     n_eps, n_frames, h, w, _ = raw.shape
@@ -259,13 +267,14 @@ def main():
 
     tokenizer = load_tokenizer(args.tokenizer, device)
 
-    raw = np.load(args.frames)
+    # Memory-mapped uint8; clips are converted to float32 per-batch in the dataset, so RAM
+    # stays at ~the touched pages instead of a full 4x float32 copy of the dataset.
+    raw = np.load(args.frames, mmap_mode="r")
     if raw.ndim != 5 or raw.shape[-1] != 3:
         raise ValueError(f"Expected (N, T, H, W, 3), got {raw.shape}")
     n, t, h, w, c = raw.shape
     if n < 2:
         raise ValueError(f"Need at least 2 episodes to split train/val, got n={n}.")
-    x = torch.from_numpy(raw.astype(np.float32) / 255.0)
 
     # Optional discrete actions, aligned per frame with `raw`.
     actions_path = args.actions
@@ -287,11 +296,7 @@ def main():
     n_val = min(max(1, int(round(n * args.val_fraction))), n - 1)
     g = torch.Generator().manual_seed(0)
     perm = torch.randperm(n, generator=g)
-    train_eps, val_eps = x[perm[n_val:]], x[perm[:n_val]]
-    if actions is not None:
-        train_acts, val_acts = actions[perm[n_val:]], actions[perm[:n_val]]
-    else:
-        train_acts = val_acts = None
+    train_idx, val_idx = perm[n_val:].numpy(), perm[:n_val].numpy()
 
     # Build dynamics config; tokenizer-tied dims come from the tokenizer checkpoint.
     base = DynamicsModelConfig()
@@ -309,9 +314,9 @@ def main():
         n_actions=n_actions,
     )
 
-    train_ds = ChunkClipDataset(train_eps, chunk_len, start_offset=0, actions=train_acts)
-    val_ds = ChunkClipDataset(val_eps, chunk_len, start_offset=args.val_offset % (chunk_len + 1),
-                              actions=val_acts)
+    train_ds = ChunkClipDataset(raw, train_idx, chunk_len, start_offset=0, actions=actions)
+    val_ds = ChunkClipDataset(raw, val_idx, chunk_len,
+                              start_offset=args.val_offset % (chunk_len + 1), actions=actions)
     if len(train_ds) == 0 or len(val_ds) == 0:
         raise ValueError(f"No clips with L={chunk_len}; try shorter clips or smaller --val-offset.")
 
