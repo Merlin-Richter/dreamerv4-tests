@@ -17,6 +17,9 @@ Run from this folder:
 Or from repo root:
     python src/D_dynamics_model/train_dynamics_model.py
 
+Log metrics to Weights & Biases (opt-in; off by default):
+    python train_dynamics_model.py --wandb [--wandb-entity TEAM] [--wandb-name run1]
+
 Visualize a rollout from a saved checkpoint (OpenCV window; needs a display):
     python src/D_dynamics_model/train_dynamics_model.py --test-checkpoint
 
@@ -27,6 +30,7 @@ Interactive single-frame rollout (4-frame dynamics context, key 0/1 actions):
 import argparse
 import random
 import sys
+import time
 from dataclasses import asdict, fields
 from pathlib import Path
 
@@ -36,13 +40,14 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-# Put both this folder and the tokenizer folder on the path.
+# Put both this folder and the tokenizer folder on the path (and src/, where wlog lives).
 _SRC = Path(__file__).resolve().parent
 _TOKENIZER_DIR = _SRC.parent / "C_multi_image_auto_encoder"
-for p in (_SRC, _TOKENIZER_DIR):
+for p in (_SRC, _TOKENIZER_DIR, _SRC.parent):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
+import wlog
 from dynamics_model import DynamicsModel, DynamicsModelConfig
 from video_auto_encoder import AutoEncoder, AutoEncoderConfig
 
@@ -242,6 +247,7 @@ def main():
     parser.add_argument("--val-fraction", type=float, default=0.05)
     parser.add_argument("--fresh", action="store_true",
                         help="Ignore any existing --checkpoint and train from random init.")
+    wlog.add_args(parser)
     args = parser.parse_args()
 
     if args.test_checkpoint:
@@ -325,6 +331,9 @@ def main():
     else:
         model = DynamicsModel(cfg).to(device)
 
+    # cfg is final here (resume may have replaced it from the checkpoint).
+    wlog.init(args, cfg, project="transformer-D-dynamics")
+
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
     scheduler = CosineAnnealingLR(opt, T_max=args.epochs, eta_min=1e-6)
     args.checkpoint.parent.mkdir(parents=True, exist_ok=True)
@@ -339,9 +348,12 @@ def main():
 
         model.train()
         train_loss = 0.0
+        n_train_samples = 0
+        train_t0 = time.perf_counter()
         for batch in tqdm(train_loader, desc=f"Train {epoch + 1}/{args.epochs}",
                           leave=False, position=1, mininterval=1.0):
             batch_x, batch_a = _split_batch(batch, device)
+            n_train_samples += batch_x.shape[0]
             with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
                 z1 = encode_frames(tokenizer, batch_x)  # frozen, no grad
                 loss = model.loss(z1, batch_a)
@@ -349,6 +361,9 @@ def main():
             loss.backward()
             opt.step()
             train_loss += loss.item()
+
+        train_time = time.perf_counter() - train_t0
+        samples_per_s = n_train_samples / train_time if train_time > 0 else 0.0
 
         model.eval()
         val_loss = 0.0
@@ -366,10 +381,23 @@ def main():
                               tr_off=train_off, lr=f"{current_lr:.2e}")
         print(f"Epoch {epoch + 1} | train: {train_l:.6f} | val: {val_l:.6f} "
               f"| train_clip_offset={train_off} | lr: {current_lr:.2e}")
+        wlog.log(
+            {
+                "train/loss": train_l,
+                "val/loss": val_l,
+                "lr": current_lr,
+                "train_clip_offset": train_off,
+                "perf/train_time_s": train_time,        # wall-clock of the train loop only
+                "perf/samples_per_s": samples_per_s,    # training throughput (clips/sec)
+            },
+            step=epoch,
+        )
 
         scheduler.step()
         torch.save({"model_state_dict": model.state_dict(), "config": asdict(cfg)}, args.checkpoint)
         tqdm.write(f"Saved checkpoint to {args.checkpoint}")
+
+    wlog.finish()
 
 
 if __name__ == "__main__":

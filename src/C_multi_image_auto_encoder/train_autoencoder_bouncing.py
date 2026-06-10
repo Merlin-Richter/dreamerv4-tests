@@ -11,6 +11,9 @@ Run from this folder:
 Or from repo root:
     python src/C_multi_image_auto_encoder/train_autoencoder_bouncing.py
 
+Log metrics to Weights & Biases (opt-in; off by default):
+    python train_autoencoder_bouncing.py --wandb [--wandb-entity TEAM] [--wandb-name run1]
+
 Visualize a saved checkpoint (OpenCV window; needs a display):
     python src/C_multi_image_auto_encoder/train_autoencoder_bouncing.py --test-checkpoint --checkpoint src/C_multi_image_auto_encoder/autoencoder_bouncing.pt
 """
@@ -18,6 +21,7 @@ Visualize a saved checkpoint (OpenCV window; needs a display):
 import argparse
 import random
 import sys
+import time
 from dataclasses import asdict, fields
 from pathlib import Path
 
@@ -31,9 +35,11 @@ import lpips
 
 # Running from repo root: put `src` on path so imports match `train.py`
 _SRC = Path(__file__).resolve().parent
-if str(_SRC) not in sys.path:
-    sys.path.insert(0, str(_SRC))
+for _p in (_SRC, _SRC.parent):  # _SRC.parent == src/, where wlog lives
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
 
+import wlog
 from video_auto_encoder import AutoEncoder, AutoEncoderConfig
 
 
@@ -215,6 +221,7 @@ def main():
         action="store_true",
         help="Ignore any existing --checkpoint and train from random init (useful after architecture changes).",
     )
+    wlog.add_args(parser)
     args = parser.parse_args()
 
     if args.test_checkpoint:
@@ -324,6 +331,10 @@ def main():
     else:
         model = AutoEncoder(cfg).to(device)
 
+    # cfg is final here (the resume branch may have replaced it from the checkpoint), so it
+    # accurately describes the architecture wandb.config will record.
+    wlog.init(args, cfg, project="transformer-C-tokenizer")
+
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
     # Per-STEP warmup -> constant -> late-cosine-cooldown. The latent-collapse escape is a
     # saddle-point plateau that only ignites after ~2k steps and needs SUSTAINED lr to complete;
@@ -366,6 +377,8 @@ def main():
 
         model.train()
         train_loss = 0.0
+        n_train_samples = 0
+        train_t0 = time.perf_counter()
         for batch_x, _ in tqdm(
             train_loader,
             desc=f"Train {epoch + 1}/{args.epochs}",
@@ -374,6 +387,7 @@ def main():
             mininterval=1.0,
         ):
             B, T, H, W, C = batch_x.shape
+            n_train_samples += B
             batch_x = batch_x.to(device)
             with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
                 pred = model(batch_x)
@@ -393,6 +407,9 @@ def main():
             opt.step()
             scheduler.step()
             train_loss += loss.item()
+
+        train_time = time.perf_counter() - train_t0
+        samples_per_s = n_train_samples / train_time if train_time > 0 else 0.0
 
         model.eval()
         val_loss = 0.0
@@ -424,12 +441,27 @@ def main():
             f"| latent_cos: {lat_cos:.3f} (<0.7=escaped) | pred_std: {pred_std:.4f} (>0.04=content) "
             f"| train_clip_offset={train_off} | lr: {current_lr:.2e}"
         )
+        wlog.log(
+            {
+                "train/mse": train_mse,
+                "val/mse": val_mse,
+                "latent_cos": lat_cos,  # <0.7 == escaped collapse
+                "pred_std": pred_std,   # >0.04 == rendering real content
+                "lr": current_lr,
+                "train_clip_offset": train_off,
+                "perf/train_time_s": train_time,        # wall-clock of the train loop only
+                "perf/samples_per_s": samples_per_s,    # training throughput (clips/sec)
+            },
+            step=epoch,
+        )
 
         torch.save(
             {"model_state_dict": model.state_dict(), "config": asdict(cfg)},
             args.checkpoint,
         )
         tqdm.write(f"Saved checkpoint to {args.checkpoint}")
+
+    wlog.finish()
 
 
 if __name__ == "__main__":
