@@ -21,7 +21,7 @@ class AutoEncoderConfig():
     att_drop_rate: int = 0.1
     att_logit_soft_cap: float = 50
 
-    patch_size: int = 16
+    patch_size: int = 8
     img_input_H: int = 64
     img_input_W: int = 64
 
