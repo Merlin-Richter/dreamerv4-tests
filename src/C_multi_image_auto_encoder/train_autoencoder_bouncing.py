@@ -31,7 +31,8 @@ import torch.nn as nn
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
-import lpips
+# NOTE: `import lpips` is intentionally deferred to the --lpips branch below so that, when the
+# flag is off, the module (and its torchvision backbone imports) impose zero RAM/processing cost.
 
 # Running from repo root: put `src` on path so imports match `train.py`
 _SRC = Path(__file__).resolve().parent
@@ -230,6 +231,25 @@ def main():
         action="store_true",
         help="Ignore any existing --checkpoint and train from random init (useful after architecture changes).",
     )
+    parser.add_argument(
+        "--lpips",
+        action="store_true",
+        help="Add an LPIPS perceptual term to the reconstruction loss. Off by default; when off, "
+        "the lpips module is never imported and no LPIPS net is built (zero RAM/VRAM/compute cost).",
+    )
+    parser.add_argument(
+        "--lpips-net",
+        type=str,
+        default="vgg",
+        choices=["vgg", "alex", "squeeze"],
+        help="Backbone for the LPIPS net (only used when --lpips is set). Default: vgg.",
+    )
+    parser.add_argument(
+        "--lpips-weight",
+        type=float,
+        default=0.2,
+        help="Weight of the LPIPS term added to MSE (only used when --lpips is set).",
+    )
     wlog.add_args(parser)
     args = parser.parse_args()
 
@@ -368,7 +388,24 @@ def main():
 
     scheduler = LambdaLR(opt, lr_lambda)
     loss_fn = nn.MSELoss()
-    # lpips_loss_fn = lpips.LPIPS(net='alex').to(device)
+    # Only when --lpips is set do we import the module and build the net; otherwise this stays
+    # None and the train loop never touches LPIPS, so it costs nothing.
+    lpips_loss_fn = None
+    if args.lpips:
+        import lpips  # deferred so the off-path has no import/RAM footprint
+
+        lpips_loss_fn = lpips.LPIPS(net=args.lpips_net).to(device)
+        lpips_loss_fn.eval()
+        for p in lpips_loss_fn.parameters():
+            p.requires_grad_(False)
+        print(f"LPIPS enabled (net={args.lpips_net}, weight={args.lpips_weight})")
+    # Running magnitude estimates (detached) used to put LPIPS on the MSE scale so that
+    # --lpips-weight is a scale-free ratio (w=1 -> equal contribution). We rescale LPIPS onto
+    # MSE rather than normalizing both terms, which would let the global loss/grad scale drift
+    # as MSE shrinks and disturb the LR schedule tuned for the collapse escape (see qk-norm memory).
+    LPIPS_EMA_DECAY = 0.99
+    ema_mse = None
+    ema_lpips = None
     use_amp = device == "cuda"
 
     args.checkpoint.parent.mkdir(parents=True, exist_ok=True)
@@ -389,6 +426,7 @@ def main():
 
         model.train()
         train_loss = 0.0
+        train_lpips = 0.0
         n_train_samples = 0
         train_t0 = time.perf_counter()
         for batch_x, _ in tqdm(
@@ -403,12 +441,26 @@ def main():
             batch_x = batch_x.to(device)
             with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
                 pred = model(batch_x)
-                # lpips_val = lpips_loss_fn(
-                #     pred.reshape(B * T, H, W, 3).permute(0, 3, 1, 2),
-                #     batch_x.reshape(B * T, H, W, 3).permute(0, 3, 1, 2),
-                #     normalize=True,
-                # ).mean()
-                loss = loss_fn(pred, batch_x) # + 0.2 * lpips_val
+                mse = loss_fn(pred, batch_x)
+                loss = mse
+                mse_raw = mse.detach().item()
+                if lpips_loss_fn is not None:
+                    lpips_val = lpips_loss_fn(
+                        pred.reshape(B * T, H, W, 3).permute(0, 3, 1, 2),
+                        batch_x.reshape(B * T, H, W, 3).permute(0, 3, 1, 2),
+                        normalize=True,
+                    ).mean()
+                    lpips_raw = lpips_val.detach().item()
+                    # Update detached running magnitudes (lazy-init to first observation).
+                    if ema_mse is None:
+                        ema_mse, ema_lpips = mse_raw, lpips_raw
+                    else:
+                        ema_mse = LPIPS_EMA_DECAY * ema_mse + (1.0 - LPIPS_EMA_DECAY) * mse_raw
+                        ema_lpips = LPIPS_EMA_DECAY * ema_lpips + (1.0 - LPIPS_EMA_DECAY) * lpips_raw
+                    # Map LPIPS onto the MSE scale; `scale` is a plain float so no grad flows through it.
+                    scale = ema_mse / (ema_lpips + 1e-8)
+                    loss = mse + args.lpips_weight * scale * lpips_val
+                    train_lpips += lpips_raw
             opt.zero_grad()
             loss.backward()
             # Gradient clipping: without it, a single large-gradient batch under bf16 can land a
@@ -418,7 +470,7 @@ def main():
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             opt.step()
             scheduler.step()
-            train_loss += loss.item()
+            train_loss += mse_raw  # log raw reconstruction MSE, not the LPIPS-augmented total
 
         train_time = time.perf_counter() - train_t0
         samples_per_s = n_train_samples / train_time if train_time > 0 else 0.0
@@ -439,6 +491,7 @@ def main():
 
         train_mse = train_loss / len(train_loader)
         val_mse = val_loss / len(val_loader)
+        train_lpips_mean = train_lpips / len(train_loader) if lpips_loss_fn is not None else None
         lat_cos, pred_std = latent_health()
         current_lr = opt.param_groups[0]["lr"]
         epoch_bar.set_postfix(
@@ -463,6 +516,14 @@ def main():
                 "train_clip_offset": train_off,
                 "perf/train_time_s": train_time,        # wall-clock of the train loop only
                 "perf/samples_per_s": samples_per_s,    # training throughput (clips/sec)
+                **(
+                    {
+                        "train/lpips": train_lpips_mean,            # raw LPIPS, scale-independent
+                        "train/lpips_scale": ema_mse / (ema_lpips + 1e-8),  # MSE/LPIPS magnitude ratio
+                    }
+                    if train_lpips_mean is not None
+                    else {}
+                ),
             },
             step=epoch,
         )
