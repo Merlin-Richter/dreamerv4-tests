@@ -45,3 +45,13 @@ Candidate causes are written as (a)/(b)/(c) in D-009 with a diagnosis plan.
 
 Next: ESCALATE → ESC-001. Verdict received: diagnose first (T-001), probe suite
 second. → D-009.
+
+---
+**UPDATE 2026-06-11 (EXP-008 / D-010):** Cause found. This rollout failure is an
+**inference-only bug**, not a broken or undertrained dynamics model. The rollout
+context-noising feeds 90% noise on the context frames (`context_noise=0.1` is a
+*signal* level in this codebase). With near-clean context (tau_ctx≈0.9–0.99) the
+SAME checkpoint preserves ball color/position. So this NOTES' "dynamics not yet a
+usable H1 baseline" read is substantially revised — the model is much closer to
+working than it looked here. See `experiments/EXP-008/NOTES.md`, ESC-002. (Append
+only; original reconciliation left intact above for the record.)

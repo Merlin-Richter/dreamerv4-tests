@@ -23,20 +23,30 @@ context → model emits a plausible-but-random ball. Matches every EXP-007 sympt
 if true, is a one-line fix with NO retraining. Testing it first (D-010), before any
 latent-geometry / undertraining work.
 
+## Result (EXP-008, done) — hypothesis confirmed
+
+D-010 SUPPORTED. EXP-008 (inference-only tau_ctx sweep on `my_dynamics.pt`, no
+retrain) confirms the EXP-007 rollout failure is an **inference bug**: rollout
+context-noising feeds 90% noise on context at the default `context_noise=0.1`
+(tau=signal level). At tau_ctx≈0.9–0.99 the SAME checkpoint preserves ball color
+through the rollout; gen-MSE −43% (0.0289→0.0165), first generated frame near-perfect
+(0.0046). **One-line fix, no retraining needed.** Reframes EXP-007: dynamics model is
+much closer to working than its NOTES said. Latent-geometry/undertraining diagnosis
+(T-001b) NOT needed. Full read: `experiments/EXP-008/NOTES.md`.
+
 ## In flight
 
-- **T-001 / EXP-008** — worker building the headless `context_noise` sweep
-  diagnostic (`experiments/EXP-008/diagnose_context_noise.py`). Local (4070),
-  inference-only on `my_dynamics.pt`. Spec `tasks/T-001.md`. Awaiting worker artifact;
-  then orchestrator runs the full tau_ctx∈{0.1,0.5,0.9,0.99} sweep and reconciles.
+- **AWAITING MERLIN (ESC-002).** Present-then-stop per §5. Branch paused — not
+  starting the fix, the confirmation rollout, or T-002 until he weighs in. Asked: does
+  he agree; fix-default-to-0.9 + confirm-rollout + proceed to probe suite; and the
+  `context_noise` semantics (keep "signal level" vs invert to "noise fraction").
 - No cluster jobs (wrappers don't exist — T-003; cluster access manual via Merlin).
 
-## Next action
+## Next action (after his verdict)
 
-Verify the worker's diagnostic artifact (read diff, run acceptance commands myself),
-then run the full EXP-008 sweep, reconcile vs D-010's expected outcome + tripwire,
-build the GT/rollout side-by-side view, write the decisive read, and escalate for
-Merlin's review (every experiment ends in a stop, §5).
+Likely: patch the rollout context-noise default (~0.9, possibly a quick 0.9/0.95/0.99
+pick), re-run the EXP-007 checkpoint rollout to confirm the H1 dynamics baseline, then
+T-002 (freeze the revisit-consistency probe suite). Do nothing until ESC-002 answered.
 
 ## Current worries
 
