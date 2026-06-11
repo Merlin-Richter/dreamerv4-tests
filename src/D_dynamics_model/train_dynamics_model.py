@@ -175,6 +175,12 @@ def run_test_checkpoint(args: argparse.Namespace) -> None:
     if n_ctx < 1 or n_gen < 1:
         raise ValueError(f"--context-frames must be in [1, {L - 1}] for clip length {L}.")
 
+    K = cfg.inference_steps if args.inference_steps is None else args.inference_steps
+    if K < 1 or K > cfg.max_sampling_steps or (K & (K - 1)) != 0:
+        raise ValueError(
+            f"--inference-steps must be a power of two in [1, {cfg.max_sampling_steps}], got {K}."
+        )
+
     win = "Dynamics rollout: GT (top) | context+prediction (bottom)  (space=new, q/Esc=quit)"
     scale = max(2, 512 // (max(h, w) * L))
 
@@ -197,8 +203,7 @@ def run_test_checkpoint(args: argparse.Namespace) -> None:
         with torch.no_grad():
             latents = encode_frames(tokenizer, x)             # (1, L, n_lat, dim)
             context = latents[:, :n_ctx]
-            gen = model.generate(context, n_generate=n_gen, K=cfg.inference_steps,
-                                 action_idx=action_idx)
+            gen = model.generate(context, n_generate=n_gen, K=K, action_idx=action_idx)
             full = torch.concat((context, gen), dim=1)        # (1, L, n_lat, dim)
             recon = tokenizer.decoder(full)[0]                # (L, H, W, 3)
 
@@ -214,7 +219,7 @@ def run_test_checkpoint(args: argparse.Namespace) -> None:
         )
         cv2.putText(
             disp,
-            f"ep {ep}  ctx={n_ctx}  gen={n_gen}  K={cfg.inference_steps}   SPACE new   q/Esc quit",
+            f"ep {ep}  ctx={n_ctx}  gen={n_gen}  K={K}   SPACE new   q/Esc quit",
             (6, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (220, 220, 220), 1, cv2.LINE_AA,
         )
         cv2.imshow(win, disp)
@@ -249,6 +254,10 @@ def main():
                         help="Load --checkpoint and visualize an autoregressive rollout.")
     parser.add_argument("--context-frames", type=int, default=4,
                         help="Frames of ground-truth context before generation (test mode).")
+    parser.add_argument("--inference-steps", type=int, default=None,
+                        help="Shortcut steps K per generated frame in --test-checkpoint "
+                             "(power of 2; default: checkpoint config, typically 4). "
+                             "Use 128 for the finest K_max schedule.")
     parser.add_argument("--context-length", type=int, default=None,
                         help="Clip length in frames. Default: DynamicsModelConfig.max_temporal_length.")
     parser.add_argument("--val-offset", type=int, default=0)

@@ -7,7 +7,7 @@
 Context: EXP-007 — action-conditioned dynamics on CurtainsEnv reached healthy
 val/loss (1.93e-3) but rollouts randomize ball color and position from the first
 generated frame (background preserved; random latents decode to no ball).
-Surprise: high; D-008 tripwire triggered. Simultaneously: adoption of the
+D-008 tripwire triggered. Simultaneously: adoption of the
 research-orchestrator protocol with backfilled state files.
 Access points: W&B run
 https://wandb.ai/models-eberhard-karls-universit-t-t-bingen/transformer-D-dynamics/runs/sm0kr1cf ;

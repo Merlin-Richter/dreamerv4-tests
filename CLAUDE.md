@@ -1,0 +1,276 @@
+﻿# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+This is a research implementation of a video dynamics model inspired by Dreamer v4. The project consists of four main components working together in a pipeline:
+
+- **A_LM**: Character-level language model (standalone, not part of main pipeline)
+- **B_single_image_auto_encoder**: Frame-only autoencoder (baseline)
+- **C_multi_image_auto_encoder**: Temporal video autoencoder with frozen bottleneck
+- **D_dynamics_model**: Causal transformer that predicts latent frame dynamics
+
+The pipeline compresses video into learned latent representations and trains a generative model to predict future frames autoregressively.
+
+## Architecture & Data Flow
+
+### Main Training Pipeline
+
+```
+Raw Video Frames (B, T, H, W, 3) [uint8]
+  ↓
+[C_multi_image_auto_encoder] - Frozen tokenizer
+  • Patchifies frames (8×8 patches by default)
+  • Encodes via spatial attention layers + temporal attention layers (alternating)
+  • Uses MAE (Masked Autoencoder) dropout to prevent latent collapse
+  • Outputs: (B, T, n_latents=4, bottleneck_dim=64) clean latents z1
+  ↓
+[D_dynamics_model] - Trainable
+  • Per-frame latent denoising via causal (block-temporal) attention
+  • Trained with shortcut forcing: diffusion-based loss + bootstrap distillation
+  • Supports discrete action conditioning (optional)
+  • Generates: predicts z1 from noised latent + causal history
+```
+
+### Tokenizer Architecture (C_multi_image_auto_encoder)
+
+**Encoder:**
+- Patchifies input into non-overlapping patches (default 8×8)
+- Projects patches to `embedding_dim=256` via learned position embeddings
+- Spatial layers: full self-attention within each frame over patch tokens + 4 learned latent tokens
+- Temporal layers: causal attention across frames (every 4th layer)
+- MAE dropout: during training, randomly masks patch tokens (0–90% per frame)
+- Outputs 4 learned latent tokens per frame, projected to `bottleneck_dim=64`
+
+**Decoder:**
+- Inverse operation: learned patch tokens + bottleneck latents → spatial/temporal layers → patches → image
+- Uses sigmoid activation to produce [0,1] RGB output
+
+**Key Design Choice**: Learned latent tokens have restricted cross-attention with image patches (encoder) and patches cannot attend back (decoder), forcing an information bottleneck.
+
+### Dynamics Model (D_dynamics_model)
+
+**Token layout per frame** (along spatial axis):
+```
+[action_token(s) | latent_tokens(n_latents=4) | register_tokens(n_registers=4) | shortcut_token]
+```
+
+**Shortcut Forcing Loss:**
+- Samples per-frame (τ, d) pairs where τ ∈ [0, 1] is signal level and d = 1/K is step size
+- Noises latent: z̃ = (1−τ)z₀ + τz₁
+- Predicts clean latent z₁ (x-prediction, not velocity)
+- Finest step (d=1/K_max): pure flow loss `||z₁ − ẑ₁||²`
+- Coarser steps: bootstrap loss distilling two d/2 steps (Eq. 7 from paper)
+- Ramp weight: w(τ) = 0.9τ + 0.1 focuses capacity on high-signal levels
+
+**Action Conditioning:**
+- `n_actions=0`: unlabeled video (only learned action embedding)
+- `n_actions>0`: discrete action table maps each action ID to per-frame features added to embedding
+
+**Inference (generate):**
+- Autoregressive rollout: each frame uses K shortcut steps (default K=4)
+- Context is lightly noised (τ_ctx=0.1) to prevent error accumulation
+
+### Supporting Components
+
+**Attention Modules (both tokenizers & dynamics):**
+- QK-norm + RMSNorm for stability
+- Learnable per-head logit scaling (initialized to log(4.0), clamped to log(100))
+- Soft-cap activation: `tanh(logits/cap) × cap` to bound attention logits
+- RoPE on temporal axes for causal layers
+
+**MLP Variant:**
+- SwiGLU: `(Linear₁ · ReLU(Linear₂)) → dropout → Linear₃ → dropout`
+
+## Development Commands
+
+### Environment Setup
+
+```bash
+# Python 3.11+ required
+python -m venv venv
+venv\Scripts\activate  # Windows PowerShell
+source venv/bin/activate  # Linux/macOS
+
+pip install -r requirements.txt
+# Key dependencies: torch, numpy, opencv-python, wandb (optional), lpips (optional)
+```
+
+### Generate/Prepare Data
+
+```bash
+# Generate bouncing object dataset (DVD-style physics simulation)
+python src/data_generators/bouncing_objects.py --n_episodes 1000 --out bouncing.npy
+
+# Debug: preview a single episode
+python src/data_generators/bouncing_objects.py --debug --shape star
+```
+
+### Training
+
+**Single-Image Autoencoder (B):**
+```bash
+cd src/B_single_image_auto_encoder
+python train_autoencoder_bouncing.py --epochs 5 --batch-size 32 --lr 3e-4
+```
+
+**Temporal Autoencoder (C) - Tokenizer:**
+```bash
+cd src/C_multi_image_auto_encoder
+python train_autoencoder_bouncing.py --epochs 10 --batch-size 16 --lr 3e-4
+# With W&B logging:
+python train_autoencoder_bouncing.py --wandb --wandb-project my-project --epochs 10
+# Enable LPIPS perceptual loss (additional metric, slower):
+python train_autoencoder_bouncing.py --lpips
+```
+
+**Dynamics Model (D):**
+```bash
+cd src/D_dynamics_model
+python train_dynamics_model.py --epochs 20 --batch-size 32 --context-length 16
+# With W&B:
+python train_dynamics_model.py --wandb --wandb-project my-project
+```
+
+**Language Model (A):**
+```bash
+cd src/A_LM
+python train.py --epochs 10 --batch-size 64 --seq-len 64 --lr 3e-4
+python inference.py --checkpoint checkpoint.pt --prompt "ROMEO:\n" --max-new-tokens 500
+```
+
+### Visualization & Testing
+
+```bash
+# Inspect autoencoder reconstruction (interactive OpenCV window)
+python src/B_single_image_auto_encoder/train_autoencoder_bouncing.py \
+  --test-checkpoint --checkpoint src/B_single_image_auto_encoder/autoencoder_bouncing.pt
+
+python src/C_multi_image_auto_encoder/train_autoencoder_bouncing.py \
+  --test-checkpoint --checkpoint src/C_multi_image_auto_encoder/autoencoder_bouncing.pt
+
+# Inspect dynamics rollout (interactive)
+python src/D_dynamics_model/train_dynamics_model.py --test-checkpoint
+python src/D_dynamics_model/play_dynamics_checkpoint.py  # Single-frame interactive
+```
+
+### Wandb Integration
+
+All training scripts support optional W&B logging via `wlog.py` (no-op by default):
+
+```bash
+python train_autoencoder_bouncing.py \
+  --wandb \
+  --wandb-entity YOUR_TEAM \
+  --wandb-project transformer-C-tokenizer \
+  --wandb-name run-v1 \
+  --wandb-tags experiment,v1
+```
+
+Set environment variables for defaults:
+```bash
+export WANDB_ENTITY=your-entity
+export WANDB_PROJECT=transformer
+```
+
+## Key Files & Responsibilities
+
+### Core Models
+
+| File | Role |
+|------|------|
+| `src/A_LM/model.py` | Transformer LM architecture |
+| `src/B_single_image_auto_encoder/video_auto_encoder.py` | Single-frame AE (baseline) |
+| `src/C_multi_image_auto_encoder/video_auto_encoder.py` | Temporal AE (tokenizer) |
+| `src/D_dynamics_model/dynamics_model.py` | Dreamer-style dynamics transformer |
+
+### Training Scripts
+
+| File | Purpose |
+|------|---------|
+| `src/A_LM/train.py` | Shakespeare LM training |
+| `src/A_LM/inference.py` | LM text generation |
+| `src/B_single_image_auto_encoder/train_autoencoder_bouncing.py` | Single-frame AE training + testing |
+| `src/C_multi_image_auto_encoder/train_autoencoder_bouncing.py` | Temporal AE training + testing |
+| `src/D_dynamics_model/train_dynamics_model.py` | Dynamics model training + rollout visualization |
+| `src/D_dynamics_model/play_dynamics_checkpoint.py` | Interactive single-frame dynamics |
+
+### Data & Logging
+
+| File | Purpose |
+|------|---------|
+| `src/data_generators/bouncing_objects.py` | Bouncing shape video generator |
+| `src/wlog.py` | Lightweight W&B logger (no-op unless --wandb) |
+
+### Checkpoints (in repo root)
+
+- `bouncing.npy`, `occluded.npy`: Video datasets (2.3+ GB each)
+- `trained_autoencoder.pt`, `dynamics_bouncing.pt`: Model checkpoints
+
+## Config Dataclasses
+
+All models use dataclass configs for reproducibility:
+
+**AutoEncoderConfig** (B & C):
+- `embedding_dim`: model width (256–512)
+- `n_latents`: learned tokens per frame (4)
+- `bottleneck_dim`: latent feature size (32–64)
+- `patch_size`: input patch size (8–16)
+- `mae_min/max_mask`: dropout range for MAE (C only)
+- `max_temporal_length`: sequence length (16–32)
+- `depth`, `n_heads`, `mlp_ratio`: transformer hyperparams
+
+**DynamicsModelConfig** (D):
+- Must match tokenizer: `bottleneck_dim`, `n_latents`
+- `max_sampling_steps`: K_max ∈ {64, 128, 256} (must be power of 2)
+- `inference_steps`: K at generation (typically 4)
+- `context_noise`: τ_ctx for rollout (0.1)
+- `n_actions`: 0 for unlabeled, >0 for action-conditioned
+
+**ModelConfig** (A_LM):
+- `vokab_size`: vocabulary size
+- `embedding_dim`: 128
+- `max_sequence_length`: sequence length
+- `depth`, `n_heads`: transformer depth/width
+
+## Common Workflow
+
+### Training a Full Pipeline
+
+1. **Generate data** (if needed):
+   ```bash
+   python src/data_generators/bouncing_objects.py --n_episodes 5000 --out bouncing.npy
+   ```
+
+2. **Train tokenizer (C)** - produces z1 representations:
+   ```bash
+   cd src/C_multi_image_auto_encoder
+   python train_autoencoder_bouncing.py --epochs 20 --batch-size 16
+   ```
+
+3. **Train dynamics model (D)** - predicts future z1:
+   ```bash
+   cd src/D_dynamics_model
+   python train_dynamics_model.py --epochs 50 --batch-size 32
+   ```
+
+4. **Evaluate rollouts**:
+   ```bash
+   python train_dynamics_model.py --test-checkpoint
+   ```
+
+### Debugging Tips
+
+- **Latent collapse** in C: Increase MAE dropout (`mae_max_mask` toward 0.9) or check `bottleneck_dim` is large enough
+- **Poor dynamics**: Verify tokenizer is frozen and checkpoint is loaded; check clip length `chunk_len` matches model's `max_temporal_length`
+- **Out of memory**: Reduce `batch_size` or `max_temporal_length`; use memory-mapped numpy (automatic in ChunkClipDataset)
+- **W&B integration**: Set `--wandb-project` to override default; silent no-op if wandb not installed
+
+## Notes on Design Choices
+
+- **MAE dropout in C**: Prevents the decoder from ignoring patches and reconstructing the mean image; learned replacement token bridges masked positions
+- **Shortcut forcing in D**: Allows efficient inference (4 steps instead of 128) while training with per-frame diffusion signal
+- **RoPE on temporal axis**: Allows extrapolation beyond training sequence length
+- **Frozen tokenizer in D**: Ensures latent space stability; dynamics model only learns transitions
+- **Register tokens in D**: Unused scratch space for the model to store intermediate computations (from recent vision transformer research)
