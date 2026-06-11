@@ -141,3 +141,47 @@ Would change my mind: Evidence that val/loss is miscomputed or leaks context —
 would reframe the entire reconciliation of EXP-007.
 Spawns: T-001 (diagnosis), T-002 (probe suite, queued), T-003 (cluster wrappers),
 T-004 (pre-register H2/H3 criteria)
+
+## D-010 | 2026-06-11
+Context: Cold-start code read of `src/D_dynamics_model/dynamics_model.py` while
+scoping T-001's candidate (a) (shortcut-forcing/inference bug). Found a specific,
+mechanism-level candidate for the EXP-007 rollout failure in the rollout
+context-noising. The codebase convention is **tau = signal level** (loss:
+`z_tilde = (1-tau)*noise + tau*z1`; tau=1 clean, tau=0 noise — verified internally
+consistent with `_denoise_next`'s sampling loop). But `_denoise_next` builds the
+context as `ctx_noised = (1 - tau_ctx)*randn + tau_ctx*context` with
+`config.context_noise = tau_ctx = 0.1`, i.e. **0.9*noise + 0.1*context = 90% noise
+on the context frames**. The comment intends "lightly corrupt the clean context";
+the implementation nearly destroys it. The model is told (tau_col=round(0.1*128)=13)
+the context is at signal 0.1, so it is self-consistent, but there is almost no
+ball color/position information left to condition on → it falls back to its prior
+and emits a plausible ball at a random color/position. This matches ALL EXP-007
+symptoms: healthy val/loss (training never exercises the rollout context-noising
+path), ball randomized from the first generated frame even with fully-visible
+context, background roughly preserved (large low-frequency signal survives), and
+the random-latent control (decoder emits no ball from random latents — so the model
+genuinely learned the ball manifold, just isn't being given the conditioning info).
+If correct, this is an **inference-only bug: a one-line fix, no retraining**.
+Decision: First diagnostic (smallest, most decisive — protocol §3/§5) is an
+inference-only sweep of `context_noise` on the *existing* `my_dynamics.pt` over the
+frozen `trained_autoencoder.pt` tokenizer, decoding rollouts to images and pixel-MSE
+vs ground truth. Sweep tau_ctx ∈ {0.1 (current/broken), 0.5, 0.9, 0.99}. Implemented
+by worker T-001 (builds + smoke-tests the headless script); I run the full sweep as
+EXP-008 and reconcile. This is candidate (a) sharpened — within the D-009 plan, not
+a deviation. Latent-geometry (b) and undertraining (c) remain queued follow-ups,
+run only if the context-noise fix does NOT restore ball identity.
+Alternatives rejected: (1) Running the broader (a)/(b)/(c) battery first — rejected:
+this single test is cheaper and, per the symptom-match, far more likely; do the
+decisive cheap test before the expensive broad one. (2) Just patching the line and
+re-running without a controlled sweep — rejected: I need the broken-vs-fixed
+comparison as evidence, not a silent fix (a clean A/B is the artifact).
+Expected outcome: At tau_ctx≈0.9–0.99 the decoded rollout preserves ball color and
+approximate position for the first several generated frames and pixel-MSE-vs-GT
+drops sharply relative to tau_ctx=0.1; at 0.1 the failure reproduces. Concretely:
+visible ball at correct color in ≥1 of the first 2 generated frames at high tau_ctx,
+clearly absent/random at 0.1.
+Would change my mind: If high tau_ctx does NOT restore ball identity (ball still
+random with near-clean context), the context-noising is not the (sole) cause →
+escalate and open the (b)/(c) threads. Also: if even tau_ctx=0.99 rollouts diverge
+within 1-2 frames, suspect latent geometry / error accumulation, not conditioning.
+Spawns: T-001 (rescoped to the context-noise diagnostic), EXP-008 (the sweep run)

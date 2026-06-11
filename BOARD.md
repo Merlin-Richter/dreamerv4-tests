@@ -3,17 +3,20 @@
 Updated: 2026-06-11 (initial backfill)
 
 ## In progress
-*(nothing — T-001 is the next action, not yet spawned; see ORIENT.md)*
+- **T-001 — Context-noise rollout diagnostic (EXP-008 harness).** Rescoped by
+  D-010 from the broad (a)/(b)/(c) battery to the single decisive cheap test:
+  a headless `context_noise` sweep on the existing `my_dynamics.pt`, testing the
+  code-read hypothesis that rollout context-noising uses tau_ctx=0.1 as *signal*
+  level (=90% noise on context). Spec: `tasks/T-001.md`. Worker builds + smoke-
+  tests `experiments/EXP-008/diagnose_context_noise.py`; orchestrator runs the
+  full sweep (EXP-008) + interprets. Worktree: (see below). Started 2026-06-11.
 
 ## Backlog
-- **T-001 — Diagnose EXP-007 dynamics rollout failure.** Spawned by D-009.
-  Discriminate: (a) shortcut-forcing objective bug (verify against paper Eq. 7,
-  check bootstrap target detachment), (b) tokenizer latent geometry (latent
-  distance of temporally adjacent frames vs. random pairs; ball-position latent
-  traversals — `src/test/latent_explorer` is a starting point), (c) undertraining
-  (loss curves still falling at epoch 100?). Local-first (4070); promote only if
-  a long run is needed. Acceptance: a written verdict in the task report naming
-  the implicated cause(s) with machine-checkable evidence (script + numbers).
+- **T-001b — Broad dynamics diagnosis (b)/(c), IF needed.** Only if the
+  context-noise fix does NOT restore ball identity (D-010 tripwire): (b) tokenizer
+  latent geometry (adjacent-frame vs random-pair latent distance; ball-position
+  traversals — `src/test/latent_explorer` is a start), (c) undertraining (W&B
+  loss curve still falling at epoch 100?). Held until EXP-008 reconciled.
 - **T-002 — Build & freeze revisit-consistency probe suite** (protocol §8).
   Blocked on: T-001 verdict. observe → occlude k frames → reveal → measure recall
   of ball color/position vs. k. Frozen before any H2/H3 method experiment.

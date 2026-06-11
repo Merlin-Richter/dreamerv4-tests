@@ -1,6 +1,6 @@
 # ORIENT.md
 
-Rewritten: 2026-06-11
+Rewritten: 2026-06-11 (post cold-start, T-001 rescoped + spawned)
 
 ## What we are doing and why
 
@@ -13,17 +13,30 @@ problem: EXP-007 trained to healthy val/loss (1.93e-3) but rollouts randomize ba
 color and position immediately, even with fully visible context. Merlin's verdict
 (ESC-001): diagnose this before building the §8 probe suite.
 
+## Strong lead (D-010)
+
+Cold-start code read of `dynamics_model.py` found a likely **inference-only** cause:
+the rollout context-noising `ctx_noised = (1-tau_ctx)*noise + tau_ctx*context` with
+`tau_ctx=0.1` puts **90% noise on the context** (tau = signal level in this codebase).
+That would destroy the ball color/position the rollout is supposed to read from
+context → model emits a plausible-but-random ball. Matches every EXP-007 symptom and,
+if true, is a one-line fix with NO retraining. Testing it first (D-010), before any
+latent-geometry / undertraining work.
+
 ## In flight
 
-Nothing. No cluster jobs running (wrappers don't exist yet — T-003; all cluster
-access manual via Merlin so far). No workers.
+- **T-001 / EXP-008** — worker building the headless `context_noise` sweep
+  diagnostic (`experiments/EXP-008/diagnose_context_noise.py`). Local (4070),
+  inference-only on `my_dynamics.pt`. Spec `tasks/T-001.md`. Awaiting worker artifact;
+  then orchestrator runs the full tau_ctx∈{0.1,0.5,0.9,0.99} sweep and reconciles.
+- No cluster jobs (wrappers don't exist — T-003; cluster access manual via Merlin).
 
 ## Next action
 
-Spawn T-001 (diagnosis of the EXP-007 failure) per D-009: latent-geometry
-measurements on the frozen tokenizer, shortcut-forcing implementation audit,
-context ablations on `my_dynamics.pt`. Local (4070). Before that, commit the
-uncommitted working-tree changes (T-005) so the diagnosis has clean provenance.
+Verify the worker's diagnostic artifact (read diff, run acceptance commands myself),
+then run the full EXP-008 sweep, reconcile vs D-010's expected outcome + tripwire,
+build the GT/rollout side-by-side view, write the decisive read, and escalate for
+Merlin's review (every experiment ends in a stop, §5).
 
 ## Current worries
 
