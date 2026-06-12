@@ -1,69 +1,60 @@
 # ORIENT.md
 
-Rewritten: 2026-06-12 (post H1-closure milestone, ESC-003 / D-011)
+Rewritten: 2026-06-12 (H2 closed; H3 entered; FF7 designed — pre-context-reset checkpoint)
 
 ## What we are doing and why
 
-H1 is **complete** (Merlin, 2026-06-12): the DreamerV4-style pipeline reproduces. The
-tokenizer was always good (EXP-006); the dynamics model only *looked* broken — EXP-008
-proved the EXP-007 rollout failure was an inference bug (context fed ~90% noise at the
-default `context_noise=0.1`). With corrected inference the same checkpoint preserves
-ball color/position.
+- **H1 — supported** (DreamerV4-style pipeline reproduces; the dynamics "failure" was an
+  inference bug, EXP-008 / D-010).
+- **H2 — supported** (Merlin, ESC-004; EXP-009): a vanilla sliding-window world model
+  cannot recall hidden state once the evidence leaves its window. The frozen probe shows a
+  clean cliff — color recall at ceiling for n_occ ≤ 6, chance for n_occ ≥ 7 at N=8/P=3
+  (geometry-predicted, drift-controlled, latent-MSE↔color r=0.952).
+- **H3 — entered (the real work).** Open-ended end-goal: force the model to carry hidden
+  state (ball color/position) so it survives past the context window. Exploratory, high
+  failure rate expected — ideas live in **`IDEAS.md`** (carriers × forcing-functions ×
+  regimes, append-only; log outcomes tersely).
 
-We are now in **Phase 2 (H2)**: measure that a sliding-window world model cannot recall
-hidden state once the evidence leaves its context window. Then the open-ended end-goal
-(H3): force the encoder and/or dynamics model to carry hidden/global state in the latent
-space so it survives beyond the window.
+## Hard constraints (Merlin, non-negotiable) — apply to every H3 idea
+- **No privileged data to the model, EVER** — only env obs + reward + env-generated data.
+- **Must generalize across environments** — no bouncing-ball-specific hacks.
+- Eval instrumentation MAY read sim hidden state to *score* recall (measurement ≠ model input).
 
-## Corrected architecture model (milestone, D-011) — load this, my prior notes were wrong
+## Architecture facts that matter (code-grounded — verify before asserting, see memory)
+- M < N inference needs NO retrain (RoPE relative). `generate()` already slides the window.
+- **Latents are pixel-space-bound** (decode via frozen tokenizer) → cannot carry off-screen
+  state. **Register tokens** can: `dynamics_model.py:110-121` — temporal attention is
+  *position-wise*, so each register slot is its own causal time channel; spatial layers route
+  latent↔register within a frame. So the carry for H3 already exists; no recurrence wiring.
+- KV cache = efficiency only; if/when built obey `HOWTO/rope_kv_cache_caveat.md`.
 
-- **M < N inference needs NO retrain** (RoPE is relative). We pick the inference window.
-- **A sliding-window transformer has no persistent state.** No "boundary to carry
-  across"; info older than N−1 frames is simply absent from the model. The dynamics
-  `generate()` **already slides the window** → the beyond-window regime is reachable
-  today, no new architecture, no retrain, just roll out longer than N.
-- **KV cache = efficiency, not a prerequisite** for H2. When we build it, obey
-  `HOWTO/rope_kv_cache_caveat.md` (cached K/V can't be re-rotated → need a never-reset
-  absolute-position clock; the current fixed cos/sin table is cache-incompatible).
+## In flight / NEXT ACTION (read this)
 
-## Plan (cheap-signal-first, endorsed by Merlin)
+Two things are **awaiting Merlin** (see ESCALATIONS ESC-005); do NOT start building until
+he answers:
 
-1. **T-007 (in progress):** rename `context_noise`→`context_signal`, default 0.9, fix
-   comment. Inference-only cleanup, closes H1's loose end.
-2. **T-002:** build & freeze the revisit-consistency probe suite on the existing frozen
-   tokenizer + `my_dynamics.pt`. Roll out occlusion length k below→above the window N.
-   Primary metric: latent-token MSE (predicted reveal latent vs frozen GT latent),
-   validated against a pixel color/position decomposition. Controls: chance floor,
-   ceiling, no-occlusion drift. "Ball not rendered" = own failure mode.
-3. **T-004:** pre-register H2 criteria (after controls measured, before reading result).
-4. Measure H2 baseline → present-then-stop (§5).
+1. **FF7 build go-ahead.** The first H3 method is designed, code-grounded, and converged
+   with Merlin — full v1 scheme in `IDEAS.md` → "Proposed first attempt — FF7 v1". Summary:
+   single-timestep-sufficiency loss (window-1 rollout predicting next k=1 from one frame,
+   latents overwritten with real, registers forced to be the carrier), **training-procedure
+   change to `train_dynamics_model.py` only — no architecture change**, eval on frozen probe
+   (5503e75) against the T-004 bar. NOT yet committed as D-014.
+2. **Harness improvement.** Merlin asked how to prevent my two ML-reasoning errors this
+   session (I theorized ahead of the code twice). My proposal: (a) a hard "cite the code
+   before asserting model behavior" rule in the protocol; (b) optional fresh read-only
+   **methods-critic agent** to red-team a method design before its D-NNN is committed.
+   Awaiting his pick (rule only, or rule + critic agent). If we add the critic, it should
+   review D-014 before commit.
 
-T-003 (cluster wrappers) and T-008 (KV cache) deferred to H3 heavy-training time.
-
-## In flight / next action
-
-**H2 is CLOSED — supported** (Merlin, 2026-06-12, ESC-004; EXP-009). The frozen probe is
-the calibrated yardstick: vanilla sliding-window recall = chance once the color-carrying
-prefix scrolls out of the N=8 window (cliff at n_occ=7, geometry-predicted; drift-controlled;
-latent-MSE↔color r=0.952). T-004 success criteria locked. Probe control key renamed
-`drift_by_occ`→`matched_horizon_drift` (D-013, re-frozen).
-
-Next action: **enter H3 (the open-ended end-goal)** — force the encoder and/or dynamics to
-carry hidden ball color/position in the latent space so it survives past the window. H3 bar
-(T-004): color ΔRGB < ~63 at n_occ ∈ {12,16,24}. H3 is exploratory ("try many, keep what
-sticks") — first step is to pick a starting mechanism. Proposing a short menu to Merlin for
-steering before committing a decision (new phase). Likely candidates: an auxiliary
-latent-retention objective on the dynamics model vs. an encoder objective that bakes global
-state into per-frame latents. Local 4070 for first cheap probes; cluster (T-003 wrappers,
-deferred) only once a mechanism justifies heavy training.
+On his go-ahead: write **D-014** (FF7), spawn an implementation worker (one worktree),
+smoke-test on the 4070, run as **EXP-010**, present-then-stop (§5) against the probe.
 
 ## Current worries
-
-1. **Position recall is drift-confounded** (CONFIRMED in smoke): occluded ≈ matched-drift
-   position error at all n_occ. So **color-recall (occluded vs drift) and latent-MSE−drift
-   are the clean H2 signals; position is a confounded secondary.** This changes what T-004
-   should pre-register — flagged to Merlin.
-2. **Metric validation pending at scale**: latent-MSE tracks color qualitatively in the
-   smoke run; confirm Pearson r at the full 64-ep run before calling latent-MSE the
-   headline (D-011 tripwire).
-3. **val/loss is a poor proxy** (EXP-007 lesson) — the probe is now our trustworthy signal.
+1. **The FF7 loss is the hard part, not the carrier** (Merlin's strong prior): forcing the
+   register to actually *store* the right thing — watch for the model gaming the per-frame
+   loss by emitting the color prior (= chance). Credit assignment is handled by per-step
+   relay (Bellman), not long BPTT.
+2. **Position recall is drift-confounded** (EXP-009 confirmed) → color ΔRGB is the headline,
+   position is a confounded secondary. Locked in T-004.
+3. **val/loss is a poor proxy** (EXP-007 lesson) — the frozen probe is the only trustworthy
+   memory signal. Any FF7 run is judged on the probe, ≥2 seeds, vs the H2 baseline.

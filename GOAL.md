@@ -88,14 +88,24 @@ survives even after the revealing frames have left the context window. The *how*
 deliberately open — we expect to try many objectives/mechanisms and keep what sticks
 (Merlin, milestone 2026-06-12). Framing it as one crisp hypothesis is premature.
 
-Working intuition (D-011, not settled): since per-frame latents also scroll out of
-the window, retention can't live in an old latent — the **autoregressive latent chain
-itself is the carrier**. If every step's latent is forced to encode the global hidden
-state, the always-in-window current latent propagates it forward indefinitely,
-independent of window size. The research is finding objectives/architecture that make
-that propagation happen and persist.
-Status: **open, not started.** Evidence: —
-Blocked on: probe suite frozen (T-002), H2 baseline measured.
+Working intuition (refined 2026-06-12, code-grounded): the **latents are pixel-space-bound**
+(they decode to the image via the frozen tokenizer), so during occlusion a latent encodes the
+curtain, not the hidden ball — latents *cannot* be the carrier. The **register tokens** can:
+they're free scratch, and `dynamics_model.py:110-121` shows temporal attention is position-wise,
+so each register slot is already its own causal channel through time, with spatial layers
+routing info latent↔register within a frame. Retention beyond the window = a **relay**: each
+frame re-copies state into its register from the previous frame before the source scrolls out.
+The research is finding objectives that make registers store + relay the hidden state.
+
+**Idea registry: `IDEAS.md`** (carriers × forcing-functions × regimes; living, append-only).
+First attempt = **FF7 single-timestep-sufficiency** (see IDEAS.md "Proposed first attempt").
+
+Hard constraints (Merlin, non-negotiable): **no privileged data to the model, ever** (only env
+obs + reward + env-generated data); **must generalize across environments**. Eval instrumentation
+may read sim hidden state to *score* (measurement ≠ model input).
+
+Status: **open — H3 entered, first method (FF7) designed & code-grounded, not yet built.**
+Prereqs cleared: probe frozen (T-002, 5503e75), H2 baseline measured (EXP-009). Evidence: —
 Note: reconstruction/next-frame loss alone never decides a memory claim — any method
-must be judged on the frozen probe, ≥2 seeds, against the H2 baseline under identical
-provenance discipline.
+must be judged on the frozen probe, ≥2 seeds, against the H2 baseline (T-004 bar) under
+identical provenance discipline.

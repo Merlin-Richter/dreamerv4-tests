@@ -73,16 +73,34 @@ per-frame loss by emitting the color prior (= chance).
   train an adversary that picks actions to make the memory fail. More sample-efficient
   pressure on the carrier than random rollouts. Compose with FF7.
 
-## Proposed first attempt (not yet committed — awaiting Merlin)
-**FF7 × register-recurrence carrier × TR2/TR3** (Merlin's single-timestep-sufficiency
-objective). Self-supervised, env-agnostic, satisfies the hard constraints. Carrier = the
-register tokens propagated frame-to-frame (effective window→1); forcing function = predict
-next-k frames from one truncated timestep with latents detached/overwritten so only
-registers learn. Train stepwise with detach to control gradient explosion.
-Open design questions to settle before building: (a) overwrite-with-real latents (preferred)
-vs detach; (b) k small (1–3, likely 1) — NOT scaled to occlusion; random vs adversarial
-actions; (c) the training scheme: registers are produced by the normal windowed diffusion
-forward pass; FF7 adds a truncated-context k-rollout whose loss flows back through the
-registers into that windowed pass (confirm exact context truncation — single latest frame
-for the rollout, while the register itself was built with window context); (d) keep the
-frozen tokenizer, change only the dynamics model's training — no architecture change.
+## Proposed first attempt — FF7 v1 (CONVERGED with Merlin 2026-06-12; awaiting build go-ahead)
+**FF7 single-timestep-sufficiency. NO architecture change** — registers already carry via
+position-wise temporal attention (`dynamics_model.py:110-121`); the carrier is the existing
+register-slot time channels + spatial latent↔register routing. This is a **training-procedure
+change to `train_dynamics_model.py` only**; frozen tokenizer untouched.
+
+Converged v1 scheme:
+1. **One combined training step.** The normal windowed diffusion forward pass runs as today
+   and produces each frame's register (built *with* window context — where the relay lives).
+2. **FF7 loss on top:** for frame t, run a **window-1 rollout** — from frame t's tokens only
+   (its register + its latent **overwritten with the real frozen-tokenizer latent**), generate
+   t+1…t+k, each step seeing only the immediately preceding frame. Reconstruction loss on
+   those k frames backprops *through the registers* into the windowed pass that built register_t.
+3. **k small, start k=1** (k=1: register_t sufficient for t+1; k≥2 also trains the multi-hop
+   register→register relay inside the rollout). k is lookahead depth, **NOT** scaled to occlusion.
+4. **Overwrite latents with real latents** in the rollout (stronger than detach) so the register
+   is the only carrier of off-screen state.
+5. **"Arbitrary actions" — v1 simplification:** supervise the k-rollout on each episode's
+   *actually executed* future; get action / curtain-timing diversity from the **dataset**
+   (generate occluded episodes with curtains lifted at varied times). Counterfactual /
+   adversarial action sampling (the adversary idea) is a follow-up if coverage is the bottleneck.
+6. **Eval:** frozen probe (commit 5503e75), ≥2 seeds, against the T-004 bar
+   (color ΔRGB < ~63 at n_occ ∈ {12,16,24}). Runs on the 4070.
+
+Retention beyond the window comes from the **relay** (each frame re-copies state into its own
+register before the source scrolls out), trained hop-by-hop by the per-frame loss — no single
+backprop spans the occlusion (Bellman). FF8 = the future idea to extend retention further.
+
+**Status: design locked, NOT yet committed as a decision (D-014) or built.** Gated on (a)
+Merlin's build go-ahead and (b) the harness methods-critic gate question (see ESCALATIONS
+ESC-005) — if we add a methods-critic, it should review D-014 before it's committed.

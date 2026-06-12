@@ -1,22 +1,18 @@
 # BOARD.md — task board
 
-Updated: 2026-06-12 (post H1-closure milestone, ESC-003 / D-011)
+Updated: 2026-06-12 (H2 closed; H3 entered; FF7 designed — pre-context-reset)
 
-## In progress
-- **T-002 — Build & freeze the revisit-consistency probe suite** (protocol §8, spine).
-  Design spec written: `tasks/T-002.md` (open `[CHECK]` choices flagged for Merlin's
-  async review: prefix P, k-grid, seeds/k, window N=8, pure-generation vs GT-curtain
-  latents). On the EXISTING frozen tokenizer + `my_dynamics.pt`; occlusion length k
-  spanning below→above N (no retrain; M<N is free). Primary metric: latent-token MSE,
-  validated against a pixel color/position decomposition. Controls: chance floor,
-  ceiling (k=0), no-occlusion drift. "Ball not rendered" = own failure mode. Building
-  `src/probe/` inline. Freeze before any H3 method experiment.
+## Awaiting Merlin (blocking — see ESCALATIONS ESC-005)
+- **FF7 build go-ahead** — first H3 method designed & code-grounded; full v1 in `IDEAS.md`
+  "Proposed first attempt". On go-ahead → write **D-014**, spawn build worker (T-009),
+  smoke on 4070, run **EXP-010**, present-then-stop. NOT yet committed/built.
+- **Harness improvement pick** — code-citation rule only, or rule + a `methods-critic`
+  agent (red-team a method design before its D-NNN commits). My write-up in ORIENT §In-flight.
 
-## Awaiting review
-*(none — ESC-002 and ESC-003 resolved; T-002 spec open for async glance, not blocking)*
-- **T-004 — Pre-register H2 success criteria in GOAL.md** (with Merlin; after T-002's
-  calibration controls measured, before reading the H2 result).
-- **(H2 baseline run)** — measure baseline on the frozen probe → present-then-stop.
+## Backlog (unblocks on the above)
+- **T-009 — Implement FF7 v1** (training-procedure change to `train_dynamics_model.py`;
+  no architecture change; window-1 sufficiency loss, overwrite-real-latents, k=1, dataset
+  with varied curtain timings). Spec to be written at go-ahead. Eval: frozen probe 5503e75.
 
 ## Deferred (until H3 method work needs heavy training / long horizons)
 - **T-003 — Cluster wrapper scripts (`scripts/`).** Probe suite + H2 baseline run
@@ -47,3 +43,11 @@ Updated: 2026-06-12 (post H1-closure milestone, ESC-003 / D-011)
   (H2) planned; architecture understanding corrected (D-011).
 - **T-007 — `context_noise`→`context_signal` rename + default 0.9** (2026-06-12):
   applied + smoke-tested + CLAUDE.md synced. Commit f506fef.
+- **T-002 — Revisit-consistency probe suite built & FROZEN** (2026-06-12): `src/probe/`,
+  frozen at **5503e75** (after D-013 control-key rename). Detector gate green; latent-MSE +
+  color/position decomposition; ceiling/chance/matched-horizon-drift controls.
+- **T-004 — H2 success criteria pre-registered & LOCKED** (2026-06-12, Merlin-approved):
+  `tasks/T-004.md`, D-012. Color ΔRGB headline; latent-MSE secondary; position confounded;
+  H3 bar color ΔRGB < ~63 at n_occ ∈ {12,16,24}.
+- **EXP-009 / H2 baseline — H2 SUPPORTED** (2026-06-12, ESC-004): the beyond-window cliff
+  on the frozen probe. GOAL H2 → supported.

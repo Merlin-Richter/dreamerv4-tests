@@ -170,3 +170,26 @@ T-004 + update GOAL H2 status, then we're clear to start H3 method exploration.
   EXP-009 artifact migrated in place, numbers preserved; probe re-frozen).
 Applied to: GOAL.md (H2→supported + criteria), DECISIONS.md D-012/D-013, tasks/T-004.md,
 src/probe/ (rename + README re-freeze), experiments/EXP-009/results.json (key migrated).
+
+## ESC-005 | 2026-06-12 | OPEN — two items awaiting Merlin before H3 build (context-reset checkpoint)
+Context: H2 closed (ESC-004). H3 entered; first method (FF7) designed and code-grounded with
+Merlin in live dialogue. Recorded here so a fresh session resumes without re-litigating.
+
+1. **FF7 build go-ahead.** Design converged & code-grounded; full v1 scheme in `IDEAS.md`
+   → "Proposed first attempt — FF7 v1". Key points: single-timestep-sufficiency loss
+   (window-1 rollout: predict next k=1 from one frame, latents overwritten with the real
+   frozen-tokenizer latent so the register is forced to be the carrier); **training-procedure
+   change to `train_dynamics_model.py` ONLY — no architecture change** (registers already
+   carry via position-wise temporal attention, dynamics_model.py:110-121); arbitrary-action
+   coverage from dataset curtain-timing diversity (v1), adversarial actions later; eval on
+   frozen probe 5503e75, ≥2 seeds, T-004 bar. Question: go ahead to write D-014 + spawn build?
+
+2. **Harness improvement.** Merlin asked how to prevent the two ML-reasoning errors I made
+   this session (scaling k to the window; inventing recurrent-register wiring) — both caused
+   by theorizing ahead of the code, not by orchestration load. My proposal: (a) HARD RULE —
+   no claim about model behavior/gradients without a code citation (read the module first);
+   (b) OPTIONAL fresh read-only **methods-critic agent** to red-team a method design before
+   its D-NNN is committed (verification, not offloading the thinking). Question: rule only,
+   or rule + critic agent? If critic, it reviews D-014 before commit.
+   (Lesson already saved to agent memory: feedback_ground_claims_in_code.)
+Urgency: medium — H3 build is paused on (1). Nothing else is in flight.
