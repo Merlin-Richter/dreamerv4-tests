@@ -285,3 +285,62 @@ Expected outcome: one clear control name end-to-end; H3 comparison artifacts are
 consistent with the baseline.
 Would change my mind: if the rename touched any numeric path (it doesn't — pure relabel).
 Spawns: probe edit + re-freeze; EXP-009 artifact migration.
+
+## D-014 | 2026-06-12
+Context: H2 closed (D-012); H3 entered. FF7 v1 (single-timestep sufficiency) converged with
+Merlin (IDEAS.md "Proposed first attempt"); build go-ahead given ("Continue by building v1",
+ESC-005). Code-grounding for the build (dynamics_model.py, train_dynamics_model.py read in
+full) confirmed the design EXCEPT one claim, corrected here:
+- CORRECTION to the converged design: registers do NOT persist across `generate()` steps.
+  Every forward re-expands the LEARNED register tokens (dynamics_model.py:282); the only
+  state carried between generation steps is the latent sequence (:405), and occluded latents
+  are trained toward the color-free curtain encoding. So a training-only change evaluated
+  through vanilla `generate()` has NO persistent channel beyond the window. The relay
+  requires a param-free INFERENCE addition: carry each frame's final-layer register state
+  and inject it as the next step's context register — exactly the interface the FF7 training
+  rollout trains. "Change to train_dynamics_model.py ONLY" was too strong; "no architecture
+  change / zero new parameters" still holds.
+Decision: Build FF7 v1 (T-009, inline — full model context already loaded; worker would
+re-derive it) on master, flag-gated default-off:
+1. dynamics_model.py, param-free extensions: `forward(..., register_in=None,
+   return_registers=False)` (inject per-frame register embeddings in place of the learned
+   tokens; optionally return final-layer register states) + `generate_memory()` — sequential
+   window-1 rollout carrying register state: denoise frame t+1 from [frame t latent @
+   tau_ctx, injected reg_t] with K shortcut steps, then one extra forward to extract
+   reg_{t+1} from the generated latent @ tau_ctx. `generate()` dispatches to it when config
+   flag `use_register_memory` is set, so the FROZEN probe (5503e75) runs unmodified.
+2. train_dynamics_model.py FF7 loss (flag `--ff7 K`): per batch, (a) windowed diffusion
+   pass as today with return_registers; (b) one extra rollout forward over (k+1)-frame
+   sequences folded into batch — frame t: REAL clean latent noised to tau_ctx=0.9
+   (tau_idx 115), reg_t injected; frames t+1..t+k: real latents noised at sampled taus,
+   finest d only, flow loss + ramp weight (no bootstrap in the rollout). Total = diffusion
+   loss + lambda_ff7 * ff7 loss, lambda_ff7 = 1.0 (v1).
+3. Dataset: existing occluded.npy — make_curtain_schedule already varies curtain timing
+   (visible runs 2-8, cover runs 1-6; occluded_bouncing.py:96-122). No new data for v1.
+4. k as a flag. EXP-010 screens k=1 and k=3, ONE seed each (Merlin removed the 2-seed
+   standing order 2026-06-12) + smoke run. Rationale for the k=3 arm: with k=1 the
+   "write a re-injectable register downstream of an injected register" interface is never
+   trained (training write-side registers come from the windowed pass without upstream
+   injection), but inference uses that interface at every hop >= 2; k=3 trains 2 chained
+   hops inside the rollout pass. Eval: frozen probe 5503e75 vs T-004 bar
+   (color dRGB < ~63 at n_occ in {12,16,24}; baseline EXP-009 at chance ~110 there).
+Alternatives rejected: (a) window-W rollout context in the FF7 loss (closer to vanilla
+inference, weaker per-step sufficiency pressure — keep the pure converged form for v1);
+(b) normalizing/projection layer on injected registers (adds params; raw injection first,
+gradient shapes the write side); (c) steganographic-latent route (training never conditions
+on own generated latents, so it cannot be learned here); (d) new dataset with longer
+occlusions (relay logic says per-step sufficiency does the work; revisit if v1 fails).
+Expected outcome: smoke run trains with finite combined loss; k=1 shows recall above chance
+for ~1 window past the cliff then decays (untrained chained-write); k=3 sustains recall
+further; if either holds dRGB < ~63 at n_occ in {12,16,24}, FF7 is promising -> replicate
+seed + present. Window-1 inference may degrade base quality - visible in the probe's own
+ceiling/drift controls.
+Would change my mind: (1) FF7-model ceiling (n_occ=0) or matched-horizon-drift much worse
+than baseline EXP-009 (window-1 inference degrading base dynamics -> window-W variant or
+inference rethink before judging the memory claim). (2) k=3 <= k=1 on beyond-window recall
+(relay-training rationale wrong -> rethink, not k-sweep). (3) Combined loss diverges or
+diffusion loss degrades vs baseline at equal epochs (interference -> lambda_ff7 tuning is
+its own decision). (4) Recall at reveal frames whose color evidence is OUTSIDE the training
+clip stuck at chance while in-clip ones are fine - expected, not a failure (color is
+unknowable there); flagging so it is not misread as relay failure.
+Spawns: T-009 (build), EXP-010 (smoke + k=1 + k=3 screening, local 4070).

@@ -185,3 +185,21 @@ Merlin in live dialogue. Recorded here so a fresh session resumes without re-lit
    frozen probe 5503e75, ≥2 seeds, T-004 bar. Question: go ahead to write D-014 + spawn build?
 
 Urgency: medium — H3 build is paused on (1). Nothing else is in flight.
+
+Resolution (Merlin, 2026-06-12):
+1. **Build go-ahead given**: "Continue by building v1." → D-014 written; building FF7 v1
+   (T-009), to run as EXP-010, present-then-stop per §5.
+2. Item 2 (harness pick) **withdrawn by Merlin via direct edits**: question deleted from this
+   file; protocol updated by him (orchestrator model → opus; ≥2-seed standing order REMOVED —
+   so EXP-010 screens single-seed, replication only on promise; §10 code-ownership added).
+   No methods-critic agent adopted; the code-citation hard rule stays in force via agent
+   memory (feedback_ground_claims_in_code).
+Note recorded at build time (detail in D-014): code-grounding surfaced one correction to the
+converged design — registers do NOT persist across `generate()` steps (each forward re-expands
+the learned tokens, dynamics_model.py:282; only latents carry between steps, :405), so the FF7
+relay additionally needs a **param-free inference change** (carry + inject register states —
+the exact interface the FF7 training rollout trains). "train_dynamics_model.py ONLY" was too
+strong; "no architecture change / no new params" still holds. Same carrier, same loss, same
+frozen eval. Will be re-flagged at the EXP-010 present-then-stop.
+Applied to: DECISIONS.md D-014, BOARD.md (T-009 in progress), ORIENT.md, IDEAS.md (FF7 row
+correction).

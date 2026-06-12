@@ -101,6 +101,9 @@ Retention beyond the window comes from the **relay** (each frame re-copies state
 register before the source scrolls out), trained hop-by-hop by the per-frame loss — no single
 backprop spans the occlusion (Bellman). FF8 = the future idea to extend retention further.
 
-**Status: design locked, NOT yet committed as a decision (D-014) or built.** Gated on (a)
-Merlin's build go-ahead and (b) the harness methods-critic gate question (see ESCALATIONS
-ESC-005) — if we add a methods-critic, it should review D-014 before it's committed.
+**Status: go-ahead given (ESC-005), D-014 committed, building (T-009 → EXP-010).**
+Build-time correction (D-014, code-grounded): registers do NOT persist across `generate()`
+steps (each forward re-expands the learned tokens, dynamics_model.py:282; only latents carry
+between steps, :405) — so FF7 also needs a **param-free inference change**: carry + inject
+each frame's final-layer register state (`generate_memory`, the same interface the training
+rollout trains). "train_dynamics_model.py ONLY" was too strong; zero-new-params still holds.

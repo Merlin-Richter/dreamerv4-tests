@@ -1,18 +1,16 @@
 # BOARD.md — task board
 
-Updated: 2026-06-12 (H2 closed; H3 entered; FF7 designed — pre-context-reset)
+Updated: 2026-06-12 (FF7 go-ahead received; T-009 build in progress)
 
-## Awaiting Merlin (blocking — see ESCALATIONS ESC-005)
-- **FF7 build go-ahead** — first H3 method designed & code-grounded; full v1 in `IDEAS.md`
-  "Proposed first attempt". On go-ahead → write **D-014**, spawn build worker (T-009),
-  smoke on 4070, run **EXP-010**, present-then-stop. NOT yet committed/built.
-- **Harness improvement pick** — code-citation rule only, or rule + a `methods-critic`
-  agent (red-team a method design before its D-NNN commits). My write-up in ORIENT §In-flight.
+## In progress
+- **T-009 — Implement FF7 v1** (D-014; inline, master): param-free `dynamics_model.py`
+  extensions (register inject/return + `generate_memory`) + FF7 loss in
+  `train_dynamics_model.py` (window-1 sufficiency, overwrite-real-latents, k flag,
+  λ_ff7=1.0). Then EXP-010: smoke + k=1 + k=3 screening (single-seed, per Merlin's
+  2026-06-12 protocol edit), frozen probe 5503e75 vs T-004 bar → present-then-stop.
 
-## Backlog (unblocks on the above)
-- **T-009 — Implement FF7 v1** (training-procedure change to `train_dynamics_model.py`;
-  no architecture change; window-1 sufficiency loss, overwrite-real-latents, k=1, dataset
-  with varied curtain timings). Spec to be written at go-ahead. Eval: frozen probe 5503e75.
+## Backlog
+*(empty — next items spawn from the EXP-010 verdict)*
 
 ## Deferred (until H3 method work needs heavy training / long horizons)
 - **T-003 — Cluster wrapper scripts (`scripts/`).** Probe suite + H2 baseline run
