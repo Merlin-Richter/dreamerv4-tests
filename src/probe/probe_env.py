@@ -74,8 +74,14 @@ def make_probe_episode(
     R: int = 1,
     img_size: int = 64,
     radius: int = 10,
+    prefix_action: int = ACTION_UP,
 ) -> ProbeEpisode:
-    """Generate one structured probe episode. Physics is seeded -> fully deterministic."""
+    """Generate one structured probe episode. Physics is seeded -> fully deterministic.
+
+    ``prefix_action`` is normally UP (the ball is observed in the prefix). Set it to
+    DOWN for the chance-floor control: the model gets a curtain-only context and never
+    sees the ball, so its reveal prediction reflects only its prior.
+    """
     if P < 2:
         raise ValueError("P must be >= 2 so velocity is observable in the prefix.")
     if k < 0 or R < 1:
@@ -84,7 +90,7 @@ def make_probe_episode(
     env = OccludedBouncingEnv(img_size=img_size, radius=radius).reset(seed=seed)
     ball_color = np.array(env.color, dtype=np.uint8)  # native (BGR) order
 
-    actions = np.array([ACTION_UP] * P + [ACTION_DOWN] * k + [ACTION_UP] * R, dtype=np.uint8)
+    actions = np.array([prefix_action] * P + [ACTION_DOWN] * k + [ACTION_UP] * R, dtype=np.uint8)
     T = len(actions)
     frames = np.empty((T, img_size, img_size, 3), dtype=np.uint8)
     states = np.empty((T, 5), dtype=np.float32)
