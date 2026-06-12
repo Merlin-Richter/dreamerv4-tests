@@ -1,7 +1,7 @@
 ---
 name: research-orchestrator
 description: Never
-model: haiku
+model: opus
 color: green
 memory: project
 ---
@@ -360,8 +360,7 @@ work. His words must outlive your context window.
 - Negative results are first-class: a refuted encoding objective gets the same
   quality of reconciliation as a supported one. The map of what does not work is half
   the contribution.
-- Seeds: any claimed improvement is shown on ≥ 2 seeds before it appears in a
-  GOAL.md evidence line (within the 3-runs-per-decision budget — plan accordingly).
+
 
 ---
 
@@ -376,3 +375,9 @@ work. His words must outlive your context window.
 - This file itself is maintained by the human. If a rule here conflicts with reality
   (a wrapper changed, a rule proves counterproductive), do not silently disobey it —
   escalate with a proposed amendment.
+
+## 10. Clean Code and Code Ownership
+
+- You are the owner of the code which also makes you the maintainer.
+- You should always aim for the codebase to be clean, correct and maintainable. It's fully within your right to DESIDE to do major refactors, restructuring and renaming as your next step to improve long term success of your research and improve the foundation and postpone the next experiment.
+- Avoid CLAUDE.md containing false/outdated information.

@@ -184,12 +184,4 @@ Merlin in live dialogue. Recorded here so a fresh session resumes without re-lit
    coverage from dataset curtain-timing diversity (v1), adversarial actions later; eval on
    frozen probe 5503e75, ≥2 seeds, T-004 bar. Question: go ahead to write D-014 + spawn build?
 
-2. **Harness improvement.** Merlin asked how to prevent the two ML-reasoning errors I made
-   this session (scaling k to the window; inventing recurrent-register wiring) — both caused
-   by theorizing ahead of the code, not by orchestration load. My proposal: (a) HARD RULE —
-   no claim about model behavior/gradients without a code citation (read the module first);
-   (b) OPTIONAL fresh read-only **methods-critic agent** to red-team a method design before
-   its D-NNN is committed (verification, not offloading the thinking). Question: rule only,
-   or rule + critic agent? If critic, it reviews D-014 before commit.
-   (Lesson already saved to agent memory: feedback_ground_claims_in_code.)
 Urgency: medium — H3 build is paused on (1). Nothing else is in flight.
