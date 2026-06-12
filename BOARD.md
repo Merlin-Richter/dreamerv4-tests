@@ -3,22 +3,17 @@
 Updated: 2026-06-12 (post H1-closure milestone, ESC-003 / D-011)
 
 ## In progress
-- **T-007 — `context_noise`→`context_signal` rename + default 0.9 + comment fix**
-  (D-011 cleanup). Inference-only, no retrain. Two usage sites
-  (`dynamics_model.py` L63 config, L355 `_denoise_next`). First step of Phase 2.
+- **T-002 — Build & freeze the revisit-consistency probe suite** (protocol §8, spine).
+  Design spec written: `tasks/T-002.md` (open `[CHECK]` choices flagged for Merlin's
+  async review: prefix P, k-grid, seeds/k, window N=8, pure-generation vs GT-curtain
+  latents). On the EXISTING frozen tokenizer + `my_dynamics.pt`; occlusion length k
+  spanning below→above N (no retrain; M<N is free). Primary metric: latent-token MSE,
+  validated against a pixel color/position decomposition. Controls: chance floor,
+  ceiling (k=0), no-occlusion drift. "Ball not rendered" = own failure mode. Building
+  `src/probe/` inline. Freeze before any H3 method experiment.
 
 ## Awaiting review
-*(none — ESC-002 and ESC-003 both resolved)*
-
-## Backlog (Phase 2 — H2, cheap-signal-first per D-011)
-- **T-002 — Build & freeze the revisit-consistency probe suite** (protocol §8, spine).
-  On the EXISTING frozen tokenizer + `my_dynamics.pt`; choose inference window N, roll
-  out occlusion length k spanning below→above N (no retrain; M<N is free).
-  Primary metric: latent-token MSE (predicted reveal latent vs frozen-tokenizer GT
-  latent), validated against a pixel-space color/position decomposition. Controls:
-  chance floor (no-context/random latent), ceiling (fully visible), no-occlusion drift
-  control. "Ball not rendered" tracked as its own failure mode. Freeze before any
-  method (H3) experiment.
+*(none — ESC-002 and ESC-003 resolved; T-002 spec open for async glance, not blocking)*
 - **T-004 — Pre-register H2 success criteria in GOAL.md** (with Merlin; after T-002's
   calibration controls measured, before reading the H2 result).
 - **(H2 baseline run)** — measure baseline on the frozen probe → present-then-stop.
@@ -50,3 +45,5 @@ Updated: 2026-06-12 (post H1-closure milestone, ESC-003 / D-011)
   confirmed (inference bug). Report `tasks/T-001-report.md`. → ESC-002 review.
 - **ESC-002 / ESC-003 — H1-closure milestone** (2026-06-12): H1 supported; Phase 2
   (H2) planned; architecture understanding corrected (D-011).
+- **T-007 — `context_noise`→`context_signal` rename + default 0.9** (2026-06-12):
+  applied + smoke-tested + CLAUDE.md synced. Commit f506fef.
