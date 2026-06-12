@@ -264,6 +264,15 @@ def main():
     parser.add_argument("--val-fraction", type=float, default=0.05)
     parser.add_argument("--fresh", action="store_true",
                         help="Ignore any existing --checkpoint and train from random init.")
+    parser.add_argument("--ff7", type=int, default=0, metavar="K",
+                        help="FF7 register-memory training (D-014): add the single-timestep-"
+                             "sufficiency loss with lookahead depth K (1-3 sensible; 0=off). "
+                             "Also sets use_register_memory in the saved config, so "
+                             "generate() carries register state at inference.")
+    parser.add_argument("--lambda-ff7", type=float, default=1.0,
+                        help="Weight of the FF7 loss term in the total (default 1.0).")
+    parser.add_argument("--seed", type=int, default=0,
+                        help="Seed for torch/numpy/random (model init, tau/noise sampling).")
     wlog.add_args(parser)
     args = parser.parse_args()
 
@@ -273,6 +282,10 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     use_amp = device == "cuda"
+
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
     tokenizer = load_tokenizer(args.tokenizer, device)
 
@@ -321,6 +334,8 @@ def main():
         n_latents=n_latents,
         bottleneck_dim=bottleneck_dim,
         n_actions=n_actions,
+        use_register_memory=args.ff7 > 0,
+        ff7_k=args.ff7,
     )
 
     train_ds = ChunkClipDataset(raw, train_idx, chunk_len, start_offset=0, actions=actions)
@@ -335,6 +350,9 @@ def main():
     if args.checkpoint.is_file() and not args.fresh:
         payload = torch.load(args.checkpoint, map_location=device, weights_only=False)
         cfg = _config_from_checkpoint(payload["config"], DynamicsModelConfig)
+        if args.ff7 > 0:  # resuming an older checkpoint into FF7 training: record the flags
+            cfg.use_register_memory = True
+            cfg.ff7_k = args.ff7
         model = DynamicsModel(cfg).to(device)
         result = model.load_state_dict(payload["model_state_dict"], strict=False)
         if result.missing_keys:
@@ -362,6 +380,7 @@ def main():
 
         model.train()
         train_loss = 0.0
+        train_parts: dict[str, float] = {}
         n_train_samples = 0
         train_t0 = time.perf_counter()
         for batch in tqdm(train_loader, desc=f"Train {epoch + 1}/{args.epochs}",
@@ -370,23 +389,31 @@ def main():
             n_train_samples += batch_x.shape[0]
             with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
                 z1 = encode_frames(tokenizer, batch_x)  # frozen, no grad
-                loss = model.loss(z1, batch_a)
+                loss, parts = model.loss(z1, batch_a, ff7_k=args.ff7,
+                                         lambda_ff7=args.lambda_ff7, return_parts=True)
             opt.zero_grad()
             loss.backward()
             opt.step()
             train_loss += loss.item()
+            for name, value in parts.items():
+                train_parts[name] = train_parts.get(name, 0.0) + value.item()
 
         train_time = time.perf_counter() - train_t0
         samples_per_s = n_train_samples / train_time if train_time > 0 else 0.0
 
         model.eval()
         val_loss = 0.0
+        val_parts: dict[str, float] = {}
         with torch.no_grad():
             for batch in tqdm(val_loader, desc="Val", leave=False, position=1, mininterval=1.0):
                 batch_x, batch_a = _split_batch(batch, device)
                 with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
                     z1 = encode_frames(tokenizer, batch_x)
-                    val_loss += model.loss(z1, batch_a).item()
+                    loss, parts = model.loss(z1, batch_a, ff7_k=args.ff7,
+                                             lambda_ff7=args.lambda_ff7, return_parts=True)
+                    val_loss += loss.item()
+                    for name, value in parts.items():
+                        val_parts[name] = val_parts.get(name, 0.0) + value.item()
 
         train_l = train_loss / len(train_loader)
         val_l = val_loss / len(val_loader)
@@ -395,17 +422,17 @@ def main():
                               tr_off=train_off, lr=f"{current_lr:.2e}")
         print(f"Epoch {epoch + 1} | train: {train_l:.6f} | val: {val_l:.6f} "
               f"| train_clip_offset={train_off} | lr: {current_lr:.2e}")
-        wlog.log(
-            {
-                "train/loss": train_l,
-                "val/loss": val_l,
-                "lr": current_lr,
-                "train_clip_offset": train_off,
-                "perf/train_time_s": train_time,        # wall-clock of the train loop only
-                "perf/samples_per_s": samples_per_s,    # training throughput (clips/sec)
-            },
-            step=epoch,
-        )
+        metrics = {
+            "train/loss": train_l,
+            "val/loss": val_l,
+            "lr": current_lr,
+            "train_clip_offset": train_off,
+            "perf/train_time_s": train_time,        # wall-clock of the train loop only
+            "perf/samples_per_s": samples_per_s,    # training throughput (clips/sec)
+        }
+        metrics.update({f"train/loss_{k}": v / len(train_loader) for k, v in train_parts.items()})
+        metrics.update({f"val/loss_{k}": v / len(val_loader) for k, v in val_parts.items()})
+        wlog.log(metrics, step=epoch)
 
         scheduler.step()
         torch.save({"model_state_dict": model.state_dict(), "config": asdict(cfg)}, args.checkpoint)

@@ -66,6 +66,14 @@ class DynamicsModelConfig():
                                     # could not read ball color/position (EXP-008 / D-010).
     ramp_min: float = 0.1           # w(tau) = (1 - ramp_min) * tau + ramp_min.
 
+    # FF7 register memory (D-014). When set, generate() dispatches to generate_memory():
+    # a sequential window-1 rollout that carries each frame's final-layer register state and
+    # injects it as the next step's context registers — the persistent channel that vanilla
+    # generate() lacks (registers are re-expanded from the learned tokens every forward pass,
+    # so only the latent sequence survives between steps; latents are pixel-bound).
+    use_register_memory: bool = False
+    ff7_k: int = 0                  # provenance: FF7 lookahead depth used in training (0 = off).
+
 
 class Attention(nn.Module):
     """Block-causal attention. Space layers attend fully within a frame; temporal layers
@@ -258,15 +266,23 @@ class DynamicsModel(nn.Module):
 
     # ------------------------------------------------------------------ forward
     def forward(self, z_tilde: torch.Tensor, tau_idx: torch.Tensor, d_idx: torch.Tensor,
-                actions: torch.Tensor = None) -> torch.Tensor:
+                actions: torch.Tensor = None, register_in: torch.Tensor = None,
+                return_registers: bool = False) -> torch.Tensor:
         """Predict clean latents (x-prediction) from noised latents.
 
-        z_tilde:  (B, T, n_latents, bottleneck_dim) noised representations.
-        tau_idx:  (B, T) long, discrete signal level per frame.
-        d_idx:    (B, T) long, discrete step size per frame.
-        actions:  optional (B, T, n_action_tokens, E) action features to add to the learned
-                  action embedding. ``None`` => unlabeled video.
-        returns:  (B, T, n_latents, bottleneck_dim) predicted clean latents.
+        z_tilde:     (B, T, n_latents, bottleneck_dim) noised representations.
+        tau_idx:     (B, T) long, discrete signal level per frame.
+        d_idx:       (B, T) long, discrete step size per frame.
+        actions:     optional (B, T, n_action_tokens, E) action features to add to the learned
+                     action embedding. ``None`` => unlabeled video.
+        register_in: optional (B, T, n_registers, E) register embeddings used INSTEAD of the
+                     learned register tokens (FF7 memory injection, D-014). Callers that
+                     inject at only some frames build the full tensor with
+                     ``self.register_tokens`` at the remaining frames.
+        return_registers: also return the final-layer register states (B, T, n_registers, E)
+                     — the carrier states that generate_memory()/the FF7 loss re-inject.
+        returns:     (B, T, n_latents, bottleneck_dim) predicted clean latents
+                     [, (B, T, n_registers, E) register states].
         """
         B, T, L, _ = z_tilde.shape
 
@@ -279,7 +295,10 @@ class DynamicsModel(nn.Module):
         action = self.action_embedding.expand(B, T, -1, -1)
         if actions is not None:
             action = action + actions
-        register = self.register_tokens.expand(B, T, -1, -1)
+        if register_in is None:
+            register = self.register_tokens.expand(B, T, -1, -1)
+        else:
+            register = register_in
 
         x = torch.concat((action, lat, register, shortcut), dim=2)  # (B, T, N, E)
 
@@ -287,16 +306,26 @@ class DynamicsModel(nn.Module):
             x = block(x)
 
         lat_start = self.n_action_tokens
-        x = x[:, :, lat_start:lat_start + L, :]
-        x = self.out_norm(x)
-        return self.out_proj(x)
+        out = x[:, :, lat_start:lat_start + L, :]
+        out = self.out_proj(self.out_norm(out))
+        if return_registers:
+            regs = x[:, :, lat_start + L:lat_start + L + self.n_registers, :]
+            return out, regs
+        return out
 
     # ------------------------------------------------------------------ loss
-    def loss(self, z1: torch.Tensor, action_idx: torch.Tensor = None) -> torch.Tensor:
+    def loss(self, z1: torch.Tensor, action_idx: torch.Tensor = None, ff7_k: int = 0,
+             lambda_ff7: float = 1.0, return_parts: bool = False) -> torch.Tensor:
         """Shortcut forcing loss over a clip of clean representations.
 
         z1:         (B, T, n_latents, bottleneck_dim) clean tokenizer latents.
         action_idx: optional (B, T) long discrete action ids, aligned per frame.
+        ff7_k:      FF7 lookahead depth (D-014). 0 = vanilla loss. >0 adds the
+                    single-timestep-sufficiency term: the registers built by THIS forward
+                    pass must, injected alone next to the real latent, predict the next
+                    ``ff7_k`` frames (see _ff7_loss).
+        lambda_ff7: weight of the FF7 term in the total.
+        return_parts: also return {"diffusion": .., "ff7": ..} detached components.
         """
         B, T, L, _ = z1.shape
         device = z1.device
@@ -309,7 +338,11 @@ class DynamicsModel(nn.Module):
         z0 = torch.randn_like(z1)
         z_tilde = (1 - tau) * z0 + tau * z1
 
-        z_hat1 = self(z_tilde, tau_idx, d_idx, actions)  # x-prediction (with gradient)
+        if ff7_k > 0:
+            # x-prediction (with gradient) + the register states the FF7 term re-injects.
+            z_hat1, regs = self(z_tilde, tau_idx, d_idx, actions, return_registers=True)
+        else:
+            z_hat1 = self(z_tilde, tau_idx, d_idx, actions)
 
         is_min = (d_idx == self.n_d - 1)[..., None, None]  # finest step => pure flow loss
 
@@ -338,7 +371,65 @@ class DynamicsModel(nn.Module):
         per_token = torch.where(is_min, flow_loss, boot_loss)
 
         w = (1 - self.config.ramp_min) * tau + self.config.ramp_min  # ramp weight, Eq. 8
-        return (w * per_token).mean()
+        diffusion = (w * per_token).mean()
+
+        if ff7_k == 0:
+            if return_parts:
+                return diffusion, {"diffusion": diffusion.detach()}
+            return diffusion
+
+        ff7 = self._ff7_loss(z1, regs, actions, ff7_k)
+        total = diffusion + lambda_ff7 * ff7
+        if return_parts:
+            return total, {"diffusion": diffusion.detach(), "ff7": ff7.detach()}
+        return total
+
+    def _ff7_loss(self, z1: torch.Tensor, regs: torch.Tensor, actions: torch.Tensor,
+                  k: int) -> torch.Tensor:
+        """FF7 single-timestep-sufficiency loss (D-014, IDEAS.md FF7 v1).
+
+        For every frame t with k successors in the clip, run one extra forward over the
+        (k+1)-frame sequence [t, t+1, ..., t+k], folded into the batch dim:
+          * frame t ("context"): the REAL clean latent z1_t held at tau_ctx (overwrite-real:
+            kills the latent color path during occlusion) + register_t INJECTED from the
+            main windowed pass — the only carrier of off-screen state.
+          * frames t+1..t+k: real latents noised at per-frame sampled tau, finest d, plain
+            flow loss with the ramp weight (no bootstrap).
+        The loss backprops through the injected registers into the windowed pass that wrote
+        them, training the write side. k >= 2 additionally trains the in-pass register relay
+        (frame t+j's register channel forwarding the injected state).
+        """
+        B, T, L, D = z1.shape
+        device = z1.device
+        n_t = T - k
+        assert n_t >= 1, f"clip length {T} too short for ff7_k={k}"
+        E = regs.shape[-1]
+
+        # (n_t, k+1) window indices -> gather (B, n_t, k+1, ...) and fold n_t into batch.
+        idx = torch.arange(n_t, device=device)[:, None] + torch.arange(k + 1, device=device)[None, :]
+        zw = z1[:, idx].reshape(B * n_t, k + 1, L, D)
+
+        reg0 = regs[:, :n_t].reshape(B * n_t, 1, self.n_registers, E)
+        reg_rest = self.register_tokens.expand(B * n_t, k, -1, -1)
+        register_in = torch.concat((reg0, reg_rest), dim=1)
+
+        tau_ctx_idx = min(round(self.config.context_signal * self.K_max), self.K_max - 1)
+        tau_idx = torch.randint(0, self.K_max, (B * n_t, k + 1), device=device)
+        tau_idx[:, 0] = tau_ctx_idx
+        d_idx = torch.full((B * n_t, k + 1), self.n_d - 1, device=device, dtype=torch.long)
+
+        tau = self._tau_value(tau_idx)[..., None, None]
+        z_tilde = (1 - tau) * torch.randn_like(zw) + tau * zw
+
+        act_in = None
+        if actions is not None:
+            act_in = actions[:, idx].reshape(B * n_t, k + 1, self.n_action_tokens, -1)
+
+        z_hat = self(z_tilde, tau_idx, d_idx, act_in, register_in=register_in)
+
+        flow = (z_hat[:, 1:] - zw[:, 1:]) ** 2
+        w = (1 - self.config.ramp_min) * tau[:, 1:] + self.config.ramp_min
+        return (w * flow).mean()
 
     # ------------------------------------------------------------------ rollout
     @torch.no_grad()
@@ -386,6 +477,8 @@ class DynamicsModel(nn.Module):
                     conditioned, so the curtain state of each generated frame is known).
         returns:    (B, n_generate, n_latents, bottleneck_dim) generated clean latents.
         """
+        if getattr(self.config, "use_register_memory", False):
+            return self.generate_memory(context, n_generate, K, action_idx)
         K = K or self.config.inference_steps
         max_ctx = self.config.max_temporal_length - 1
         T_ctx = context.shape[1]
@@ -403,4 +496,65 @@ class DynamicsModel(nn.Module):
             nxt = self._denoise_next(window, K, act_window)
             generated.append(nxt)
             seq = torch.concat((seq, nxt), dim=1)
+        return torch.concat(generated, dim=1)
+
+    @torch.no_grad()
+    def generate_memory(self, context: torch.Tensor, n_generate: int, K: int = None,
+                        action_idx: torch.Tensor = None) -> torch.Tensor:
+        """FF7 register-memory rollout (D-014): sequential window-1 generation that carries
+        each frame's final-layer register state and injects it as the next step's context
+        registers — matching the FF7 training interface (one injected context frame at
+        tau_ctx + the frame to denoise at finest d).
+
+        Vanilla generate() has no persistent state beyond the latent window; this is the
+        param-free inference change that lets the trained register relay actually run.
+        Same signature/return as generate().
+        """
+        K = K or self.config.inference_steps
+        B, P, L, D = context.shape
+        device = context.device
+        d_idx_val = (K).bit_length() - 1
+        tau_ctx = self.config.context_signal
+        tau_ctx_idx = min(round(tau_ctx * self.K_max), self.K_max - 1)
+        act_feat = self.action_features(action_idx)  # (B, T_total, n_act, E) or None
+
+        def noise_to_ctx(z: torch.Tensor) -> torch.Tensor:
+            return (1 - tau_ctx) * torch.randn_like(z) + tau_ctx * z
+
+        # Prefix pass: causal over the P context frames (learned registers); the last
+        # frame's register state seeds the carry.
+        tau_col = torch.full((B, P), tau_ctx_idx, device=device, dtype=torch.long)
+        d_col = torch.full((B, P), d_idx_val, device=device, dtype=torch.long)
+        act = act_feat[:, :P] if act_feat is not None else None
+        _, regs = self(noise_to_ctx(context), tau_col, d_col, act, return_registers=True)
+        reg_prev = regs[:, -1:]      # (B, 1, R, E)
+        z_prev = context[:, -1:]     # (B, 1, L, D) clean
+
+        tau2 = torch.full((B, 2), tau_ctx_idx, device=device, dtype=torch.long)
+        d2 = torch.full((B, 2), d_idx_val, device=device, dtype=torch.long)
+
+        generated = []
+        for i in range(n_generate):
+            new_idx = P + i  # absolute index of the frame being generated
+            act2 = act_feat[:, new_idx - 1:new_idx + 1] if act_feat is not None else None
+            reg_in = torch.concat(
+                (reg_prev, self.register_tokens.expand(B, 1, -1, -1)), dim=1)
+            zc = noise_to_ctx(z_prev)
+
+            z = torch.randn((B, 1, L, D), device=device)  # pure noise, tau = 0
+            for kstep in range(K):
+                tau = kstep / K
+                tau2[:, -1] = round(tau * self.K_max)
+                inp = torch.concat((zc, z), dim=1)
+                z_hat1 = self(inp, tau2, d2, act2, register_in=reg_in)[:, -1:]
+                v = (z_hat1 - z) / (1 - tau)
+                z = z + v * (1.0 / K)
+
+            # Extract the new frame's register state (its clean latent held at tau_ctx).
+            tau2[:, -1] = tau_ctx_idx
+            inp = torch.concat((zc, noise_to_ctx(z)), dim=1)
+            _, regs = self(inp, tau2, d2, act2, register_in=reg_in, return_registers=True)
+            reg_prev = regs[:, -1:]
+            z_prev = z
+            generated.append(z)
         return torch.concat(generated, dim=1)

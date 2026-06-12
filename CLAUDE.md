@@ -131,6 +131,11 @@ cd src/D_dynamics_model
 python train_dynamics_model.py --epochs 20 --batch-size 32 --context-length 16
 # With W&B:
 python train_dynamics_model.py --wandb --wandb-project my-project
+# FF7 register-memory training (D-014): adds the single-timestep-sufficiency loss with
+# lookahead K and makes generate() carry register state at inference (window-1 rollout):
+python train_dynamics_model.py --ff7 1 --lambda-ff7 1.0 --seed 0
+# Smoke tests for the FF7 paths:
+python test_ff7_smoke.py
 ```
 
 **Language Model (A):**
@@ -275,4 +280,4 @@ All models use dataclass configs for reproducibility:
 - **Frozen tokenizer in D**: Ensures latent space stability; dynamics model only learns transitions
 - **Register tokens in D**: Unused scratch space for the model to store intermediate computations (from recent vision transformer research)
 
-There are trained versions of Tokenizer which works well and had LPIPS loss during training ('trained_autoencoder.pt) and also the trained dynamics model (to be debugged) at ('my_dynamics.pt')
+There are trained versions of Tokenizer which works well and had LPIPS loss during training ('trained_autoencoder.pt') and the trained vanilla dynamics model at 'my_dynamics.pt' (its earlier rollout "failure" was an inference bug — context noised at 90%; fixed via `context_signal=0.9`, see EXP-008/D-010).
