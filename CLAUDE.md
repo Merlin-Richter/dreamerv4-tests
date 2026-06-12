@@ -225,7 +225,7 @@ All models use dataclass configs for reproducibility:
 - Must match tokenizer: `bottleneck_dim`, `n_latents`
 - `max_sampling_steps`: K_max ∈ {64, 128, 256} (must be power of 2)
 - `inference_steps`: K at generation (typically 4)
-- `context_noise`: τ_ctx for rollout (0.1)
+- `context_signal`: τ_ctx = signal level of context frames during rollout (0.9; 1.0=clean, 0.0=pure noise)
 - `n_actions`: 0 for unlabeled, >0 for action-conditioned
 
 **ModelConfig** (A_LM):
@@ -274,3 +274,5 @@ All models use dataclass configs for reproducibility:
 - **RoPE on temporal axis**: Allows extrapolation beyond training sequence length
 - **Frozen tokenizer in D**: Ensures latent space stability; dynamics model only learns transitions
 - **Register tokens in D**: Unused scratch space for the model to store intermediate computations (from recent vision transformer research)
+
+There are trained versions of Tokenizer which works well and had LPIPS loss during training ('trained_autoencoder.pt) and also the trained dynamics model (to be debugged) at ('my_dynamics.pt')

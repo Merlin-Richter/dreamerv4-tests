@@ -60,7 +60,10 @@ class DynamicsModelConfig():
     # Shortcut forcing schedule.
     max_sampling_steps: int = 128   # K_max; finest step d_min = 1/K_max. Must be a power of two.
     inference_steps: int = 4        # K used per frame at generation time (d = 1/K).
-    context_noise: float = 0.1      # tau_ctx: past frames are lightly noised during rollouts.
+    context_signal: float = 0.9     # tau_ctx = SIGNAL level of context frames during rollout
+                                    # (1.0 = clean, 0.0 = pure noise). Keep high; the old
+                                    # default 0.1 meant 90% noise on the context -> the model
+                                    # could not read ball color/position (EXP-008 / D-010).
     ramp_min: float = 0.1           # w(tau) = (1 - ramp_min) * tau + ramp_min.
 
 
@@ -342,7 +345,8 @@ class DynamicsModel(nn.Module):
     def _denoise_next(self, context: torch.Tensor, K: int,
                       actions: torch.Tensor = None) -> torch.Tensor:
         """Generate one clean frame conditioned on ``context`` (clean latents), using K
-        shortcut steps. ``context`` is lightly noised to tau_ctx as in the paper.
+        shortcut steps. ``context`` is held at signal level tau_ctx (=context_signal,
+        near 1.0 = near-clean) so the model can read it; see D-010 / EXP-008.
 
         actions: optional (B, T_ctx + 1, n_action_tokens, E) action features covering the
                  context frames and the new frame being generated.
@@ -352,9 +356,10 @@ class DynamicsModel(nn.Module):
         d_val = 1.0 / K
         d_idx_val = (K).bit_length() - 1  # log2(K)
 
-        tau_ctx = self.config.context_noise
+        tau_ctx = self.config.context_signal
         tau_ctx_idx = round(tau_ctx * self.K_max)
-        # Lightly corrupt the (clean) context once for this frame's sampling.
+        # Hold the (clean) context at signal level tau_ctx for this frame's sampling:
+        # ctx = tau_ctx * context + (1 - tau_ctx) * noise. High tau_ctx => near-clean.
         ctx_noised = (1 - tau_ctx) * torch.randn_like(context) + tau_ctx * context
 
         d_col = torch.full((B, T_ctx + 1), d_idx_val, device=device, dtype=torch.long)
