@@ -9,6 +9,15 @@ ideas — the map of what doesn't work is half the contribution (protocol §8).
 Status tags: `untried` | `trying` | `failed` | `partial` | `promising`.
 Success bar (T-004, frozen): color ΔRGB < ~63 at n_occ ∈ {12,16,24} on the frozen probe.
 
+## Hard constraints (Merlin, 2026-06-12) — non-negotiable, applies to every idea below
+- **No privileged data to the model, EVER.** The model/training sees only environment
+  observations + reward + data the env generated. No ground-truth color/pos/state fed in.
+- **Must generalize across environments.** No bouncing-ball-specific hacks; the mechanism
+  has to be environment-agnostic.
+- **Eval exception:** our *measurement* instrumentation (the probe) may read the sim's
+  hidden state to *score* recall — that's measurement, not a model input. Forbidden only
+  as a training/inference signal to the model.
+
 ## The problem decomposed — three independent axes
 An H3 attempt = one CARRIER × one FORCING FUNCTION × one TRAINING REGIME. Most failures
 will be in the forcing function, not the carrier.
@@ -22,10 +31,12 @@ Most carriers break **full-sequence parallel** training: persistence means you m
 **timestep-by-timestep** and carry state. Gradients then link back indefinitely →
 **exploding**; you must truncate/detach (TBPTT). **But truncation severs the credit path
 from the reveal (loss) back to the observation (write)** — the very path memory needs.
-Tension is fundamental. Main mitigation: **observation-time / during-occlusion auxiliary
-supervision** (privileged, sim-only) so the write is trained *locally* and doesn't depend
-on a long gradient surviving truncation. Watch for: optimizer blowups (clip + detach),
-and the model gaming a per-frame loss by emitting the color prior (= chance).
+Tension is fundamental. Self-supervised mitigations (privileged supervision is forbidden):
+(a) **single-timestep-sufficiency** (FF7) — force the register to be a sufficient statistic
+so the credit path is short (1 step → next-k) instead of reveal→observation; (b) **FF8**
+bootstrapped horizon-1 credit (Q-learning analogy); (c) keep occlusion ≤ TBPTT span so the
+gradient survives. Watch for: optimizer blowups (clip + detach), and the model gaming a
+per-frame loss by emitting the color prior (= chance).
 
 ## A. Carriers (mechanism)
 | ID | Idea | Notes | Status | Outcome / ref |
@@ -36,16 +47,19 @@ and the model gaming a per-frame loss by emitting the color prior (= chance).
 | MC4 | Compressive memory: summarize evicted frames instead of dropping (Compressive-Transformer / ∞-former) | keeps a lossy trace of everything | untried | |
 | MC5 | External read/write memory matrix (NTM/DNC), addressed by a write head | likely overkill, high complexity | untried | |
 | MC6 | Slot-attention / RIM-style world-state slots updated each step | structured global state | untried | |
+| MC7 | **Selective attention-salience memory** (Merlin): keep M timesteps; overwrite by a running *usage score* = how much each stored token/timestep is attended (QKV scores) by newly generated tokens. Frequently-recalled (esp. after gaps) → keep; rarely-used → evict. Brain-like consolidation, **no decider network needed**; RoPE likely tolerates missing middle positions. Variant: per-token retention (keep only the relevant tokens, e.g. the ones carrying the state) instead of whole timesteps. Needs retraining so the model learns to use very-old info + handle overwrites. | heuristic eviction, learned usage; future: learned salience score (maybe overkill) | untried | |
 
 ## B. Forcing functions (training target / loss) — THE HARD PART
 | ID | Idea | Notes | Status | Outcome / ref |
 |----|------|-------|--------|---------------|
 | FF1 | Revisit-consistency loss at the reveal frame (our probe metric as the objective) | sparse, gameable by color prior; needs long credit path | untried | |
-| FF2 | **Privileged decode-from-memory during occlusion**: small head predicts hidden color/pos from memory tokens every occluded step | strong *local* signal; dodges long-range credit assignment; sim-only crutch | untried | |
-| FF3 | Predict-the-reveal (CPC / contrastive): memory must predict the future revealed observation | self-supervised, no privileged labels | untried | |
-| FF4 | Reconstruct the hidden ball through occlusion (privileged latent/pixel target each step) | like FF2 but full reconstruction | untried | |
+| FF2 | ~~Privileged decode-from-memory during occlusion~~ | **FORBIDDEN — feeds the model privileged hidden state. Violates the no-privileged-data constraint.** Kept only as a record of a rejected path. | forbidden | |
+| FF3 | Predict-the-reveal (CPC / contrastive): memory must predict the future revealed observation | self-supervised, env-agnostic | untried | |
+| FF4 | ~~Reconstruct hidden ball through occlusion from privileged target~~ | **FORBIDDEN — privileged target.** (A *self-supervised* version that reconstructs the model's own future *observations* is fine — that's FF7.) | forbidden | |
 | FF5 | Memory-stability regularizer: penalize memory change when no new evidence arrives | anti-forgetting / anti-overwrite | untried | |
 | FF6 | Auxiliary "what will I see if I look back" query head at reveal | task-shaped variant of FF1 | untried | |
+| FF7 | **Single-timestep sufficiency** (Merlin): from ONE timestep's latent+register, predict the next few *frames/latents* under arbitrary actions → forces the register to be a sufficient statistic of history, so the model can't lean on the context window. Loss = reconstruction of next-k frames when context is truncated to the last timestep. **Detach (or overwrite with real) the latents** so only the **register tokens** learn to carry off-screen info. Self-supervised (target = env's own future). Implies effective window→1 + a register recurrence (see MC1/MC2). | the proposed first attempt; needs stepwise/TBPTT training + detach | untried | |
+| FF8 | **Bootstrapped backward memory credit** (Merlin, speculative): propagate a "memory worked / didn't" signal back one timestep at a time, Q-learning-style (horizon-1 updates that still encode long-range outcomes). Unknown if mathematically sound — worthy attempt once FF7 works. | future; addresses long-range credit assignment without full BPTT | untried | |
 
 ## C. Training regimes
 | ID | Idea | Notes | Status |
@@ -54,14 +68,19 @@ and the model gaming a per-frame loss by emitting the color prior (= chance).
 | TR2 | TBPTT: roll stepwise, backprop K steps, detach beyond | workhorse; pick K ≥ occlusion to preserve the credit path (cost/explosion tradeoff) | untried |
 | TR3 | Detached carry: stop-grad on the carried state, learn only local read/write | cheapest; **requires** local supervision (FF2/FF4) since there's no long gradient | untried |
 
-## Privileged vs self-supervised
-We have sim ground truth (ball color/pos). **Privileged** losses (FF2/FF4) = fast mechanism
-de-risking but a crutch unavailable on real video. **Self-supervised** (FF1/FF3) is the real
-goal. Plan: prove a carrier can beat the cliff *privileged*, then ablate the crutch away.
+## Training augmentations (compose with any attempt)
+- **Adversarial action policy** (Merlin): instead of testing memory under *random* actions,
+  train an adversary that picks actions to make the memory fail. More sample-efficient
+  pressure on the carrier than random rollouts. Compose with FF7.
 
 ## Proposed first attempt (not yet committed — awaiting Merlin)
-**MC1 × FF2 × TR3** (persistent tokens · privileged decode-from-memory · detached carry).
-Rationale: de-risks the carrier and *sidesteps* the long-range credit-assignment wall, so a
-failure here cleanly implicates the carrier rather than the optimizer. Cheap on the 4070.
-If it beats the cliff → ablate toward FF1/FF3 (self-supervised) and TR2 (real credit path).
-If it *can't* even privileged → the carrier (MC1) is wrong, move down the carrier list.
+**FF7 × register-recurrence carrier × TR2/TR3** (Merlin's single-timestep-sufficiency
+objective). Self-supervised, env-agnostic, satisfies the hard constraints. Carrier = the
+register tokens propagated frame-to-frame (effective window→1); forcing function = predict
+next-k frames from one truncated timestep with latents detached/overwritten so only
+registers learn. Train stepwise with detach to control gradient explosion.
+Open design questions to settle before building: (a) detach vs overwrite-with-real latents;
+(b) k (how many future frames) and whether actions are random or adversarial; (c) how the
+register actually persists across the window at inference (recurrent read of prev register
+vs. shrinking N to ~1); (d) do we keep the frozen tokenizer (latents) and only change the
+dynamics model's register pathway — yes, almost certainly, to stay comparable on the probe.
