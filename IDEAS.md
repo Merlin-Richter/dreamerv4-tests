@@ -58,7 +58,7 @@ per-frame loss by emitting the color prior (= chance).
 | FF4 | ~~Reconstruct hidden ball through occlusion from privileged target~~ | **FORBIDDEN — privileged target.** (A *self-supervised* version that reconstructs the model's own future *observations* is fine — that's FF7.) | forbidden | |
 | FF5 | Memory-stability regularizer: penalize memory change when no new evidence arrives | anti-forgetting / anti-overwrite | untried | |
 | FF6 | Auxiliary "what will I see if I look back" query head at reveal | task-shaped variant of FF1 | untried | |
-| FF7 | **Single-timestep sufficiency** (Merlin): from ONE timestep's latent+register, predict the next few *frames/latents* under arbitrary actions → forces the register to be a sufficient statistic of history, so the model can't lean on the context window. Loss = reconstruction of next-k frames when context is truncated to the last timestep. **Detach (or overwrite with real) the latents** so only the **register tokens** learn to carry off-screen info. Self-supervised (target = env's own future). Implies effective window→1 + a register recurrence (see MC1/MC2). | the proposed first attempt; needs stepwise/TBPTT training + detach | untried | |
+| FF7 | **Single-timestep sufficiency** (Merlin): from ONE timestep's latent+register, predict the next **k frames (k small: 1–3, even 1)** under arbitrary actions. **k is the supervised lookahead depth, UNRELATED to the context window** — do NOT scale it to span occlusion. Retention is NOT from large k; it emerges because the loss is imposed at *every* timestep under *arbitrary* actions (incl. "lift curtain", reachable in 1 step) with the register carried recurrently: every occluded register must be able to produce the revealed ball next frame ⇒ must hold color ⇒ recurrence passes it forward indefinitely. Bellman/Q-learning logic — a 1-step-sufficient statistic under all actions is sufficient for the whole future (ties to FF8). **Overwrite latents with real latents** (stronger than detach: detach still lets the forward pass read color off the latent; overwriting with the color-free occluded latent forces the register to be the only carrier) so only **register tokens** learn off-screen info. Self-supervised (target = env's own future frames). Implies effective window→1 + register recurrence (MC1/MC2). | the proposed first attempt; stepwise training + detach-grad on carried state | untried | |
 | FF8 | **Bootstrapped backward memory credit** (Merlin, speculative): propagate a "memory worked / didn't" signal back one timestep at a time, Q-learning-style (horizon-1 updates that still encode long-range outcomes). Unknown if mathematically sound — worthy attempt once FF7 works. | future; addresses long-range credit assignment without full BPTT | untried | |
 
 ## C. Training regimes
@@ -79,8 +79,9 @@ objective). Self-supervised, env-agnostic, satisfies the hard constraints. Carri
 register tokens propagated frame-to-frame (effective window→1); forcing function = predict
 next-k frames from one truncated timestep with latents detached/overwritten so only
 registers learn. Train stepwise with detach to control gradient explosion.
-Open design questions to settle before building: (a) detach vs overwrite-with-real latents;
-(b) k (how many future frames) and whether actions are random or adversarial; (c) how the
-register actually persists across the window at inference (recurrent read of prev register
-vs. shrinking N to ~1); (d) do we keep the frozen tokenizer (latents) and only change the
-dynamics model's register pathway — yes, almost certainly, to stay comparable on the probe.
+Open design questions to settle before building: (a) overwrite-with-real latents (preferred)
+vs detach; (b) k small (1–3, likely 1) — NOT scaled to occlusion; random vs adversarial
+actions; (c) the register recurrence: how register_t reads register_{t-1} at inference once
+context→~1 (this is the carrier that must actually exist for FF7 to retain anything); (d)
+keep the frozen tokenizer, change only the dynamics model's register pathway — yes, to stay
+comparable on the probe.
