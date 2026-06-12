@@ -281,6 +281,13 @@ def run_probe(args) -> dict:
 
     # Metric validation: does latent-MSE-vs-n_occ track the color/position errors?
     results["metric_validation"] = _metric_validation(results)
+
+    # Visual sheet (GT vs prediction across a few occlusion lengths).
+    sheet_occ = [2, 8, 16] if args.dry_run else [2, 6, 8, 12, 24]
+    sheet_path = render_sheet(tok, dyn, device, K, args.out.parent / "sheet.png",
+                              n_occ_list=sheet_occ)
+    results["meta"]["sheet"] = sheet_path.name
+    print(f"[probe] sheet -> {sheet_path}")
     return results
 
 
@@ -302,6 +309,47 @@ def _metric_validation(results: dict) -> dict:
         "note": "latent-MSE is trustworthy as the headline iff it tracks the "
                 "decomposition; position is expected to be drift-confounded (see drift_by_occ).",
     }
+
+
+@torch.no_grad()
+def _episode_strip(tok, dyn, ep: ProbeEpisode, device, K, scale=4):
+    """Render one episode as GT (top) over model prediction (bottom), columns = time.
+
+    Frames stay in dataset-native (BGR) order — written directly by cv2.imwrite, no swap.
+    """
+    import cv2
+    context = _prefix_latents(tok, ep.frames, ep.P, device)
+    action_idx = torch.from_numpy(ep.actions.astype(np.int64)).unsqueeze(0).to(device)
+    gen = dyn.generate(context, n_generate=ep.frames.shape[0] - ep.P, K=K, action_idx=action_idx)
+    full = torch.cat((context, gen), dim=1)[0]                   # (T, L, d)
+    T, H, W = ep.frames.shape[0], ep.frames.shape[1], ep.frames.shape[2]
+
+    gt_row = np.hstack([ep.frames[t] for t in range(T)])
+    pred_row = np.hstack([_decode_frame(tok, full[t:t + 1]) for t in range(T)])
+    block = np.vstack([gt_row, pred_row]).astype(np.uint8)
+    block = cv2.resize(block, (W * T * scale, H * 2 * scale), interpolation=cv2.INTER_NEAREST)
+
+    bx = ep.P * W * scale                                        # context|generation boundary
+    cv2.line(block, (bx, 0), (bx, block.shape[0]), (0, 0, 255), 2)
+    rx = ep.reveal_index * W * scale                             # reveal column (measured)
+    cv2.rectangle(block, (rx, 0), (rx + W * scale - 1, block.shape[0] - 1), (0, 255, 255), 2)
+    cv2.putText(block, f"n_occ={ep.k}", (4, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                (255, 255, 255), 1, cv2.LINE_AA)
+    return block
+
+
+@torch.no_grad()
+def render_sheet(tok, dyn, device, K, out_path, n_occ_list=(2, 8, 16), seed=4242):
+    """Stacked strips for several n_occ -> one PNG. Top=GT, bottom=prediction."""
+    import cv2
+    blocks = [_episode_strip(tok, dyn, make_probe_episode(seed=seed + n, P=3, k=n, R=1),
+                             device, K) for n in n_occ_list]
+    width = max(b.shape[1] for b in blocks)
+    pad = lambda b: np.pad(b, ((6, 6), (0, width - b.shape[1]), (0, 0)), constant_values=30)
+    sheet = np.vstack([pad(b) for b in blocks])
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    cv2.imwrite(str(out_path), sheet)                            # native BGR -> correct on disk
+    return out_path
 
 
 def parse_args():
@@ -333,7 +381,7 @@ def main():
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with open(args.out, "w") as f:
         json.dump(results, f, indent=2)
-    print(f"[probe] wrote {args.out}")
+    print(f"[probe] wrote {args.out}  sheet {results['meta'].get('sheet')}")
 
 
 if __name__ == "__main__":
