@@ -1,42 +1,39 @@
 # ORIENT.md
 
-Rewritten: 2026-06-12 (FF7 v1 build started — D-014)
+Rewritten: 2026-06-12 (T-009 built & verified; EXP-010 running)
 
 ## What we are doing and why
 
-- **H1, H2 — supported** (see GOAL.md; EXP-008/EXP-009). The frozen probe (5503e75) +
-  T-004 criteria are the fixed yardstick: H3 bar = color ΔRGB < ~63 at n_occ ∈ {12,16,24}
-  (baseline at chance ~110 there).
-- **H3 — first method attempt in flight: FF7 v1** (single-timestep sufficiency, D-014).
-  Go-ahead given by Merlin ("Continue by building v1"); harness question withdrawn by his
-  direct protocol edit (no methods-critic; code-citation rule stays via agent memory;
-  ≥2-seed standing order REMOVED — single-seed screening is allowed).
+- **H1, H2 — supported.** Frozen probe 5503e75 + T-004 criteria are the yardstick:
+  H3 bar = color ΔRGB < ~63 at n_occ ∈ {12,16,24} (EXP-009 baseline: chance ~110 there).
+- **H3 — FF7 v1 built (T-009 done, commit ec45dc1), EXP-010 screening RUNNING.**
+  D-014 has the full design + the build-time correction (registers don't persist across
+  vanilla generate() steps → param-free `generate_memory` register-carry rollout added;
+  probe runs unmodified via checkpoint flag dispatch).
 
-## FF7 v1 in one breath (full design: IDEAS.md + D-014)
-Train the register channel to be a 1-step-sufficient statistic: extra rollout forward pass
-per batch — frame t with REAL clean latent (@ tau_ctx=0.9) and its windowed-pass register
-INJECTED, predict frames t+1..t+k (flow loss, finest d). Latent overwrite kills the latent
-color path, so registers must carry hidden state. **D-014 correction to the converged
-design:** registers don't persist across `generate()` steps (re-expanded each forward,
-dynamics_model.py:282), so inference needs a param-free register-carry rollout
-(`generate_memory`), dispatched via a config flag so the frozen probe runs unmodified.
+## In flight (this is the thing to check on cold start)
 
-## In flight / NEXT ACTION
+**EXP-010** (local 4070, background bash chain, started 2026-06-12, ~7h total):
+1. k=1 arm: 100-epoch train (budget-matched to baseline sm0kr1cf: bs32, lr3e-4,
+   occluded.npy) → full frozen probe → `experiments/EXP-010/k1/{train.log,probe.log,results.json}`
+2. then k=3 arm, same, → `experiments/EXP-010/k3/`
+W&B: exp010-ff7k1-s0 / exp010-ff7k3-s0 (project transformer-D-dynamics).
+Chain aborts at first failure (&&-chained). Smoke: 1 epoch ≈ 106s (k=1).
+If a cold start finds the chain dead mid-way: check the k*/train.log tail and W&B,
+diagnose, do NOT silently relaunch (3-same-failure rule → escalate).
 
-**T-009 (in progress, inline on master):**
-1. `dynamics_model.py`: `forward(..., register_in, return_registers)` + `generate_memory()`
-   + config flag `use_register_memory`. Zero new parameters.
-2. `train_dynamics_model.py`: `--ff7 K` flag → combined loss (diffusion + 1.0 × FF7).
-3. Smoke on the 4070 (tiny run: finite losses, probe dry-run on the smoke checkpoint).
-4. **EXP-010**: k=1 and k=3 arms, one seed each, occluded.npy, then frozen probe →
-   present-then-stop (§5). Expect: k=1 relays ~1 window then decays; k=3 further.
+## NEXT ACTION when EXP-010 finishes
+Reconcile per §5 in `experiments/EXP-010/NOTES.md` (expectations pre-registered there +
+D-014 tripwires: ceiling/drift degradation; k=3 ≤ k=1; loss interference; out-of-clip
+reveals at chance is EXPECTED, not relay failure). Build comparison view (FF7 arms vs
+EXP-009 curves + sheets), decisive read, ESC-006, **present-then-stop** — no next decision
+before Merlin's verdict.
 
 ## Current worries
-1. **Gaming risk** (Merlin's prior): model may satisfy the per-frame loss by emitting the
-   color prior (= chance on the probe). The probe, not train loss, is the judge.
-2. **Window-1 inference may degrade base dynamics** → watch FF7-model ceiling/drift
-   controls vs EXP-009 (D-014 tripwire 1).
-3. **Injected registers are out-of-distribution as inputs** (final-layer activations
-   replacing learned tokens) — gradient must shape the write side; raw injection in v1.
-4. Clips whose color evidence predates the clip start train prior-emission on reveals —
-   dilutes the FF7 signal; expected, don't misread as relay failure (D-014 tripwire 4).
+1. Model may game the per-frame loss by emitting the color prior (= chance on probe).
+2. Window-1 `generate_memory` inference may degrade base dynamics → judge via the probe's
+   own ceiling/drift controls vs EXP-009.
+3. Chained register re-injection at inference is only approximately trained (k=1 not at
+   all beyond hop 1; k=3 in-pass only) — the central empirical question of EXP-010.
+4. Background-task timeout risk: the harness may cap the chain (~10 min?); verify the
+   trainings are actually alive past that mark (W&B heartbeat / log mtime) before idling.

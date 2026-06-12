@@ -3,14 +3,16 @@
 Updated: 2026-06-12 (FF7 go-ahead received; T-009 build in progress)
 
 ## In progress
-- **T-009 — Implement FF7 v1** (D-014; inline, master): param-free `dynamics_model.py`
-  extensions (register inject/return + `generate_memory`) + FF7 loss in
-  `train_dynamics_model.py` (window-1 sufficiency, overwrite-real-latents, k flag,
-  λ_ff7=1.0). Then EXP-010: smoke + k=1 + k=3 screening (single-seed, per Merlin's
-  2026-06-12 protocol edit), frozen probe 5503e75 vs T-004 bar → present-then-stop.
+- **EXP-010 — FF7 v1 screening** (k=1 then k=3, 100 ep each + full probe; background
+  chain on the 4070, started 2026-06-12). On completion: reconcile → present-then-stop.
 
 ## Backlog
 *(empty — next items spawn from the EXP-010 verdict)*
+
+## Done (recent)
+- **T-009 — FF7 v1 built** (2026-06-12, commit ec45dc1): all 3 acceptance criteria pass
+  by artifacts (5/5 unit smokes; 1-epoch train finite; probe dry-run end-to-end through
+  `generate_memory`). Spec: tasks/T-009.md.
 
 ## Deferred (until H3 method work needs heavy training / long horizons)
 - **T-003 — Cluster wrapper scripts (`scripts/`).** Probe suite + H2 baseline run
