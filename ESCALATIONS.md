@@ -119,3 +119,44 @@ Resolution (Merlin, 2026-06-12):
 Applied to: GOAL.md (H1→supported, H2 corrected, H3 reframed), DECISIONS.md D-011,
 BOARD.md (tasks rescoped), HOWTO/rope_kv_cache_caveat.md, ORIENT.md (rewritten),
 agent memory (milestone-reevaluate, measurement-validity).
+
+## ESC-004 | 2026-06-12 | OPEN — present EXP-009 (H2 baseline cliff) + T-004 pre-registration
+Context: EXP-009 (frozen probe @ f1cf860, 64 eps/n_occ) is the H2 baseline on the vanilla
+sliding-window model `my_dynamics.pt`. This is a present-then-stop gate (§5): every
+experiment ends here for your review, even a clean expected result.
+
+### The result (decisive read)
+H2's premise is **supported**, cleanly. Hidden-color recall is at the ceiling while the
+color-carrying prefix is inside the N=8 window and collapses to the chance floor the
+instant it scrolls out — a sharp cliff between n_occ=6 and n_occ=7 that matches the
+sliding-window geometry to the frame (prefix exits when reveal index 3+n_occ > 9). The
+matched-horizon drift control rules out ordinary autoregressive degradation (drift color
+ΔRGB stays 17–40 while occluded jumps to ~110). latent-MSE tracks color at r=0.952, so it
+is validated as the detection-free headline metric; position is drift-confounded and demoted
+to secondary. Detector gate green (p99 0.65px). This is exactly the calibrated baseline H3
+methods must beat: the bar for "memory" is moving the post-window cliff off the chance floor.
+
+### Access points
+- Numbers: experiments/EXP-009/results.json ; full reconciliation: experiments/EXP-009/NOTES.md
+- Visual (GT top / prediction bottom, red line = context|gen boundary, yellow box = reveal):
+  experiments/EXP-009/sheet.png — n_occ=2,6 colors match GT; n_occ=8 GT magenta → predicted
+  green (the cliff). (n_occ=12,24 single samples coincidentally land near GT; the 64-ep
+  aggregate is the evidence, not those frames.)
+- Headline: color ΔRGB ceiling 15.9 / chance 109.9 ; occluded 16.8 (n_occ=6) → 94.4 (n_occ=7)
+  → 116.0 (n_occ=8). latent-MSE 0.27 ceiling / 0.88 chance.
+
+### The question for you (T-004 pre-registration — lock BEFORE any H3 method runs)
+I propose we register these H2 baseline criteria now, while no H3 method exists (keeps
+pre-registration honest):
+1. **Headline metric:** color ΔRGB at the reveal frame, occluded vs matched-horizon drift.
+   Secondary/validating: latent-token MSE (r=0.95 with color). Position: reported but flagged
+   drift-confounded, NOT a success metric.
+2. **Baseline claim (H2):** vanilla sliding-window recall = chance for n_occ >= N-P+? (here
+   n_occ>=7 at N=8,P=3). I.e. no hidden-state retention past the window. Supported by EXP-009.
+3. **H3 success definition:** a method "retains hidden state" if, at n_occ well beyond the
+   window (propose n_occ in {12,16,24}), its color ΔRGB is significantly below the chance
+   floor (propose: < halfway between ceiling and chance, i.e. < ~63), under the identical
+   frozen probe and matched-drift control.
+Do you agree with (1)-(3), and specifically the n_occ>>N test points and the "halfway to
+ceiling" H3 bar? Adjust any threshold you'd set differently. After your call I'll write
+T-004 + update GOAL H2 status, then we're clear to start H3 method exploration.

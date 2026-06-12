@@ -42,14 +42,18 @@ T-003 (cluster wrappers) and T-008 (KV cache) deferred to H3 heavy-training time
 
 ## In flight / next action
 
-T-007 done. **T-002 probe is built and validated** (`src/probe/{probe_env,revisit_probe}.py`,
-commit fb270e2): detector gate passes on GT; pure-generation rollout at N=8; latent-MSE +
-color/position decomposition; chance/ceiling controls + matched-horizon drift curve.
-Preliminary 4-ep smoke shows the H2 color cliff at N=8 (see tasks/T-002.md findings).
-NOT frozen yet. Next: (1) await Merlin's glance on the drift-confound finding (affects
-T-004 metric choice); (2) add the side-by-side sheet (acceptance #5); (3) freeze, then
-run the full 64-ep sweep as the H2 baseline experiment (EXP-009) → present-then-stop (§5);
-(4) T-004 pre-register criteria. No cluster needed (local on 4070).
+**BLOCKED on Merlin (ESC-004, present-then-stop §5).** T-007 done; probe built, validated,
+and **frozen at f1cf860**. **EXP-009 (H2 baseline) is DONE** — full 64-ep sweep on
+`my_dynamics.pt`. Result: clean H2 cliff. Color ΔRGB at ceiling (~16) for n_occ<=6, jumps to
+chance (~110) at n_occ>=7 — exactly when the color-carrying prefix scrolls out of the N=8
+window (geometry-predicted boundary). Drift control rules out ordinary drift; latent-MSE
+validated as headline (r=0.952 vs color); position drift-confounded; detector gate green.
+See experiments/EXP-009/{results.json,NOTES.md,sheet.png}.
+
+Next action: **wait for Merlin's verdict on ESC-004** — he reviews the cliff + signs off on
+the T-004 pre-registration criteria (color-recall headline, position confounded, H3 "beat
+the cliff" bar). While blocked: §5 forbids starting the next decision/H3 prep. On his
+answer: write T-004, set GOAL H2 status, then begin H3 method exploration. No cluster needed.
 
 ## Current worries
 
