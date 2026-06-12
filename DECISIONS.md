@@ -185,3 +185,66 @@ random with near-clean context), the context-noising is not the (sole) cause →
 escalate and open the (b)/(c) threads. Also: if even tau_ctx=0.99 rollouts diverge
 within 1-2 frames, suspect latent geometry / error accumulation, not conditioning.
 Spawns: T-001 (rescoped to the context-noise diagnostic), EXP-008 (the sweep run)
+
+## D-011 | 2026-06-12 (milestone)
+Context: ESC-002 resolved — Merlin agrees the context-noise fix closes the EXP-007
+dynamics failure and **completes H1**. He called a milestone to plan Phase 2 and
+explicitly said: don't mechanically continue the backlog, reevaluate. During that
+conversation he corrected two architecture misunderstandings of mine, which reshape
+H2/H3:
+  1. **M<N inference needs no retrain.** RoPE is relative; running the model at a
+     shorter context window than it was trained on is free. (I had wrongly planned a
+     "retrain to shorten the window" task — dropped.)
+  2. **A sliding-window transformer has no persistent state.** I had framed H2 as
+     "never trained to carry across the window boundary" — wrong. There is no
+     boundary and nothing to carry: each step sees N−1 frames, predicts next, drops
+     the oldest; RoPE-relative so step 1000 == step N. Info older than N−1 frames is
+     simply absent from the model (not in input, not stored). Confirmed the register
+     tokens are per-frame scratch, not a cross-window carrier. So the dynamics
+     `generate()` (line ~391, `window = seq[:, -max_ctx:]`) *already* slides the
+     window — the beyond-window regime is reachable today with NO new architecture
+     and NO retrain, just by rolling out longer than the window.
+Also established: KV caching is real, missing work but is **efficiency, not a
+prerequisite** for measuring memory. And a careful flag (Merlin): once KV cache
+exists, the current fixed `cos/sin` RoPE table (size `max_temporal_length`) is
+cache-incompatible — cached K/V can't be re-rotated when the window slides, so the
+cache requires a **continuously-advancing absolute position / on-the-fly rotation**,
+never reset. Captured in `HOWTO/rope_kv_cache_caveat.md`.
+H3 reframed by Merlin: it is an **open-ended end-goal**, not one pre-registered
+hypothesis — "force the encoder and/or dynamics model to include hidden info in the
+latent space; how is up in the air; we'll try many things and keep what sticks."
+Working intuition: the autoregressive latent chain is the carrier (see GOAL H3).
+Decision: Proceed to Phase 2 (H2) on the **cheap-signal-first** path I proposed and
+Merlin endorsed ("you have enough; continue as you see fit"):
+  (a) Apply the agreed cleanup: rename `context_noise`→`context_signal`, fix the
+      misleading comment, set default 0.9 (keep tau=signal-level convention,
+      consistent with the loss). Inference-only; no retrain.
+  (b) Build & freeze the revisit-consistency probe suite (T-002) on the EXISTING
+      frozen tokenizer + `my_dynamics.pt`, using a chosen inference window N and
+      rolling out occlusion length k spanning below→above N. Primary metric:
+      latent-token MSE (predicted reveal latent vs frozen-tokenizer GT latent),
+      validated against a pixel-space color/position decomposition. Include controls:
+      chance floor (no-context/random latent), ceiling (fully visible), no-occlusion
+      drift control to difference out ordinary autoregressive drift.
+  (c) Pre-register H2 criteria (T-004) against the calibration controls, before
+      reading the H2 result.
+  (d) Measure the H2 baseline → present-then-stop (§5).
+T-003 (cluster wrappers) and KV cache are deferred to when H3 method work needs heavy
+training / long horizons. Shorten the window at **inference** only — frozen tokenizer
+untouched, H1 baseline preserved.
+Alternatives rejected: (1) Architecture-first (KV cache + short-window retrain before
+probing) — rejected: the sliding window already exists and M<N is free, so retrain
+buys nothing now; do the decisive cheap measurement first (cf. D-010). (2) Shortening
+the tokenizer's temporal length — rejected: un-freezes H1's tokenizer for no benefit;
+memory is tested in the dynamics chain, where the tokenizer just encodes a blank
+curtain frame during occlusion.
+Expected outcome: latent-MSE recall of color/position decays toward the chance floor
+as occlusion length k exceeds the window N, cleanly above the no-occlusion drift
+control. If latent-MSE tracks the color/position decomposition, it becomes the H2
+headline metric.
+Would change my mind: (1) If recall does NOT collapse beyond the window — that would
+mean some unaccounted persistent state exists (re-examine architecture; big surprise,
+escalate). (2) If latent-MSE and the color/position decomposition disagree, the metric
+choice is wrong — that divergence is itself a finding to escalate before pre-reg.
+Spawns: T-002 (probe suite, rescoped), T-004 (pre-reg, rescoped), T-007 (context_signal
+rename cleanup). Closes T-001b (dropped). ESC-003 records the milestone.

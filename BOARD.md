@@ -1,35 +1,43 @@
 # BOARD.md — task board
 
-Updated: 2026-06-11 (initial backfill)
+Updated: 2026-06-12 (post H1-closure milestone, ESC-003 / D-011)
 
 ## In progress
-*(nothing actively running — paused on ESC-002 review)*
+- **T-007 — `context_noise`→`context_signal` rename + default 0.9 + comment fix**
+  (D-011 cleanup). Inference-only, no retrain. Two usage sites
+  (`dynamics_model.py` L63 config, L355 `_denoise_next`). First step of Phase 2.
 
 ## Awaiting review
-- **ESC-002 — EXP-008 result (present-then-stop, §5).** D-010 supported: EXP-007
-  rollout failure is an inference bug (context_noise=0.1 = 90% noise on context);
-  high tau_ctx restores ball identity on the existing checkpoint, no retrain.
-  Awaiting Merlin: agree?; fix default→0.9 + confirm rollout + proceed to T-002?;
-  context_noise semantics (signal-level vs noise-fraction)? Branch paused.
+*(none — ESC-002 and ESC-003 both resolved)*
 
-## Backlog
-- **T-001b — Broad dynamics diagnosis (b)/(c), IF needed.** Only if the
-  context-noise fix does NOT restore ball identity (D-010 tripwire): (b) tokenizer
-  latent geometry (adjacent-frame vs random-pair latent distance; ball-position
-  traversals — `src/test/latent_explorer` is a start), (c) undertraining (W&B
-  loss curve still falling at epoch 100?). Held until EXP-008 reconciled.
-- **T-002 — Build & freeze revisit-consistency probe suite** (protocol §8).
-  Blocked on: T-001 verdict. observe → occlude k frames → reveal → measure recall
-  of ball color/position vs. k. Frozen before any H2/H3 method experiment.
-- **T-003 — Cluster wrapper scripts (`scripts/`).** sync_code, submit_job,
-  job_status, fetch_logs, wait_for_jobs, pull_results, cancel_job,
-  cluster_health, clean_run. Until done: all cluster interaction is manual by
-  Merlin; orchestrator submits nothing.
-- **T-004 — Pre-register H2/H3 success criteria in GOAL.md** (with Merlin; after
-  T-002 exists, before any deciding experiment).
+## Backlog (Phase 2 — H2, cheap-signal-first per D-011)
+- **T-002 — Build & freeze the revisit-consistency probe suite** (protocol §8, spine).
+  On the EXISTING frozen tokenizer + `my_dynamics.pt`; choose inference window N, roll
+  out occlusion length k spanning below→above N (no retrain; M<N is free).
+  Primary metric: latent-token MSE (predicted reveal latent vs frozen-tokenizer GT
+  latent), validated against a pixel-space color/position decomposition. Controls:
+  chance floor (no-context/random latent), ceiling (fully visible), no-occlusion drift
+  control. "Ball not rendered" tracked as its own failure mode. Freeze before any
+  method (H3) experiment.
+- **T-004 — Pre-register H2 success criteria in GOAL.md** (with Merlin; after T-002's
+  calibration controls measured, before reading the H2 result).
+- **(H2 baseline run)** — measure baseline on the frozen probe → present-then-stop.
+
+## Deferred (until H3 method work needs heavy training / long horizons)
+- **T-003 — Cluster wrapper scripts (`scripts/`).** Probe suite + H2 baseline run
+  locally on the 4070 against existing checkpoints; no cluster needed yet. Until done:
+  all cluster interaction is manual by Merlin; orchestrator submits nothing.
+- **T-008 — KV caching (D and C) + continuous-RoPE rollout.** Efficiency for long
+  rollouts, NOT a prerequisite for H2. MUST follow `HOWTO/rope_kv_cache_caveat.md`
+  (cached K/V can't be re-rotated → needs an unbounded, never-reset absolute position
+  clock; current fixed cos/sin table is cache-incompatible).
 
 ## Blocked
 *(none)*
+
+## Dropped
+- **T-001b** — broad latent-geometry/undertraining diagnosis. Moot: EXP-008 found the
+  failure was an inference bug, not a broken/undertrained model (Merlin agreed, ESC-002).
 
 ## Done
 - W&B integration + plateau fix (D-006, 2026-06-09)
@@ -40,3 +48,5 @@ Updated: 2026-06-11 (initial backfill)
 - T-005 — commit debt cleared (latent_explorer + train script committed; tree clean)
 - **T-001 / EXP-008 — context-noise rollout diagnostic** (2026-06-11): D-010 cause
   confirmed (inference bug). Report `tasks/T-001-report.md`. → ESC-002 review.
+- **ESC-002 / ESC-003 — H1-closure milestone** (2026-06-12): H1 supported; Phase 2
+  (H2) planned; architecture understanding corrected (D-011).

@@ -77,4 +77,45 @@ switch; otherwise I'll reserve workers for large or parallelizable implementatio
 Urgency: blocking — per §5 every experiment ends in a hard stop for your review; I am
 NOT starting the fix, the confirmation rollout, or T-002 until you weigh in.
 
-Resolution: (pending)
+Resolution (Merlin, 2026-06-12):
+- Agrees with the decisive read: the context-noise fix has solved the dynamics-model
+  rollout failure. "Good find."
+- Agrees T-001b (broad latent-geometry / undertraining diagnosis) no longer makes
+  sense — dropped.
+- Considers this to complete **H1**.
+- Calls a **milestone conversation** to plan the next trajectory and review the tasks
+  needed to get there. → ESC-003.
+- NOT answered here: Q3 (context_noise "signal-level" vs "noise-fraction" semantics)
+  and the mechanics of applying the fix — carried into the ESC-003 milestone.
+Applied to: ESC-003 (milestone, below). GOAL.md H1 status + the code fix to be
+applied only after the milestone concludes (§7).
+
+## ESC-003 | 2026-06-12 | RESOLVED — H1-closure milestone, Phase 2 planning
+Context: H1 complete (ESC-002). Milestone to plan Phase 2 (H2) and reevaluate tasks.
+Three design questions answered + two architecture corrections from Merlin.
+
+Resolution (Merlin, 2026-06-12):
+- **Probe metric:** "Both, pixel primary" → refined in discussion to latent-token MSE
+  as the candidate primary (decoder/detection-free), validated against a pixel-space
+  color/position decomposition. He flagged the crucial measurement detail: we can't
+  read the ball's color without knowing where the (possibly mispredicted/absent) ball
+  is — latent-MSE sidesteps this; "ball not rendered" is its own failure mode.
+- **Probe scope:** color + position together in v1.
+- **context_noise fix:** keep tau=signal-level convention, rename→`context_signal`,
+  fix comment, default 0.9 (T-007).
+- **Don't mechanically continue the backlog — reevaluate** (saved to agent memory).
+- **Two architecture corrections (he was right, I conceded on the merits):**
+  (1) M<N inference needs no retrain (RoPE relative). (2) A sliding-window transformer
+  has no persistent state — no "boundary to carry across"; info older than N−1 frames
+  is simply absent. The dynamics `generate()` already slides the window, so the
+  beyond-window regime is reachable today with no new architecture/retrain.
+- **KV cache** = efficiency, not a prerequisite. RoPE/KV-cache rotation-continuity
+  trap flagged → `HOWTO/rope_kv_cache_caveat.md`.
+- **H3 reframed:** open-ended end-goal ("force encoder and/or dynamics to include
+  hidden info in the latent space; how is up in the air; try many, keep what sticks"),
+  not a single pre-registered hypothesis. Don't over-formalize it.
+- **Verdict:** "you should have enough now to get to work on H2. Continue as you see
+  fit. I'm always available."
+Applied to: GOAL.md (H1→supported, H2 corrected, H3 reframed), DECISIONS.md D-011,
+BOARD.md (tasks rescoped), HOWTO/rope_kv_cache_caveat.md, ORIENT.md (rewritten),
+agent memory (milestone-reevaluate, measurement-validity).
