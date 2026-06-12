@@ -42,16 +42,22 @@ T-003 (cluster wrappers) and T-008 (KV cache) deferred to H3 heavy-training time
 
 ## In flight / next action
 
-Doing T-007 now (the rename), then starting T-002. No cluster jobs (wrappers don't
-exist; cluster is manual via Merlin and not needed for Phase 2).
+T-007 done. **T-002 probe is built and validated** (`src/probe/{probe_env,revisit_probe}.py`,
+commit fb270e2): detector gate passes on GT; pure-generation rollout at N=8; latent-MSE +
+color/position decomposition; chance/ceiling controls + matched-horizon drift curve.
+Preliminary 4-ep smoke shows the H2 color cliff at N=8 (see tasks/T-002.md findings).
+NOT frozen yet. Next: (1) await Merlin's glance on the drift-confound finding (affects
+T-004 metric choice); (2) add the side-by-side sheet (acceptance #5); (3) freeze, then
+run the full 64-ep sweep as the H2 baseline experiment (EXP-009) → present-then-stop (§5);
+(4) T-004 pre-register criteria. No cluster needed (local on 4070).
 
 ## Current worries
 
-1. **Probe metric is unvalidated.** Latent-MSE is a working guess (Merlin's); if it
-   doesn't track the color/position decomposition, the metric is wrong — that
-   divergence is a finding to escalate before pre-registering (D-011 tripwire).
-2. **Residual autoregressive drift** in long rollouts could confound recall-vs-k. The
-   no-occlusion drift control is meant to difference it out; if drift is severe the
-   usable k-range shrinks and we revisit (possibly a better/longer dynamics baseline).
-3. **val/loss is a poor proxy** (EXP-007 lesson) — until the probe exists we have no
-   trustworthy quantitative signal on dynamics memory.
+1. **Position recall is drift-confounded** (CONFIRMED in smoke): occluded ≈ matched-drift
+   position error at all n_occ. So **color-recall (occluded vs drift) and latent-MSE−drift
+   are the clean H2 signals; position is a confounded secondary.** This changes what T-004
+   should pre-register — flagged to Merlin.
+2. **Metric validation pending at scale**: latent-MSE tracks color qualitatively in the
+   smoke run; confirm Pearson r at the full 64-ep run before calling latent-MSE the
+   headline (D-011 tripwire).
+3. **val/loss is a poor proxy** (EXP-007 lesson) — the probe is now our trustworthy signal.
