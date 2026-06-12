@@ -243,10 +243,12 @@ def run_probe(args) -> dict:
         "occ_grid": occ_grid,
         "latent_mse_by_occ": {}, "pos_err_px_by_occ": {},
         "color_dRGB_by_occ": {}, "ball_lost_rate_by_occ": {},
-        # Drift control as a matched-horizon CURVE: same rollout length / measure index
-        # as each n_occ but curtain UP throughout. Differencing occluded - drift isolates
-        # memory loss from ordinary autoregressive drift.
-        "drift_by_occ": {"latent_mse": {}, "pos_err_px": {}, "color_dRGB": {}},
+        # Matched-horizon drift control (curtain UP throughout): an all-visible rollout of
+        # the same length / measure index as each occluded condition. NOTE: this has nothing
+        # to do with occlusion — the n_occ keys only pair each drift point to the occluded
+        # condition at the matching horizon. Differencing occluded - drift isolates memory
+        # loss from ordinary autoregressive drift.
+        "matched_horizon_drift": {"latent_mse": {}, "pos_err_px": {}, "color_dRGB": {}},
         "controls": {},
     }
 
@@ -261,9 +263,9 @@ def run_probe(args) -> dict:
         results["pos_err_px_by_occ"][str(n_occ)] = m["pos_err_px"]
         results["color_dRGB_by_occ"][str(n_occ)] = m["color_dRGB"]
         results["ball_lost_rate_by_occ"][str(n_occ)] = m["ball_lost_rate"]
-        results["drift_by_occ"]["latent_mse"][str(n_occ)] = d["latent_mse"]
-        results["drift_by_occ"]["pos_err_px"][str(n_occ)] = d["pos_err_px"]
-        results["drift_by_occ"]["color_dRGB"][str(n_occ)] = d["color_dRGB"]
+        results["matched_horizon_drift"]["latent_mse"][str(n_occ)] = d["latent_mse"]
+        results["matched_horizon_drift"]["pos_err_px"][str(n_occ)] = d["pos_err_px"]
+        results["matched_horizon_drift"]["color_dRGB"][str(n_occ)] = d["color_dRGB"]
         print(f"  n_occ={n_occ:2d}  latentMSE={m['latent_mse']:.4f} (drift {d['latent_mse']:.4f})"
               f"  posErr={m['pos_err_px']:.1f}px (drift {d['pos_err_px']:.1f})"
               f"  dRGB={m['color_dRGB']:.1f} (drift {d['color_dRGB']:.1f})  lost={m['ball_lost_rate']:.2f}")
@@ -307,7 +309,7 @@ def _metric_validation(results: dict) -> dict:
         "pearson_latentMSE_vs_colorDRGB": _r("color_dRGB_by_occ"),
         "pearson_latentMSE_vs_posErr": _r("pos_err_px_by_occ"),
         "note": "latent-MSE is trustworthy as the headline iff it tracks the "
-                "decomposition; position is expected to be drift-confounded (see drift_by_occ).",
+                "decomposition; position is expected to be drift-confounded (see matched_horizon_drift).",
     }
 
 

@@ -160,3 +160,13 @@ pre-registration honest):
 Do you agree with (1)-(3), and specifically the n_occ>>N test points and the "halfway to
 ceiling" H3 bar? Adjust any threshold you'd set differently. After your call I'll write
 T-004 + update GOAL H2 status, then we're clear to start H3 method exploration.
+
+### ESC-004 RESOLVED (Merlin, 2026-06-12)
+- "Yes I agree. This proofs H2." → H2 declared **supported** (GOAL updated, D-012, T-004 locked).
+- T-004 pre-registration criteria (1)-(3) approved as proposed (color headline, latent-MSE
+  secondary, position confounded; H3 bar = color ΔRGB < ~63 at n_occ ∈ {12,16,24}).
+- Naming feedback: `drift_by_occ` is a bad name for the curtain-stays-up control ("has
+  nothing to do with occlusion"). → D-013: renamed to `matched_horizon_drift` (code +
+  EXP-009 artifact migrated in place, numbers preserved; probe re-frozen).
+Applied to: GOAL.md (H2→supported + criteria), DECISIONS.md D-012/D-013, tasks/T-004.md,
+src/probe/ (rename + README re-freeze), experiments/EXP-009/results.json (key migrated).

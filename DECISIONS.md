@@ -248,3 +248,40 @@ escalate). (2) If latent-MSE and the color/position decomposition disagree, the 
 choice is wrong — that divergence is itself a finding to escalate before pre-reg.
 Spawns: T-002 (probe suite, rescoped), T-004 (pre-reg, rescoped), T-007 (context_signal
 rename cleanup). Closes T-001b (dropped). ESC-003 records the milestone.
+
+## D-012 | 2026-06-12
+Context: EXP-009 (frozen probe @ f1cf860) showed the H2 cliff cleanly — color recall at
+ceiling for n_occ<=6, chance for n_occ>=7, matching N=8/P=3 geometry; drift-controlled;
+latent-MSE↔color r=0.952; detector gate pass. Presented (ESC-004); Merlin: "Yes I agree.
+This proofs H2."
+Decision: Declare **H2 supported**. Lock the T-004 pre-registration (Merlin-approved):
+headline = color ΔRGB occluded-vs-matched-drift; latent-MSE validating secondary; position
+reported-but-confounded (not a success metric); H3 bar = color ΔRGB < ~63 (halfway
+ceiling→chance) at n_occ ∈ {12,16,24} on the identical frozen probe. Write tasks/T-004.md;
+set GOAL H2 → supported with criteria + evidence EXP-009.
+Alternatives rejected: re-running with more episodes/seeds (cliff is unambiguous, ceiling/
+chance well-separated — no power problem); making position a co-headline (drift-confounded,
+EXP-009 confirmed occluded≈drift position).
+Expected outcome: H2 closed; probe + criteria are the fixed yardstick for all H3 methods.
+Would change my mind: if a trivial re-run showed the cliff at a different n_occ than the
+geometry predicts (would mean the mechanism isn't the window), or ceiling≈chance (metric
+has no dynamic range). Neither holds.
+Spawns: T-004; GOAL H2 update.
+
+## D-013 | 2026-06-12
+Context: Merlin flagged that `drift_by_occ` (the curtain-stays-up, all-visible control) is a
+bad name — that data has nothing to do with occlusion; it measures ordinary autoregressive
+drift at a horizon matched to each occluded condition. The probe is frozen (§8), so any
+relabel is a logged decision.
+Decision: Rename the control key `drift_by_occ` → `matched_horizon_drift` in the probe code
+and the EXP-009 results.json (in-place key rename; **numbers untouched** — preserves the
+baseline Merlin approved). Update comments/printout/note text and the README freeze commit.
+Re-freeze the probe at the new SHA for all subsequent (H3) runs; annotate EXP-009 provenance
+(numbers produced at f1cf860, key migrated for schema consistency).
+Alternatives rejected: re-running to regenerate the artifact (rollout noise is unseeded →
+numbers would drift off the approved baseline for a cosmetic relabel); leaving EXP-009 with
+the old key (schema mismatch vs. future H3 runs that compare against it).
+Expected outcome: one clear control name end-to-end; H3 comparison artifacts are schema-
+consistent with the baseline.
+Would change my mind: if the rename touched any numeric path (it doesn't — pure relabel).
+Spawns: probe edit + re-freeze; EXP-009 artifact migration.

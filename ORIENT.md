@@ -42,18 +42,20 @@ T-003 (cluster wrappers) and T-008 (KV cache) deferred to H3 heavy-training time
 
 ## In flight / next action
 
-**BLOCKED on Merlin (ESC-004, present-then-stop §5).** T-007 done; probe built, validated,
-and **frozen at f1cf860**. **EXP-009 (H2 baseline) is DONE** — full 64-ep sweep on
-`my_dynamics.pt`. Result: clean H2 cliff. Color ΔRGB at ceiling (~16) for n_occ<=6, jumps to
-chance (~110) at n_occ>=7 — exactly when the color-carrying prefix scrolls out of the N=8
-window (geometry-predicted boundary). Drift control rules out ordinary drift; latent-MSE
-validated as headline (r=0.952 vs color); position drift-confounded; detector gate green.
-See experiments/EXP-009/{results.json,NOTES.md,sheet.png}.
+**H2 is CLOSED — supported** (Merlin, 2026-06-12, ESC-004; EXP-009). The frozen probe is
+the calibrated yardstick: vanilla sliding-window recall = chance once the color-carrying
+prefix scrolls out of the N=8 window (cliff at n_occ=7, geometry-predicted; drift-controlled;
+latent-MSE↔color r=0.952). T-004 success criteria locked. Probe control key renamed
+`drift_by_occ`→`matched_horizon_drift` (D-013, re-frozen).
 
-Next action: **wait for Merlin's verdict on ESC-004** — he reviews the cliff + signs off on
-the T-004 pre-registration criteria (color-recall headline, position confounded, H3 "beat
-the cliff" bar). While blocked: §5 forbids starting the next decision/H3 prep. On his
-answer: write T-004, set GOAL H2 status, then begin H3 method exploration. No cluster needed.
+Next action: **enter H3 (the open-ended end-goal)** — force the encoder and/or dynamics to
+carry hidden ball color/position in the latent space so it survives past the window. H3 bar
+(T-004): color ΔRGB < ~63 at n_occ ∈ {12,16,24}. H3 is exploratory ("try many, keep what
+sticks") — first step is to pick a starting mechanism. Proposing a short menu to Merlin for
+steering before committing a decision (new phase). Likely candidates: an auxiliary
+latent-retention objective on the dynamics model vs. an encoder objective that bakes global
+state into per-frame latents. Local 4070 for first cheap probes; cluster (T-003 wrappers,
+deferred) only once a mechanism justifies heavy training.
 
 ## Current worries
 

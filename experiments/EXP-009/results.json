@@ -76,7 +76,30 @@
     "16": 0.0,
     "24": 0.0
   },
-  "drift_by_occ": {
+  "controls": {
+    "ceiling": {
+      "n": 64,
+      "latent_mse": 0.266404705675086,
+      "latent_mse_std": 0.1184854128576211,
+      "pos_err_px": 5.582703839987516,
+      "color_dRGB": 15.94212581217289,
+      "ball_lost_rate": 0.0
+    },
+    "chance": {
+      "n": 64,
+      "latent_mse": 0.8751044012606144,
+      "latent_mse_std": 0.21239403514508381,
+      "pos_err_px": 23.217562217265368,
+      "color_dRGB": 109.88958449661732,
+      "ball_lost_rate": 0.0
+    }
+  },
+  "metric_validation": {
+    "pearson_latentMSE_vs_colorDRGB": 0.9519834419249361,
+    "pearson_latentMSE_vs_posErr": 0.8473389622029821,
+    "note": "latent-MSE is trustworthy as the headline iff it tracks the decomposition; position is expected to be drift-confounded (see drift_by_occ)."
+  },
+  "matched_horizon_drift": {
     "latent_mse": {
       "2": 0.401386343408376,
       "4": 0.4604484052397311,
@@ -110,28 +133,5 @@
       "16": 30.536611810326576,
       "24": 39.619015231728554
     }
-  },
-  "controls": {
-    "ceiling": {
-      "n": 64,
-      "latent_mse": 0.266404705675086,
-      "latent_mse_std": 0.1184854128576211,
-      "pos_err_px": 5.582703839987516,
-      "color_dRGB": 15.94212581217289,
-      "ball_lost_rate": 0.0
-    },
-    "chance": {
-      "n": 64,
-      "latent_mse": 0.8751044012606144,
-      "latent_mse_std": 0.21239403514508381,
-      "pos_err_px": 23.217562217265368,
-      "color_dRGB": 109.88958449661732,
-      "ball_lost_rate": 0.0
-    }
-  },
-  "metric_validation": {
-    "pearson_latentMSE_vs_colorDRGB": 0.9519834419249361,
-    "pearson_latentMSE_vs_posErr": 0.8473389622029821,
-    "note": "latent-MSE is trustworthy as the headline iff it tracks the decomposition; position is expected to be drift-confounded (see drift_by_occ)."
   }
 }

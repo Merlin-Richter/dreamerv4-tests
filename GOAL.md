@@ -44,7 +44,7 @@ rollouts — minor, tracked separately, not an H1 blocker.
 
 ## H2: A sliding-window world model cannot recall hidden state once the evidence leaves its context window
 
-Status: **open** — this is the next phase (Phase 2).
+Status: **supported** (Merlin, 2026-06-12: "Yes I agree. This proofs H2.") — EXP-009.
 
 **Corrected mechanism (milestone 2026-06-12, ESC-003 / D-011).** The baseline is a
 pure sliding-window transformer with **no persistent state beyond its window**. Each
@@ -60,17 +60,25 @@ This makes H2 nearly architecturally true; the experiment's job is to *calibrate
 decay*: how recall of ball color/position falls toward chance as occlusion length k
 crosses the window size N, with proper chance-floor and visible-context-ceiling
 controls and a no-occlusion drift control.
-Success criteria: TO BE PRE-REGISTERED (T-004) before the deciding run, informed by
-the probe's calibration controls (chance floor, ceiling) but written before the H2
-result is read.
+Success criteria (PRE-REGISTERED T-004, Merlin-approved 2026-06-12, ESC-004):
+- **Headline metric:** ball color ΔRGB at the reveal frame, occluded vs. matched-horizon
+  (curtain-up) drift control. Validating secondary: latent-token MSE (r=0.952 with color
+  in EXP-009). Position: reported but **drift-confounded**, NOT a success metric.
+- **H2 (baseline) claim — MET:** vanilla sliding-window recall = chance once the
+  color-carrying prefix scrolls out (here n_occ ≥ 7 at N=8, P=3); no retention past
+  the window. EXP-009: color ΔRGB 16.8 (n_occ=6) → 94.4 (7) → 116 (8), vs ceiling 15.9 /
+  chance 109.9; cliff at the geometry-predicted frame; drift control rules out ordinary drift.
+- **H3 success bar (for later method comparison):** a method "retains hidden state" if at
+  n_occ ∈ {12,16,24} (well beyond the window) its color ΔRGB is below halfway between
+  ceiling and chance (≈ 63), under the identical frozen probe + matched drift control.
 Probe metric (working choice, milestone 2026-06-12): **latent-token MSE** of the
 predicted reveal-frame latent vs. the frozen tokenizer's latent of the true frame —
 decoder-free *and* detection-free, so it sidesteps the "where is the ball, to read
 its color?" problem. To be validated against an interpretable color/position
 decomposition (pixel-space, blob-detection); "ball not rendered" tracked as its own
 failure mode. Requires the probe suite (T-002) built and frozen first.
-Evidence: EXP-007/EXP-008 (suggestive: ball identity lost in rollout) — but those
-rollouts stayed within the window, so they do not yet isolate the beyond-window case.
+Evidence: **EXP-009** (deciding run: the beyond-window cliff, drift-controlled, on the
+frozen probe). EXP-007/EXP-008 suggestive but stayed within the window.
 
 ## H3 (overarching end-goal, exploratory — not a single pre-registered hypothesis)
 

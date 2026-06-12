@@ -37,6 +37,10 @@ red line = context|generation boundary, yellow box = measured reveal frame) next
 
 ## Frozen version
 
-Frozen at commit **f1cf860** for the H2 baseline (EXP-009). Any later change to the
-probe is a logged decision (protocol §8) because it silently redefines prior results.
+H2 baseline (EXP-009) was produced at commit **f1cf860**. The control key was then
+renamed `drift_by_occ` → `matched_horizon_drift` (D-013, pure relabel, no numeric change;
+EXP-009 artifact key migrated in place). **Current frozen version: see git log for the
+D-013 commit** — use this for all H3 method runs so artifacts share the schema. Any later
+change to the probe is a logged decision (protocol §8) because it silently redefines prior
+results.
 Defaults: `N=8, P=3, R=1, K=4 (cfg), n_occ grid {2,4,6,7,8,9,12,16,24}, 64 eps/n_occ`.
