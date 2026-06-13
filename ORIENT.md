@@ -26,8 +26,11 @@ purpose is efficient continuous rollouts, NOT training prep)
   deliberately out of scope for this step.)
 
 ## In flight
-**Nothing running.** 4070 free. No cluster (scripts/ deferred). **Efficiency subobjective CLOSED** —
-EXP-016 ACCEPTED (ESC-012, "strong results"). Merlin directed: clean up + propose next direction.
+**EXP-017 (FF9 v2 memory-token baseline) TRAINING overnight on the 4070** (launched 2026-06-14 late-night
+per Merlin's request; bg task bt57zuxt8 → `experiments/EXP-017/train.log`). occluded, 100ep bs32 lr3e-4
+seed0, n_memory=4 ff9_k=3, --fresh. ~3.5min/epoch → ~6-7h → done by morning; ckpt `ff9v2_s0.pt` saved
+EVERY epoch (usable at any stop). Healthy at launch (stepping ~1.5 it/s, B=32 peak 4.5/8GB, loss dropping).
+TRAIN ONLY — eval deferred (needs generate_full_state_memory). No cluster (scripts/ deferred).
 
 ## NEXT ACTION
 **BUILD T-013: memory-token architecture + FF9 v2 loss on the 4070 (D-024).** ESC-013 RESOLVED — Merlin
@@ -50,7 +53,20 @@ its latents) + FF9 loss on it, backward (≤1 window, NO out-of-window BPTT), de
 steps, batched heavily, small/variable N; reuses the T-012 streaming cache for the detached context. Plus
 FF9 v2 → **50/50 GT split** (strict-τ=0 vs noised-GT path). Two modes A(parallel FF9 v2)/B(relay), alternate.
 
-**NEXT ACTION: await Merlin's ESC-014 call on the relay GRADIENT design.** Verifier V-T014 (probe completed)
+## NEXT ACTION (tomorrow's cold-start)
+**1. Process EXP-017 when training finishes** (check `experiments/EXP-017/train.log` for final train/val +
+diffusion/ff9 split; ckpt `ff9v2_s0.pt`). Then: build `generate_full_state_memory` (memory-carry inference,
+analog of generate_memory) + dispatch on `use_full_state_memory` + smokes → build the memory-sufficiency
+probe (PRIMARY: L(mem)≪L(no-mem) within window) → frozen-probe color n_occ {12,16,24,32,48} vs vanilla_s0
+(EXP-012) + ff7_k3 (EXP-010); expect ≈FF7. Reconcile per D-024 tripwires → present-then-stop. See
+`experiments/EXP-017/NOTES.md` TODO.
+**2. ESC-014 (relay gradient design) STILL OPEN — Merlin's call** before the op-3/Mode-B build: P-a tbptt-k
+sweep [rec] / P-c dynamic-state probe / P-b train-to-depth detach. Guardrails (V-T014): deep-hop gate (not
+within-window loss), carry norm/proj, detach committed K/V, strict-FF9-fraction knob.
+
+---
+### (prior) ESC-014 context — relay gradient design
+Verifier V-T014 (probe completed)
 **REFUTED pure detached carry**: it preserves state only up to the trained rollout depth, then drifts to
 chance (deep-avg detached 0.587 vs BPTT 0.007; drift d199/d16=3589×). Only BPTT extrapolates; tbptt-1
 partial. THE TRAP: within-window FF9 loss→0 green-lights detached but is blind to the deep-regime drift.

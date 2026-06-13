@@ -3,7 +3,13 @@
 Updated: 2026-06-13 (ESC-009/010 RESOLVED → building D-020 cross-frame KV cache / T-012)
 
 ## In progress
-- **T-013 — memory-token architecture + FF9 v2 (BUILDING)** (H3 architectural baseline; D-024). ESC-013
+- **EXP-017 — FF9 v2 memory-token baseline — TRAINING overnight** (D-024; launched 2026-06-14 late-night per
+  Merlin's overnight-run ask). occluded, 100ep bs32 lr3e-4 seed0, n_memory=4 ff9_k=3, --fresh. bg bt57zuxt8 →
+  `experiments/EXP-017/train.log`; ckpt `ff9v2_s0.pt` every epoch; ~6-7h. TRAIN ONLY (eval deferred — needs
+  generate_full_state_memory). Tomorrow: build that + memory-sufficiency probe + frozen-probe color vs
+  vanilla_s0/ff7_k3 → present-then-stop. (Chose FF9 v2 over the relay tonight: relay = bug-prone rushed build
+  per V-T014; FF9 v2 is the safe, needed foundation.)
+- **T-013 — memory-token architecture + FF9 v2 (BUILT; TRAINING as EXP-017)** (H3 architectural baseline; D-024). ESC-013
   resolved: Merlin picked P1-as-baseline with his FF9 v2 fix (variable-horizon j∈{1..k}, path frames τ=0 /
   no GT leak, last frame sampled-τ, loss on last frame only, un-ramped). Plan `tasks/T-013-plan.md` updated.
   Build progress:
