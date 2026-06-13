@@ -30,17 +30,19 @@ purpose is efficient continuous rollouts, NOT training prep)
 EXP-016 ACCEPTED (ESC-012, "strong results"). Merlin directed: clean up + propose next direction.
 
 ## NEXT ACTION
-**Await Merlin's ESC-013 path decision (P1/P2/P3) on the FF9 method.** Merlin chose option B (memory-token
-+ FF9), color-first. Design note `tasks/T-013-plan.md` written + **critical-claim-verifier audited (V-T013):
-verdict REFUTED-as-specified.** Two findings: (1) loss shortcut — FF9 inherited FF7's τ~Uniform + `0.9τ+0.1`
-ramp, so the loss is mostly solvable by local self-denoising; memory non-load-bearing except in the
-down-weighted low-τ tail. **Fixed** in the plan (clamp τ low / invert ramp / supervise frame 1 at τ≈0). (2)
-STRATEGIC: even fixed, FF9 v1's single-hop TBPTT-1 credit trains read+1-hop-write but not
-preserve-across-N-hops → predicted to reproduce FF7 (color yes, depth/position no). So **A (sequential relay)
-and B (full-state objective) are COMPLEMENTARY, not alternatives.** → ESC-013 escalated with 3 paths;
-recommend **P1** (build FF9-v1-with-low-τ-fix as a color-first diagnostic: win = depth gain; informative null
-= green-light P3 = A+B combined). **Do NOT record D-024 or build until Merlin picks P1/P2/P3** — the verdict
-bears on the A/B framing he set (§7).
+**BUILD T-013: memory-token architecture + FF9 v2 loss on the 4070 (D-024).** ESC-013 RESOLVED — Merlin
+picked P1 reframed as the **architectural BASELINE** ("this alone won't fix FF7; wanted it first for a
+better baseline"), with his own fix for the V-T013 loss shortcut. **FF9 v2 (his design):** per memory
+rollout pick horizon j∈{1..k}; path frames t..t+j−1 at **τ=0** (pure noise → NO GT latent anywhere memory
+could cheat from); **last frame t+j at sampled τ** (training target; low-τ_j forces memory); **loss on the
+last frame only, un-ramped.** Distinct MEMORY token type (registers→scratch); withhold-via-τ=0 (no
+`absent_latent` token). Mechanism: within a window frame t+j attends DIRECTLY to frame t's memory → trains
+"memory = sufficient full-state object," NOT the cross-window relay (that's option A, layered on next).
+Build steps (tasks/T-013-plan.md §7): (1) additive arch (`n_memory`, smoke `n_memory=0`≡today); (2)
+`_ff9_loss` v2 + train flag/knobs; (3) `generate_full_state_memory` + smokes + memory-sufficiency probe;
+(4) train 100ep bs32 seed0 → EXP-017 present-then-stop. Measure: PRIMARY within-window memory sufficiency
+(L(mem)≪L(no-mem)) + no base-dynamics regression; POSITIONING frozen-probe color vs FF7/vanilla_s0 (expect
+≈FF7). Tripwires (D-024): mem not load-bearing / base regression / color worse than FF7 → halt.
 
 ## Recently done
 - **T-012 / D-020 — cross-frame sliding-window KV eviction cache — DONE + verified.** `stream_rollout_

@@ -709,3 +709,49 @@ the EXP-015 memory gap doesn't translate to batch headroom (e.g. cache grows wit
 where the memory goes. (3) OOM is non-deterministic / fragments unpredictably → fix with empty_cache +
 reset between configs, widen spacing, report the fragile boundary honestly rather than a crisp max.
 Spawns: EXP-016 (perf, local), present-then-stop per §5.
+
+## D-024 | 2026-06-13
+Context: Merlin chose option B (memory-token split + FF9 memory-only sufficiency) over option A (sequential
+register relay), color-first (AskUserQuestion). I wrote the design note (tasks/T-013-plan.md) and ran it
+past critical-claim-verifier per §4. **V-T013 verdict: REFUTED as specified** — (1) FF9 inherited FF7's
+successor setup (own real latents, τ~Uniform, ramp 0.9τ+0.1) so the loss is mostly solvable by local
+self-denoising; memory non-load-bearing except in the down-weighted low-τ tail (empirical probe in
+experiments/verify-T013/). (2) Even fixed, FF9 v1's single-hop TBPTT-1 gradient trains read+1-hop-write, not
+preserve-across-N-hops → predicted to reproduce FF7 (color yes, depth/position no). A (relay) and B
+(objective) are COMPLEMENTARY. Escalated ESC-013 (P1/P2/P3). Merlin: "verifier is very correct. This alone
+will not fix FF7. But I wanted to do this first so we have a better architectural baseline." → P1 reframed
+as the architectural-baseline build, with his own better fix for (1).
+Decision: Build the **memory-token architecture + FF9 v2 loss** on the 4070 (T-013), as the H3 memory-token
+ARCHITECTURAL BASELINE (NOT expected to beat FF7 on beyond-window depth — the cross-window relay, option A,
+is layered on this next). Specifics:
+- **Architecture (additive):** distinct MEMORY token type (`n_memory`, learned `memory_tokens`, `memory_in`
+  / `return_memory`, `use_full_state_memory`); registers revert to pure scratch (no memory duty). `n_memory=0`
+  ⇒ byte-identical to today (smoke-guarded). No `absent_latent` token — withhold via signal level.
+- **FF9 v2 loss (Merlin's variable-horizon, pure-noise path — fixes V-T013 finding 1 with NO GT leak):**
+  per memory rollout (max lookahead k) sample horizon j∈{1..k}; mini-forward [t..t+j]; frames t..t+j−1 (incl.
+  the memory source) at **signal level τ=0** (pure noise → no GT latent anywhere memory could cheat from),
+  memory_t injected at t + learned-init memory at t+1..t+j−1 (relayed via the temporal memory channel); the
+  **terminal frame t+j at sampled τ** (any level — so a training target exists + memory-conditioned denoiser
+  is calibrated); **loss on ALL of t+1..t+j** (Merlin refinement 2026-06-13: intermediates at τ=0 are pure
+  memory-sufficiency targets per horizon, terminal at sampled τ — leak-free because the only signal-bearing
+  frame is terminal with no successors; j supervised targets/rollout, not 1), **un-ramped** (drop 0.9τ+0.1 so
+  low-τ samples aren't down-weighted — the other half of V-T013 finding 1). Knobs: ff9_k, ff9_ramp(off
+  default), ff9_tau_last. Impl: fixed (k+1)-frame forward, per-window j∈{1..k}, scatter sampled τ to the
+  terminal slot + τ=0 elsewhere, mask the loss to frames 1..j.
+- **Mechanism note (recorded):** within one k-window forward, frame t+j attends DIRECTLY to frame t's memory
+  tokens → FF9 v2 trains "memory = sufficient attendable full-state object," NOT the cross-window relay
+  (preserve after the source leaves the window). That is exactly why it is a baseline, not the depth fix.
+- **Measure (reframed, §5):** PRIMARY = within-window memory sufficiency (L(memory)≪L(no-memory) across j) +
+  no base-dynamics regression; POSITIONING = frozen probe 5503e75 color at n_occ {12,16,24,32,48} vs
+  vanilla_s0 + FF7 (expect ≈FF7; flatter = bonus; worse = investigate); position reported (caveated).
+Alternatives rejected: my low-τ-clamp fix (Merlin's variable-horizon pure-noise path is cleaner and trains
+multi-horizon sufficiency + guarantees no GT on the path); P2 (isolate low-τ on FF7 — skips the memory-token
+arch Merlin wants); P3 (A+B now — bigger/riskier; Merlin wants the baseline first).
+Expected outcome: a clean memory-token model; memory-sufficiency probe shows memory beats the prior within
+window; no base-dynamics regression; frozen-probe color ≈ FF7 (architectural baseline established, relay next).
+Would change my mind: (1) memory-sufficiency probe shows memory NOT load-bearing (L(memory)≈L(no-memory)) →
+the τ=0-path loss still has a shortcut or memory collapsed → halt + re-examine before any relay work. (2)
+base-dynamics regression vs vanilla_s0 → the τ=0 path or extra tokens hurt the main objective. (3) frozen
+color materially WORSE than FF7 → the memory-token swap degraded what FF7's registers achieved.
+Spawns: T-013 build (architecture + _ff9_loss + generate_full_state_memory + smokes), then EXP-017
+(training run, present-then-stop per §5).

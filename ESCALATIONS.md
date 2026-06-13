@@ -748,3 +748,25 @@ Which path — P1 (recommended), P2, or P3 — and do you accept the low-τ fix 
 record D-024 and either build (P1/P2) or write the A+B relay design for a second verifier pass (P3).
 Urgency: blocking per §4 (read verdict before deciding) + §7 (verdict bears on the A/B choice you set).
 Nothing in flight; 4070 idle. I will NOT record D-024 or start building until you weigh in.
+
+### ESC-013 RESOLVED (Merlin, 2026-06-13)
+"The verifier is very correct. This alone will not fix FF7. But I wanted to do this first so that now we
+have a better architectural baseline." → **Path P1, reframed: build the memory-token + FF9 line now as the
+ARCHITECTURAL BASELINE (not expected to beat FF7 on depth/position — the cross-window relay (option A) comes
+after, on top of it).** Merlin accepts finding (2) (single-hop limit) explicitly.
+
+For finding (1), Merlin specified a **better fix than my low-τ clamp — FF9 v2 (variable-horizon, pure-noise
+path):** hard constraint = **NO GT signal may reach the memory at all.** Per memory rollout (lookahead k):
+pick a random **j ∈ {1..k}**; train on only j steps into the future; the **last latent (frame t+j) gets any
+signal level** (needed so a training target exists — the low-τ samples do the memory-forcing), while **all
+other path frames (t..t+j−1) are signal level 0** (pure noise → no GT latent anywhere memory could cheat
+from). **Loss on ALL of t+1..t+j** (Merlin follow-up: intermediates at τ=0 are pure memory-sufficiency
+targets, terminal at sampled τ — leak-free since only the terminal signal-bearing frame has no successors).
+Orchestrator interpretation (flagged to Merlin, proceed-unless-corrected): (a) "signal 0" replaces the
+proposed `absent_latent` placeholder (withhold via τ=0, no new token); (b) drop/flatten the FF7 ramp for the
+FF9 term so low-τ_j isn't down-weighted (the other half of verifier finding 1); both config-knobbed.
+Recorded mechanism note: within one k-window forward frame t+j attends DIRECTLY to frame t's memory tokens,
+so FF9 v2 trains "memory = sufficient attendable full-state object," NOT the cross-window relay — exactly
+why it's a baseline, with option A (sequential relay) layered on next.
+Applied to: DECISIONS.md D-024, tasks/T-013-plan.md (FF9 v2 loss + baseline framing), IDEAS.md (FF9 v2),
+ORIENT.md, BOARD.md. → build T-013 on the 4070.

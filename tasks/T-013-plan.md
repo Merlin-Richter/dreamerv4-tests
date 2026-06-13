@@ -89,15 +89,26 @@ Same combined-step structure as FF7 (main windowed diffusion loss unchanged; FF9
   - **frame 0 (t):** latent slots = a learned **`absent_latent` placeholder** (latent WITHHELD — the key
     difference from FF7, which puts the real latent there); `memory_in[:,0] = mem_t` (injected, the only
     carrier); registers = learned scratch; shortcut at `tau_ctx`.
-  - **frames 1..k (t+1..t+k):** real latents noised at **LOW τ** (V-T013 fix — NOT the inherited
-    Uniform(0,K_max)); `memory_in[:,1:]` = learned init (the in-pass memory relay forwards mem_t through
-    the k hops, exactly as FF7's k≥2 relays the register). **τ schedule (fix):** frame 1 at τ≈0 (pure
-    noise → its entire target must come from `mem_t` through the causal channel); frames 2..k at τ ∈
-    [0, ~0.2]. Equivalently/additionally flatten or invert the FF9-term ramp so gradient lives where
-    memory is the only signal source. (Make this a config knob `ff9_tau_max` to ablate.)
-  - **target/loss:** flow loss on the latent outputs of frames 1..k vs real z1, **un-ramped or
-    inverse-ramped** for the FF9 term (V-T013), unlike `_ff7_loss` :478-480's `0.9τ+0.1`. Frame 0's latent
-    output is ignored (it was a placeholder).
+  **→ SUPERSEDED by FF9 v2 (Merlin, 2026-06-13) — variable-horizon, pure-noise path. Use this:**
+  - Per rollout sample a horizon **j ∈ {1..k}** (uniform). Build a (j+1)-frame mini-forward `[t..t+j]`.
+  - **Hard constraint: no GT latent on the path.** Frames t..t+j−1 (incl. the memory-source frame t) are at
+    **signal level τ=0** (pure noise) — so the latent slots carry NO ground-truth; memory_t (injected at
+    frame t) + the learned-init memory tokens at t+1..t+j−1 (relayed via the temporal memory channel) are
+    the ONLY scene info. (τ=0 replaces the `absent_latent` placeholder of §2 — withhold via signal level.)
+  - **frame t+j (terminal only): τ sampled freely** ("any signal level" — so a well-posed denoising target
+    exists and the memory-conditioned denoiser is calibrated at the τ levels generation visits). finest d.
+  - **Loss on ALL of t+1..t+j** (Merlin refinement 2026-06-13 — not just the terminal frame): flow loss
+    `(z_hat[:,1:j+1] − z1[:,t+1:t+j+1])²`, **un-ramped** for the FF9 term (config knob; drop FF7's
+    `0.9τ+0.1` so memory-bearing low-τ samples aren't down-weighted — V-T013). **This stays leak-free:**
+    frames t+1..t+j−1 are at τ=0, so each is a PURE memory-sufficiency target at its horizon (no own-latent
+    GT to cheat from, and their τ=0 predecessors carry none either); the only signal-bearing frame is the
+    terminal t+j, which has no successors → leaks to nothing. So we get j supervised memory targets per
+    rollout (horizons 1..j) for free, instead of one.
+  - Random j trains memory sufficiency over variable within-window horizons (1..k). NB (recorded): within
+    one forward, frame t+j attends DIRECTLY to frame t's memory tokens — so this trains "memory = sufficient
+    attendable full-state object," NOT the cross-window relay (preserve after the source leaves the window).
+    The relay is option A, layered on next. This is why FF9 v2 is an architectural BASELINE, not a depth fix.
+  - Config knobs: `ff9_k` (max lookahead), `ff9_ramp` (on/off, default off), `ff9_tau_last` sampling.
 - Backprop path: through the injected `mem_t` into the windowed pass that wrote it → trains the **write**
   side; k≥2 trains the in-pass memory→memory **relay** (one hop of gradient, TBPTT-1-like). Deep
   preserve-across-N-hops is the *sequential relay* extension (parked; option A) — NOT in FF9 v1.
@@ -115,22 +126,26 @@ the register slot to the memory slot). Latents still flow normally between steps
 channel. `generate()` dispatches here when `use_full_state_memory`. (KV-cache: the streaming cache T-012
 applies unchanged — memory tokens are just more per-frame tokens in the window.)
 
-## 5. Success criteria (COLOR-first; pre-registered, Merlin 2026-06-13)
+## 5. Success criteria — FF9 v2 is an ARCHITECTURAL BASELINE (Merlin, 2026-06-13)
 
-- **Headline (trusted):** frozen probe 5503e75, hidden-COLOR ΔRGB vs the T-004 bar (< ~63) at **deep**
-  occlusion **n_occ ∈ {24, 32, 48}** — extended past EXP-010's {12,16,24} because FF7 only *just* misses at
-  24; the question is whether full-state memory holds color where FF7's drift breaks down. Baselines on the
-  identical probe: vanilla_s0 (EXP-012, at chance beyond window) and FF7 k=3 (EXP-010, decays to ~65 by 24).
-  **FF9 v1 outcomes (reframed per V-T013 — v1 is a DIAGNOSTIC, not an expected depth win):**
-  - *Win:* color ΔRGB flatter than FF7 at n_occ ≥ 24 → full-state objective + low-τ fix buys depth even
-    single-hop (plausible since color is static and accumulates).
-  - *Informative null:* color ≈ FF7 → empirically confirms the single-hop credit limit is the blocker →
-    green-light combining the objective (B) with the sequential relay (A). Negative results first-class (§8).
-  - *Regression:* worse than FF7 → the τ-clamp/withhold hurt base dynamics; investigate.
-- **Secondary (caveated):** position via the EXP-013 metric — reported, NOT a gate (metric of uncertain
-  strength, ESC-009). If FF9's full-state objective moves position at all, that's the interesting bonus.
-- **No-regression tripwire:** base 1-step teacher-forced dynamics + ceiling/drift controls must be
-  equal-or-better than vanilla_s0 (FF9 must not degrade base diffusion — as FF7 didn't, EXP-012).
+Reframed: the goal of this experiment is a sound, non-leaking memory-token model to build the relay (A) on
+— NOT to beat FF7 on beyond-window depth (Merlin: "this alone will not fix FF7"). So the primary signals are
+about the mechanism being healthy, with the frozen probe as a sanity/positioning check.
+
+- **Primary (does the mechanism work?):** within-window **memory sufficiency** — with the FF9 v2 setup
+  (path frames at τ=0, memory injected), memory-only prediction of frame t+j must beat the memory-free
+  baseline (predict-the-prior) by a clear margin, across j ∈ {1..k}. This is the direct readout that memory
+  encodes the full state (reuse the V-T013 probe machinery: L(memory) ≪ L(no-memory)).
+- **No-regression tripwire:** base 1-step teacher-forced dynamics + ceiling/drift controls equal-or-better
+  than vanilla_s0 (FF9 must not degrade base diffusion — as FF7 didn't, EXP-012). The main diffusion loss
+  forward is untouched, so expect parity.
+- **Positioning on the frozen probe (sanity, trusted metric):** color ΔRGB at n_occ {12,16,24,32,48} vs
+  vanilla_s0 (chance beyond window) and FF7 (decays ~65 by 24). **Expectation: ≈ FF7** (within-window
+  training only → OOD beyond window, like FF7). A *flatter-than-FF7* color curve would be a pleasant bonus
+  (full-state object generalizes better); ≈FF7 is the expected, acceptable baseline result; *worse* than
+  FF7 ⇒ the τ=0 path hurt and needs investigation.
+- **Secondary (caveated):** position via the EXP-013 metric — reported, NOT a gate (uncertain strength,
+  ESC-009). Real depth/position is the relay's (A) job, layered on this baseline next.
 - Screen single-seed first (Merlin relaxed the 2-seed order); replicate the better config on promise.
 
 ## 6. Open questions / forks for the verifier to pressure-test
@@ -156,15 +171,21 @@ applies unchanged — memory tokens are just more per-frame tokens in the window
 5. **Does withholding the latent at frame 0 starve the main diffusion objective?** (No — main `loss()`
    forward keeps latents; only the FF9 aux forward withholds. Verify no shared-tensor coupling.)
 
-## 7. Build steps (after verifier + D-024)
+## 7. Build steps (D-024 — FF9 v2)
 
-1. Add `n_memory`/`memory_tokens`/`memory_in`/`return_memory`/`absent_latent` + `use_full_state_memory`
-   (additive; `n_memory=0` ⇒ identical to today — guard with a smoke test).
-2. `_ff9_loss` + wire into `loss(ff9_k=..., lambda_ff9=...)`; `train_dynamics_model.py --ff9` flag.
-3. `generate_full_state_memory` + dispatch; unit smokes (shapes, n_memory=0 identity, 1-epoch finite,
-   probe dry-run through the new generate).
-4. Train on occluded env at the EXP-010/012 budget (100 ep, bs32, lr3e-4, seed0); frozen-probe eval at
-   n_occ {12,16,24,32,48} vs vanilla_s0 + FF7. Present-then-stop.
+1. Add `n_memory`/`memory_tokens`/`memory_in`/`return_memory` + `use_full_state_memory` to config+forward
+   (additive; `n_memory=0` ⇒ byte-identical to today — guard with a smoke test). No `absent_latent` token
+   needed — FF9 v2 withholds via signal level τ=0.
+2. `_ff9_loss` (FF9 v2: random j∈{1..k}, path frames τ=0, last frame τ sampled, loss on last frame only,
+   un-ramped) + wire into `loss(ff9_k=..., lambda_ff9=...)`; `train_dynamics_model.py --ff9` flag + knobs.
+3. `generate_full_state_memory` + dispatch; unit smokes (shapes, `n_memory=0` identity, τ=0-path builds,
+   1-epoch finite, probe dry-run + memory-sufficiency probe through the new generate).
+4. Train on occluded env at the EXP-010/012 budget (100 ep, bs32, lr3e-4, seed0); committed config.yaml +
+   run.sh. Eval: memory-sufficiency (primary) + frozen-probe color n_occ {12,16,24,32,48} vs vanilla_s0 +
+   FF7 + no-regression check. Present-then-stop.
+
+NB §6 below was the pre-build verifier checklist (V-T013) — now folded; finding (1) fixed by FF9 v2,
+finding (2) accepted (baseline framing), Q4/Q5 confirmed sound.
 
 Provenance discipline: committed `config.yaml` + `run.sh` per EXP (the EXP-010 gap, fixed since EXP-012).
 Run on the 4070 via `venv/Scripts/python.exe`.

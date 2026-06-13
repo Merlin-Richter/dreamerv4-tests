@@ -3,12 +3,14 @@
 Updated: 2026-06-13 (ESC-009/010 RESOLVED → building D-020 cross-frame KV cache / T-012)
 
 ## In progress
-- **T-013 — FF9 memory-only sufficiency + distinct MEMORY tokens** (H3 method; Merlin chose option B).
-  Design note `tasks/T-013-plan.md` written + code-grounded. **Verifier audited (V-T013): REFUTED as
-  specified** — (1) loss shortcut (memory non-load-bearing under FF7's τ~Uniform+ramp) → FIXED in plan
-  (low-τ successors); (2) single-hop credit limit → FF9 v1 predicted to reproduce FF7 (color, not depth);
-  A+B are complementary. **Blocked on Merlin ESC-013** (path P1 build-FF9-v1-with-fix [recommended] / P2
-  isolate-low-τ-on-FF7 / P3 go-straight-to-A+B). NEXT on his pick: D-024 → build or P3 relay design.
+- **T-013 — memory-token architecture + FF9 v2 (BUILDING)** (H3 architectural baseline; D-024). ESC-013
+  resolved: Merlin picked P1-as-baseline with his FF9 v2 fix (variable-horizon j∈{1..k}, path frames τ=0 /
+  no GT leak, last frame sampled-τ, loss on last frame only, un-ramped). Plan `tasks/T-013-plan.md` updated.
+  Build: (1) additive MEMORY token type (registers→scratch; `n_memory=0`≡today) → (2) `_ff9_loss` v2 +
+  train flag → (3) `generate_full_state_memory` + smokes + memory-sufficiency probe → (4) train seed0 →
+  EXP-017 present-then-stop. Measure: PRIMARY within-window memory sufficiency + no base-dyn regression;
+  POSITIONING frozen-probe color vs FF7/vanilla_s0 (expect ≈FF7). Verifier finding (2) accepted: cross-window
+  relay (option A) is the NEXT step on top of this baseline.
 
 ## Done (2026-06-13)
 - **EXP-016 batch sweep — ACCEPTED** (ESC-012, "strong results"). Closes the KV-cache efficiency
