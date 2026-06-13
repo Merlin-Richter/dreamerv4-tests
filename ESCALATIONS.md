@@ -29,7 +29,7 @@ Resolution (Merlin, 2026-06-11):
    qualitative — no invented numbers.
 Applied to: GOAL.md (created), DECISIONS.md D-009, BOARD.md T-001..T-004.
 
-## ESC-002 | 2026-06-11 | OPEN — present-then-stop (EXP-008 review)
+## ESC-002 | 2026-06-11 | RESOLVED — present-then-stop (EXP-008 review)
 Context: T-001 diagnosis of the EXP-007 dynamics rollout failure. A cold-start code
 read of `dynamics_model.py` (D-010) found the likely cause; EXP-008 (inference-only
 tau_ctx sweep on the existing `my_dynamics.pt`, no retraining) confirmed it.
@@ -120,7 +120,7 @@ Applied to: GOAL.md (H1→supported, H2 corrected, H3 reframed), DECISIONS.md D-
 BOARD.md (tasks rescoped), HOWTO/rope_kv_cache_caveat.md, ORIENT.md (rewritten),
 agent memory (milestone-reevaluate, measurement-validity).
 
-## ESC-004 | 2026-06-12 | OPEN — present EXP-009 (H2 baseline cliff) + T-004 pre-registration
+## ESC-004 | 2026-06-12 | RESOLVED — present EXP-009 (H2 baseline cliff) + T-004 pre-registration
 Context: EXP-009 (frozen probe @ f1cf860, 64 eps/n_occ) is the H2 baseline on the vanilla
 sliding-window model `my_dynamics.pt`. This is a present-then-stop gate (§5): every
 experiment ends here for your review, even a clean expected result.
@@ -171,7 +171,7 @@ T-004 + update GOAL H2 status, then we're clear to start H3 method exploration.
 Applied to: GOAL.md (H2→supported + criteria), DECISIONS.md D-012/D-013, tasks/T-004.md,
 src/probe/ (rename + README re-freeze), experiments/EXP-009/results.json (key migrated).
 
-## ESC-005 | 2026-06-12 | OPEN — two items awaiting Merlin before H3 build (context-reset checkpoint)
+## ESC-005 | 2026-06-12 | RESOLVED — two items awaiting Merlin before H3 build (context-reset checkpoint)
 Context: H2 closed (ESC-004). H3 entered; first method (FF7) designed and code-grounded with
 Merlin in live dialogue. Recorded here so a fresh session resumes without re-litigating.
 
@@ -204,7 +204,7 @@ frozen eval. Will be re-flagged at the EXP-010 present-then-stop.
 Applied to: DECISIONS.md D-014, BOARD.md (T-009 in progress), ORIENT.md, IDEAS.md (FF7 row
 correction).
 
-## ESC-006 | 2026-06-13 | OPEN — present EXP-010 (FF7 v1 screening) — present-then-stop
+## ESC-006 | 2026-06-13 | RESOLVED — present EXP-010 (FF7 v1 screening) — present-then-stop
 Context: EXP-010, the first H3 method (FF7 v1, D-014), finished overnight (both arms) while no
 session was alive. k=1 and k=3, single seed, 100 ep each, frozen probe 5503e75, vs the T-004
 bar (color ΔRGB < ~63 at n_occ {12,16,24}; EXP-009 baseline is at chance there). This is a §5
@@ -283,7 +283,7 @@ Applied to: DECISIONS.md D-015 (EXP-011 no-training diagnostic: confirm/localize
 the position deficit before any architecture change or retrain), GOAL.md (H3 note + position-
 tracking-blocker), ORIENT.md (rewritten), BOARD.md (EXP-011 in progress).
 
-## ESC-007 | 2026-06-13 | OPEN — present EXP-011 (position-deficit diagnostic) — present-then-stop
+## ESC-007 | 2026-06-13 | RESOLVED — present EXP-011 (position-deficit diagnostic) — present-then-stop
 Context: EXP-011 (D-015, no training) ran to answer your ESC-006 redirect — did the model never
 learn motion (a), or learn it and desync in open loop (b), and does the deficit live in the
 tokenizer C or the dynamics D. This is a §5 present-then-stop; it is also high-surprise +
@@ -370,7 +370,7 @@ with EXP-010's GPU numbers, so its conclusions stand.
 Applied to: DECISIONS.md D-016, dynamics_model.py + play_dynamics_checkpoint.py (T-010),
 CLAUDE.md, experiments/EXP-012/*, EXPERIMENTS.md, BOARD.md, ORIENT.md.
 
-## ESC-008 | 2026-06-13 | OPEN — present EXP-012 (budget-matched vanilla baseline) — present-then-stop
+## ESC-008 | 2026-06-13 | RESOLVED — present EXP-012 (budget-matched vanilla baseline) — present-then-stop
 Context: EXP-012 (D-016) is the clean control ESC-007 agreed to: a fresh vanilla dynamics model
 (--ff7 0 --fresh) at the EXACT EXP-010 FF7 budget (occluded, 100 ep, bs32, lr3e-4, seed0; val loss
 0.0066 = FF7's 0.0065), to retire my_dynamics and break the FF7-loss-vs-training-budget confound
@@ -586,7 +586,7 @@ that requires the FF7 loss. No follow-up (2nd-seed check) requested now; fold in
 writeup as a sub-result when we get there. The relay's job is *retention* (beyond-window color), not raw
 1-step accuracy — carried forward as context for the upcoming rollout-training method. Move on. → D-020.
 
-## ESC-011 | 2026-06-13 | OPEN — present EXP-015 (rollout KV cache perf tool) — present-then-stop
+## ESC-011 | 2026-06-13 | RESOLVED — present EXP-015 (rollout KV cache perf tool) — present-then-stop
 Context: You asked for a basic, reusable perf tool for the rollout KV cache (T-012): cached vs no-cache,
 GPU, with a batch dimension (training-relevant), reporting rollout-step throughput, memory, and where
 time goes, across context-window sizes. EXP-015 (D-022): `experiments/EXP-015/perf_rollout.py`,
@@ -627,7 +627,7 @@ larger batch) at a fixed context window, and measure whether the cached-vs-windo
 parallelism. → D-023 / EXP-016 (local 4070), present-then-stop per §5.
 Applied to: DECISIONS.md D-023, EXPERIMENTS.md (EXP-016), BOARD.md, ORIENT.md.
 
-## ESC-012 | 2026-06-13 | OPEN — present EXP-016 (batch-limit parallelism sweep) — present-then-stop
+## ESC-012 | 2026-06-13 | RESOLVED — present EXP-016 (batch-limit parallelism sweep) — present-then-stop
 Context: the batch cut you asked for (ESC-011) — fixed N=32, push batch toward each method's OWN VRAM
 ceiling on the 8 GB 4070, cached (`generate_streaming`) vs windowed (`generate_windowed`), does the
 speedup grow with parallelism. NOTE on the runs you saw cancelled: the original tool ran 4 rollout passes
@@ -688,3 +688,12 @@ streams live. A clean full sweep now runs in a few minutes and never hangs.
    the ±30% thermal variance with error bars. I lean: not needed unless you want the N=64 contrast — the
    parallelism question is answered.
 Urgency: blocking per §5 — not starting any follow-up until you weigh in. Nothing in flight; 4070 idle.
+
+### ESC-012 RESOLVED (Merlin, 2026-06-13)
+"Yes these are strong results! Accepted." The EXP-016 read stands: more parallelism → more speedup
+(5.9×→14×) because only the cached path scales while windowed is throughput-flat; at each method's own
+VRAM ceiling cached wins 13.5× end-to-end despite being more memory-hungry at N=32. No follow-up cut
+requested (N=64 contrast / error bars not asked for). Directed: **clean up + propose the next direction.**
+→ The KV-cache rollout substrate (T-008 → T-012 → EXP-015/016) is now complete and characterized; this
+closes the efficiency subobjective. Next = the H3-position method it was built for (see ORIENT / the
+proposal). Applied to: ORIENT.md, BOARD.md, ESCALATIONS (header markers tidied).

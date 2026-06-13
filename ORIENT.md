@@ -26,20 +26,26 @@ purpose is efficient continuous rollouts, NOT training prep)
   deliberately out of scope for this step.)
 
 ## In flight
-**Nothing running.** 4070 free. No cluster (scripts/ deferred). **EXP-016 (batch-limit parallelism sweep,
-D-023) DONE → blocked on Merlin (ESC-012) present-then-stop.** (ESC-011 RESOLVED — he directed this batch
-cut.)
+**Nothing running.** 4070 free. No cluster (scripts/ deferred). **Efficiency subobjective CLOSED** —
+EXP-016 ACCEPTED (ESC-012, "strong results"). Merlin directed: clean up + propose next direction.
 
 ## NEXT ACTION
-**Await Merlin's ESC-012 verdict on EXP-016 (batch-limit parallelism sweep).** Decisive read: more
-parallelism → MORE speedup — cached/windowed steps/s ratio rises monotone 5.85×(B32)→14.0×(B512) because
-only cached scales (frames/s 731→1427) while windowed is throughput-FLAT (~105–126, saturated). At each
-method's own VRAM ceiling (cached B=512/52%, windowed B=1024/82% — cached is MORE memory-hungry at N=32,
-flipping EXP-015's N=64 asymmetry) cached still wins 13.5× end-to-end. Caveat: abs steps/s ±30% run-to-run
-(laptop thermal); ratio+shape stable. **Timing fixed** (Merlin flagged the runs were way too slow / hung
-10 min): measure from pre-filled window + predictive VRAM guard that never launches a past-VRAM (sysmem-
-thrash) config + `-u`/no-tail live streaming. Offered next cut: same sweep at N=64 (asymmetry flips) or a
-repeat for error bars. Don't start follow-ups until he weighs in.
+**Await Merlin's pick on the next-direction proposal (the H3-POSITION method).** The KV-cache rollout
+substrate it was built for is done (T-008 within-frame → T-012 cross-frame eviction → EXP-015/016 perf:
+cached scales with batch/window, ~14× at B=512, never hangs). Now move to the method that substrate
+enables. Proposal on the table (recommend **A**):
+- **(A) Sequential TBPTT-1 register-relay training** (IDEAS.md "Sequential stop-grad register-relay") —
+  minimal change from FF7 (same register carrier, no new token type). Manufactures the deep-occlusion
+  regime FF7's parallel training never sees (only carrying register STATE across the window boundary
+  creates the "info already left every window" example). Carry register value n-deep, keep ONE step of
+  gradient. **Measure primarily on the FROZEN COLOR bar at DEEP occlusion (n_occ 24/32+)** — the trusted
+  metric FF7 currently just MISSES at n_occ 24; position is the caveated secondary (metric of uncertain
+  strength, ESC-009). KV cache accelerates the no-grad memory-PRODUCTION rollout.
+- **(B) Memory-token split + FF9 memory-only sufficiency** — distinct MEMORY token type (vs register
+  scratch); withhold current latent so memory must encode FULL state. Cleaner objective, bigger arch
+  change, unresolved distributional-target question. More ambitious / higher risk.
+Plan once he picks: write design note → **critical-claim-verifier audit** (§4, genuinely hard) → build on
+4070 → EXP vs the FF7 baseline (EXP-010) on the frozen probe. Do NOT start building until he steers.
 
 ## Recently done
 - **T-012 / D-020 — cross-frame sliding-window KV eviction cache — DONE + verified.** `stream_rollout_
