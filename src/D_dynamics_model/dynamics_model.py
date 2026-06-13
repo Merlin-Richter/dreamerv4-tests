@@ -74,6 +74,17 @@ class DynamicsModelConfig():
     use_register_memory: bool = False
     ff7_k: int = 0                  # provenance: FF7 lookahead depth used in training (0 = off).
 
+    # FF9 full-state memory (D-024). A DISTINCT memory-token type (registers revert to pure scratch)
+    # trained by the FF9 v2 memory-only-sufficiency loss: from the memory tokens ALONE (path latents
+    # withheld via signal level tau=0), predict the next 1..j frames. n_memory=0 => byte-identical to a
+    # pre-D-024 model (no memory tokens added). use_full_state_memory dispatches generate() to the
+    # memory-carry rollout (analog of generate_memory but on the memory slot).
+    n_memory: int = 0
+    use_full_state_memory: bool = False
+    ff9_k: int = 0                  # provenance: FF9 max lookahead used in training (0 = off).
+    ff9_ramp: bool = False          # FF9 term ramp-weighting. Default OFF (un-ramped) so the
+                                    # memory-bearing low-tau samples are not down-weighted (V-T013).
+
 
 class Attention(nn.Module):
     """Block-causal attention. Space layers attend fully within a frame; temporal layers
@@ -254,6 +265,13 @@ class DynamicsModel(nn.Module):
         self.action_embedding = nn.Parameter(0.05 * torch.rand((config.n_action_tokens, E)))
         self.register_tokens = nn.Parameter(0.05 * torch.rand((config.n_registers, E)))
 
+        # Distinct FF9 memory tokens (D-024). Only instantiated when n_memory > 0 so that n_memory=0
+        # checkpoints are byte-identical to pre-D-024 models. Placed AFTER registers in the token layout
+        # so the register read-out offset (lat_start + L) is unchanged.
+        self.n_memory = config.n_memory
+        if config.n_memory > 0:
+            self.memory_tokens = nn.Parameter(0.05 * torch.rand((config.n_memory, E)))
+
         # Discrete action conditioning: map each action id to a per-frame feature that is added
         # to the learned action embedding. Absent (n_actions == 0) => unlabeled video.
         self.n_actions = config.n_actions
@@ -308,7 +326,8 @@ class DynamicsModel(nn.Module):
     def forward(self, z_tilde: torch.Tensor, tau_idx: torch.Tensor, d_idx: torch.Tensor,
                 actions: torch.Tensor = None, register_in: torch.Tensor = None,
                 return_registers: bool = False, positions: torch.Tensor = None,
-                cache: list = None, commit: bool = False) -> torch.Tensor:
+                cache: list = None, commit: bool = False,
+                memory_in: torch.Tensor = None, return_memory: bool = False) -> torch.Tensor:
         """Predict clean latents (x-prediction) from noised latents.
 
         z_tilde:     (B, T, n_latents, bottleneck_dim) noised representations.
@@ -347,7 +366,17 @@ class DynamicsModel(nn.Module):
         else:
             register = register_in
 
-        x = torch.concat((action, lat, register, shortcut), dim=2)  # (B, T, N, E)
+        # Token layout: [action | latents | registers | (memory) | shortcut]. Memory tokens are inserted
+        # AFTER registers (so the register offset is unchanged) and only when n_memory > 0.
+        parts = [action, lat, register]
+        if self.n_memory > 0:
+            if memory_in is None:
+                memory = self.memory_tokens.expand(B, T, -1, -1)
+            else:
+                memory = memory_in
+            parts.append(memory)
+        parts.append(shortcut)
+        x = torch.concat(parts, dim=2)  # (B, T, N, E)
 
         for i, block in enumerate(self.blocks):
             layer_cache = cache[i] if cache is not None else None
@@ -356,14 +385,20 @@ class DynamicsModel(nn.Module):
         lat_start = self.n_action_tokens
         out = x[:, :, lat_start:lat_start + L, :]
         out = self.out_proj(self.out_norm(out))
-        if return_registers:
-            regs = x[:, :, lat_start + L:lat_start + L + self.n_registers, :]
-            return out, regs
+        if return_registers or return_memory:
+            extras = []
+            if return_registers:
+                extras.append(x[:, :, lat_start + L:lat_start + L + self.n_registers, :])
+            if return_memory:
+                mem_start = lat_start + L + self.n_registers
+                extras.append(x[:, :, mem_start:mem_start + self.n_memory, :])
+            return (out, *extras)
         return out
 
     # ------------------------------------------------------------------ loss
     def loss(self, z1: torch.Tensor, action_idx: torch.Tensor = None, ff7_k: int = 0,
-             lambda_ff7: float = 1.0, return_parts: bool = False) -> torch.Tensor:
+             lambda_ff7: float = 1.0, ff9_k: int = 0, lambda_ff9: float = 1.0,
+             return_parts: bool = False) -> torch.Tensor:
         """Shortcut forcing loss over a clip of clean representations.
 
         z1:         (B, T, n_latents, bottleneck_dim) clean tokenizer latents.
@@ -386,9 +421,16 @@ class DynamicsModel(nn.Module):
         z0 = torch.randn_like(z1)
         z_tilde = (1 - tau) * z0 + tau * z1
 
-        if ff7_k > 0:
-            # x-prediction (with gradient) + the register states the FF7 term re-injects.
-            z_hat1, regs = self(z_tilde, tau_idx, d_idx, actions, return_registers=True)
+        want_reg, want_mem = ff7_k > 0, ff9_k > 0
+        if want_reg or want_mem:
+            # x-prediction (with gradient) + the carrier states the FF7/FF9 term re-injects.
+            out = self(z_tilde, tau_idx, d_idx, actions,
+                       return_registers=want_reg, return_memory=want_mem)
+            z_hat1, _e = out[0], 1
+            if want_reg:
+                regs = out[_e]; _e += 1
+            if want_mem:
+                mem = out[_e]; _e += 1
         else:
             z_hat1 = self(z_tilde, tau_idx, d_idx, actions)
 
@@ -421,15 +463,18 @@ class DynamicsModel(nn.Module):
         w = (1 - self.config.ramp_min) * tau + self.config.ramp_min  # ramp weight, Eq. 8
         diffusion = (w * per_token).mean()
 
-        if ff7_k == 0:
-            if return_parts:
-                return diffusion, {"diffusion": diffusion.detach()}
-            return diffusion
-
-        ff7 = self._ff7_loss(z1, regs, actions, ff7_k)
-        total = diffusion + lambda_ff7 * ff7
+        total = diffusion
+        parts = {"diffusion": diffusion.detach()}
+        if ff7_k > 0:
+            ff7 = self._ff7_loss(z1, regs, actions, ff7_k)
+            total = total + lambda_ff7 * ff7
+            parts["ff7"] = ff7.detach()
+        if ff9_k > 0:
+            ff9 = self._ff9_loss(z1, mem, actions, ff9_k)
+            total = total + lambda_ff9 * ff9
+            parts["ff9"] = ff9.detach()
         if return_parts:
-            return total, {"diffusion": diffusion.detach(), "ff7": ff7.detach()}
+            return total, parts
         return total
 
     def _ff7_loss(self, z1: torch.Tensor, regs: torch.Tensor, actions: torch.Tensor,
@@ -478,6 +523,66 @@ class DynamicsModel(nn.Module):
         flow = (z_hat[:, 1:] - zw[:, 1:]) ** 2
         w = (1 - self.config.ramp_min) * tau[:, 1:] + self.config.ramp_min
         return (w * flow).mean()
+
+    def _ff9_loss(self, z1: torch.Tensor, mem: torch.Tensor, actions: torch.Tensor,
+                  k: int) -> torch.Tensor:
+        """FF9 v2 memory-only sufficiency loss (D-024, IDEAS.md FF9 v2; Merlin 2026-06-13).
+
+        For every frame t with k successors, a (k+1)-frame mini-forward [t, t+1, ..., t+k] folded into
+        the batch. Per window a horizon j ~ U{1..k} is sampled:
+          * frames t .. t+j-1 (incl. the memory-source frame t): signal level tau=0 -> the latent slots
+            are PURE NOISE, so NO ground-truth latent is anywhere on the path. memory_t (from the main
+            windowed pass) is injected at frame t; learned-init memory at t+1..t+j-1 relays via the
+            position-wise temporal memory channel. Memory is the ONLY scene carrier on the path.
+          * frame t+j (terminal): a sampled tau (any level) so a well-posed denoising target exists and
+            the memory-conditioned denoiser is calibrated; the low-tau samples force memory to be
+            load-bearing (V-T013). It has no successors -> its signal leaks to nothing.
+          * loss on frames t+1 .. t+j (each a memory-sufficiency target at its horizon), un-ramped by
+            default. Frames > j are computed but masked out (causally they cannot affect frames <= j).
+        Backprops through the injected memory_t into the windowed pass that wrote it (write-side credit,
+        TBPTT-1). Within one window frame t+j attends DIRECTLY to frame t's memory -> trains memory as a
+        sufficient full-state object, NOT the cross-window relay (that is option A, layered on next).
+        """
+        assert self.n_memory > 0, "ff9 requires n_memory > 0"
+        B, T, L, D = z1.shape
+        device = z1.device
+        n_t = T - k
+        assert n_t >= 1, f"clip length {T} too short for ff9_k={k}"
+        M, E = mem.shape[-2], mem.shape[-1]
+        BN = B * n_t
+
+        # (n_t, k+1) window indices -> gather (B, n_t, k+1, ...) and fold n_t into the batch.
+        idx = torch.arange(n_t, device=device)[:, None] + torch.arange(k + 1, device=device)[None, :]
+        zw = z1[:, idx].reshape(BN, k + 1, L, D)
+
+        # memory injected at frame 0 (the source), learned-init elsewhere.
+        mem0 = mem[:, :n_t].reshape(BN, 1, M, E)
+        mem_rest = self.memory_tokens.expand(BN, k, -1, -1)
+        memory_in = torch.concat((mem0, mem_rest), dim=1)            # (BN, k+1, M, E)
+
+        # per-window horizon j in {1..k}; tau=0 on the path, sampled tau on the terminal frame j.
+        j = torch.randint(1, k + 1, (BN,), device=device)            # (BN,) in [1, k]
+        tau_idx = torch.zeros(BN, k + 1, dtype=torch.long, device=device)
+        tau_term = torch.randint(0, self.K_max, (BN,), device=device)
+        tau_idx[torch.arange(BN, device=device), j] = tau_term       # scatter to the terminal slot
+        d_idx = torch.full((BN, k + 1), self.n_d - 1, dtype=torch.long, device=device)  # finest d
+
+        tau = self._tau_value(tau_idx)[..., None, None]
+        z_tilde = (1 - tau) * torch.randn_like(zw) + tau * zw        # path frames (tau=0) => pure noise
+
+        act_in = None
+        if actions is not None:
+            act_in = actions[:, idx].reshape(BN, k + 1, self.n_action_tokens, -1)
+
+        z_hat = self(z_tilde, tau_idx, d_idx, act_in, memory_in=memory_in)
+
+        # loss on frames 1..j (mask out frames > j); un-ramped by default.
+        flow = ((z_hat[:, 1:] - zw[:, 1:]) ** 2).mean(dim=(-1, -2))  # (BN, k) per-frame MSE
+        frame_pos = torch.arange(1, k + 1, device=device)[None, :]   # output positions = frames 1..k
+        mask = (frame_pos <= j[:, None]).float()                     # (BN, k) active where frame <= j
+        if self.config.ff9_ramp:
+            flow = ((1 - self.config.ramp_min) * tau[:, 1:, 0, 0] + self.config.ramp_min) * flow
+        return (flow * mask).sum() / mask.sum().clamp(min=1)
 
     # ------------------------------------------------------------------ rollout
     @torch.no_grad()
