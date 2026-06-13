@@ -519,3 +519,38 @@ consistency score is trivially passable by a degenerate belief that (i) does not
 credit self-consistent-but-GT-diverged beliefs as "memory") → his call, it redefines the metric.
 Spawns: design doc + critical-claim-verifier audit → metric build/freeze task (TBD after his sign-off).
 No experiment yet; this is instrument design.
+
+## D-019 | 2026-06-13
+Context: Independent thread, parallel to the D-018 position-memory metric (which a second orchestrator
+is actively building — `src/probe/position_consistency.py`, EXP-013). Picked to NOT touch the metric
+spine. ORIENT worry #4 + the EXP-012 "bonus finding" flag an OPEN, unresolved question: FF7 sharpens
+the base 1-step teacher-forced dynamics ~4.6× (vanilla_s0 4.66px ≈ my_dynamics 4.51 ≫ ff7 ~1.0px), but
+that number was produced through the **register-relay inference path**, not disentangled from the FF7
+**loss**. Code-grounded confirmation (this session): `generate()` (dynamics_model.py:528) dispatches
+`use_register_memory=True` checkpoints to `generate_memory()`, so EXP-011/012's FF7 1-step numbers ran
+via `generate_memory` — a **window-1** relay (last latent + carried register from memory_rollout_init,
+:722-728), NOT the ≤N-1=7-frame windowed attention the vanilla_s0 number used. So FF7's ~1px conflates
+THREE factors: (i) better weights from the FF7 loss, (ii) the register relay, (iii) window size (1 vs 7).
+Decision: Run an analysis-only experiment (EXP-014, NO training, existing checkpoints) that evaluates
+1-step teacher-forced pos_err for ff7_k1, ff7_k3, vanilla_s0 through BOTH inference paths on the IDENTICAL
+GT window: (a) vanilla windowed path (force `use_register_memory=False` → learned-init scratch registers,
+≤7-frame attention) and (b) relay path (`generate_memory`, window-1 + carried register). Reuses
+EXP-011/diagnose.py infra + frozen probe env/detector 5503e75 so numbers are comparable to EXP-011/012.
+Sanity anchor: relay-path FF7 must reproduce EXP-012's ~0.96–1.02px before any conclusion is drawn.
+Alternatives rejected: (a) cross-frame KV-eviction cache (T-008 follow-up) — foundational infra but
+serves the relay-training METHOD, which is gated behind the D-018 metric freeze (§8); premature. (b) 2nd
+vanilla seed for the motion claim — Merlin didn't ask; lower value. (c) touch the position metric —
+owned by the other orchestrator; hands-off.
+Expected outcome (prediction): FF7-vanilla-path 1-step lands MUCH better than vanilla_s0's 4.66px (i.e.
+closer to ~1–2px), supporting "the FF7 loss is a dynamics regularizer that improves windowed dynamics,
+independent of the relay." I expect a residual gap (relay-path slightly better than FF7-vanilla-path)
+attributable to window-1 register sufficiency, but the bulk of the 4.6× to be the loss.
+Would change my mind: (1) FF7-vanilla-path ≈ vanilla_s0 (~4.5px) while only relay-path ≈ 1px → the
+improvement is the RELAY INFERENCE / window-1 sufficiency, NOT better windowed weights; "FF7 is a better
+dynamics model" would be FALSE and the EXP-012 bonus claim must be retracted/reframed. (2) relay-path FF7
+fails to reproduce EXP-012's ~1px → my harness diverges from the diagnostic; fix before trusting anything.
+(3) vanilla_s0 through the (forced) relay path is also ~1px → the relay, not the FF7 loss, carries the
+1-step win even for non-FF7 weights (would reframe what the relay does). 
+Spawns: EXP-014 (analysis-only; ends present-then-stop per §5, escalated to Merlin). Coordination: no
+`git add -A` (other orchestrator has uncommitted position_consistency.py); path-scoped commits only;
+ORIENT/BOARD left to the live orchestrator to avoid clobbering its dashboard.

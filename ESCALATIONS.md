@@ -509,3 +509,54 @@ ff7_k3      4.0  7.9 11.9 14.5 19.4  24.5
 
 Urgency: blocking — per §5 I am not starting the relay method or freezing until you weigh in. Nothing of
 mine is in flight; 4070 free (modulo the parallel EXP-014).
+
+## ESC-010 | 2026-06-13 | OPEN — present EXP-014 (disentangle FF7 base-dynamics gain) — present-then-stop
+Context: Independent thread (D-019), parallel to the D-018/ESC-009 position-metric work — chosen to NOT
+touch the metric spine. Resolves the open ORIENT worry #4 / EXP-012 "bonus finding": FF7 sharpens 1-step
+teacher-forced pos_err ~4.6x (vanilla_s0 4.66 >> ff7 ~1.0px), but that ~1px was produced through the
+register-RELAY inference path (generate() dispatches use_register_memory=True -> generate_memory(),
+a window-1 relay), NOT the <=7-frame windowed attention the vanilla_s0 number used — so the gain conflated
+the FF7 loss, the relay, and window size. EXP-014 (analysis-only, no training, existing checkpoints) runs
+each model's 1-step teacher-forced prediction through BOTH inference paths on the IDENTICAL GT window.
+This is a section-5 present-then-stop gate.
+
+### The result (decisive read)
+**FF7's base-dynamics improvement is the LOSS, not the relay inference.** FF7 weights run through the
+plain windowed path with *no relay at all* (learned-init scratch registers — the exact forward FF7's own
+main diffusion loss uses) already hit **1.04 px** (k3) / 1.63 px (k1), versus vanilla_s0's **4.73 px** —
+a 4.5x / 2.9x improvement in *windowed* 1-step dynamics from the single-timestep-sufficiency objective
+alone. The register relay is a *secondary, arm-dependent* contributor: it barely moves the well-trained
+k3 (1.04->0.99) and closes the residual gap on the weaker-trained k1 (1.63->1.00). And the relay *requires*
+the FF7 loss — vanilla_s0 forced through the relay is *worse* (5.34 px > its own 4.73), so the window-1 +
+carried-register inference hurts weights not trained for it. Net: the EXP-012 "bonus finding" stands and
+sharpens — **FF7's single-timestep-sufficiency loss is a genuine dynamics regularizer on the windowed
+weights, independent of any memory-relay inference trick.** All three D-019 tripwires checked clear; the
+relay-path column reproduces EXP-011/012's FF7 numbers and the vanilla path reproduces vanilla_s0, so the
+cross-path differences are real (harness validated, not drift).
+
+**Complement to ESC-009/EXP-013:** that experiment found position memory through *true blind occlusion*
+is near-absent (vanilla ~ copy-last; FF7 only marginally better). Together: the FF7 loss buys a clean
+1-step dynamics model, but that 1-step accuracy does NOT translate into dynamic *position* memory through
+occlusion — FF7 relays static color, not motion. The two same-day findings are consistent and reinforce.
+
+### Access points (low-friction view)
+- **Headline chart (open first):** experiments/EXP-014/headline.png — grouped bars, vanilla vs relay
+  path per model, with copy-last (3.19px) and vanilla_s0-windowed (4.73px) reference lines. The FF7
+  no-relay bars at ~1px vs vanilla_s0's 4.73px bar is the whole story at a glance.
+- Numbers: experiments/EXP-014/results.json. Full reconciliation: experiments/EXP-014/NOTES.md.
+  Script: experiments/EXP-014/disentangle.py (reuses EXP-011 diagnostic infra + frozen probe 5503e75).
+
+### The question for you
+1. Agree with the read — FF7's 1-step base-dynamics gain is the LOSS (a dynamics regularizer), with the
+   relay a small secondary effect, so the EXP-012 bonus claim is confirmed (not an inference artifact)?
+2. Does this change how you want to frame/pursue the relay method? It says: expect most 1-step accuracy
+   from the FF7 objective itself; the relay's job is *retention* (color beyond-window, EXP-010), not raw
+   1-step accuracy. (ESC-009 explicitly flagged this verdict as possibly informing the relay-method call.)
+3. Anything to follow up: a 2nd-seed check of the loss-regularizer effect, or fold this into the eventual
+   EXP-012/H3 writeup as a sub-result?
+
+Urgency: non-blocking for the metric track (independent); per section 5 I am not starting any follow-on
+from this result until you weigh in. Nothing of mine is in flight; 4070 free.
+Coordination note: this thread kept strict isolation from the metric work — no edits to
+src/probe/position_consistency.py / EXP-013, path-scoped commits only (never git add -A), append-only
+state edits with my own IDs (D-019, EXP-014, ESC-010), ORIENT/BOARD left to the metric orchestrator.
