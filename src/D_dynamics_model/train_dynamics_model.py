@@ -271,6 +271,15 @@ def main():
                              "generate() carries register state at inference.")
     parser.add_argument("--lambda-ff7", type=float, default=1.0,
                         help="Weight of the FF7 loss term in the total (default 1.0).")
+    parser.add_argument("--ff9", type=int, default=0, metavar="K",
+                        help="FF9 v2 memory-only-sufficiency training (D-024): adds the distinct "
+                             "MEMORY-token carrier + the memory-only-sufficiency loss with lookahead "
+                             "K (1-3 sensible; 0=off). Sets n_memory + use_full_state_memory in the "
+                             "saved config. Registers stay pure scratch (independent of --ff7).")
+    parser.add_argument("--lambda-ff9", type=float, default=1.0,
+                        help="Weight of the FF9 loss term in the total (default 1.0).")
+    parser.add_argument("--n-memory", type=int, default=4,
+                        help="Number of distinct MEMORY tokens when --ff9 > 0 (default 4).")
     parser.add_argument("--seed", type=int, default=0,
                         help="Seed for torch/numpy/random (model init, tau/noise sampling).")
     wlog.add_args(parser)
@@ -336,6 +345,9 @@ def main():
         n_actions=n_actions,
         use_register_memory=args.ff7 > 0,
         ff7_k=args.ff7,
+        n_memory=(args.n_memory if args.ff9 > 0 else 0),
+        use_full_state_memory=args.ff9 > 0,
+        ff9_k=args.ff9,
     )
 
     train_ds = ChunkClipDataset(raw, train_idx, chunk_len, start_offset=0, actions=actions)
@@ -353,6 +365,10 @@ def main():
         if args.ff7 > 0:  # resuming an older checkpoint into FF7 training: record the flags
             cfg.use_register_memory = True
             cfg.ff7_k = args.ff7
+        if args.ff9 > 0:  # resuming into FF9 training: add the memory-token carrier flags
+            cfg.n_memory = args.n_memory
+            cfg.use_full_state_memory = True
+            cfg.ff9_k = args.ff9
         model = DynamicsModel(cfg).to(device)
         result = model.load_state_dict(payload["model_state_dict"], strict=False)
         if result.missing_keys:
@@ -389,8 +405,9 @@ def main():
             n_train_samples += batch_x.shape[0]
             with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
                 z1 = encode_frames(tokenizer, batch_x)  # frozen, no grad
-                loss, parts = model.loss(z1, batch_a, ff7_k=args.ff7,
-                                         lambda_ff7=args.lambda_ff7, return_parts=True)
+                loss, parts = model.loss(z1, batch_a, ff7_k=args.ff7, lambda_ff7=args.lambda_ff7,
+                                         ff9_k=args.ff9, lambda_ff9=args.lambda_ff9,
+                                         return_parts=True)
             opt.zero_grad()
             loss.backward()
             opt.step()
@@ -409,8 +426,9 @@ def main():
                 batch_x, batch_a = _split_batch(batch, device)
                 with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
                     z1 = encode_frames(tokenizer, batch_x)
-                    loss, parts = model.loss(z1, batch_a, ff7_k=args.ff7,
-                                             lambda_ff7=args.lambda_ff7, return_parts=True)
+                    loss, parts = model.loss(z1, batch_a, ff7_k=args.ff7, lambda_ff7=args.lambda_ff7,
+                                             ff9_k=args.ff9, lambda_ff9=args.lambda_ff9,
+                                             return_parts=True)
                     val_loss += loss.item()
                     for name, value in parts.items():
                         val_parts[name] = val_parts.get(name, 0.0) + value.item()
