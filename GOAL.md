@@ -126,7 +126,13 @@ vanilla_s0 ≈ copy-last (freezes the ball), FF7 only marginally better (esp. k1
 carries static *color* indefinitely but not dynamic *position/velocity*. **Caveat (Merlin):** he is
 not confident this metric, as coded, is a strong evaluation instrument, and chose NOT to freeze it as
 the H3 position spine — it is "built, of uncertain strength." So this read is the current best
-understanding, NOT a hard pre-registered gate. H3 *position* retention stays **open**; the next method
-to attempt it is the **sequential register-relay rollout training** (IDEAS.md), for which efficient
-sliding-window rollouts are being prepared (D-020). The metric's strength is revisited if/when a
-position method needs a yardstick.
+understanding, NOT a hard pre-registered gate. H3 *position* retention stays **open**.
+
+**Next method (Merlin chose 2026-06-13):** the **memory-token split + FF9 memory-only sufficiency**
+(IDEAS.md; design note `tasks/T-013-plan.md`) — a *distinct* MEMORY token type (registers revert to
+scratch) trained so memory ALONE (current latent withheld) suffices to predict the next k states, forcing
+a full-state object. Chosen over the sequential register-relay (option A). **Measurement = COLOR-first**:
+frozen probe 5503e75, T-004 bar, pushed to deep occlusion n_occ {24,32,48} where FF7 breaks down; position
+is the caveated secondary (not a gate). The efficient sliding-window rollout substrate (D-020, EXP-015/016)
+feeds the memory-PRODUCTION path. Flow: design note → critical-claim-verifier audit → D-024 → build (T-013).
+The metric's strength is revisited if/when the position bonus needs a yardstick.

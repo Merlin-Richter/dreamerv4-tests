@@ -3,7 +3,15 @@
 Updated: 2026-06-13 (ESC-009/010 RESOLVED → building D-020 cross-frame KV cache / T-012)
 
 ## In progress
-*(none — EXP-016 batch sweep done, blocked on Merlin ESC-012)*
+- **T-013 — FF9 memory-only sufficiency + distinct MEMORY tokens** (H3 position/color method; Merlin chose
+  option B over sequential-relay, 2026-06-13). Design note `tasks/T-013-plan.md` written + code-grounded.
+  **critical-claim-verifier audit RUNNING** (agent a77…, background) — testing whether FF9 actually forces
+  memory to store hidden state vs a denoiser shortcut. NEXT on verdict: revise → D-024 → ESC-013 build
+  go-ahead → build on 4070 → EXP vs FF7/vanilla_s0 on frozen probe, COLOR-first (n_occ {12,16,24,32,48}).
+
+## Done (2026-06-13)
+- **EXP-016 batch sweep — ACCEPTED** (ESC-012, "strong results"). Closes the KV-cache efficiency
+  subobjective (T-008→T-012→EXP-015/016).
 
 ## Awaiting review
 - **EXP-016 — batch-limit parallelism sweep** (D-023) DONE. Fixed N=32, batch→VRAM ceiling. Speedup

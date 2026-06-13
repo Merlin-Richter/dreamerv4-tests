@@ -30,22 +30,17 @@ purpose is efficient continuous rollouts, NOT training prep)
 EXP-016 ACCEPTED (ESC-012, "strong results"). Merlin directed: clean up + propose next direction.
 
 ## NEXT ACTION
-**Await Merlin's pick on the next-direction proposal (the H3-POSITION method).** The KV-cache rollout
-substrate it was built for is done (T-008 within-frame → T-012 cross-frame eviction → EXP-015/016 perf:
-cached scales with batch/window, ~14× at B=512, never hangs). Now move to the method that substrate
-enables. Proposal on the table (recommend **A**):
-- **(A) Sequential TBPTT-1 register-relay training** (IDEAS.md "Sequential stop-grad register-relay") —
-  minimal change from FF7 (same register carrier, no new token type). Manufactures the deep-occlusion
-  regime FF7's parallel training never sees (only carrying register STATE across the window boundary
-  creates the "info already left every window" example). Carry register value n-deep, keep ONE step of
-  gradient. **Measure primarily on the FROZEN COLOR bar at DEEP occlusion (n_occ 24/32+)** — the trusted
-  metric FF7 currently just MISSES at n_occ 24; position is the caveated secondary (metric of uncertain
-  strength, ESC-009). KV cache accelerates the no-grad memory-PRODUCTION rollout.
-- **(B) Memory-token split + FF9 memory-only sufficiency** — distinct MEMORY token type (vs register
-  scratch); withhold current latent so memory must encode FULL state. Cleaner objective, bigger arch
-  change, unresolved distributional-target question. More ambitious / higher risk.
-Plan once he picks: write design note → **critical-claim-verifier audit** (§4, genuinely hard) → build on
-4070 → EXP vs the FF7 baseline (EXP-010) on the frozen probe. Do NOT start building until he steers.
+**Process the critical-claim-verifier verdict on the FF9 design note, then escalate for build go-ahead.**
+Merlin chose **option B — memory-token split + FF9 memory-only sufficiency** (over the sequential-relay
+option A), COLOR-first measurement. Design note written: `tasks/T-013-plan.md` (distinct MEMORY token type;
+registers revert to scratch; FF9 = memory ALONE, current latent WITHHELD, must predict next k states →
+full-state object; mirrors the proven FF7 plumbing with withhold-instead-of-overwrite). **Verifier audit
+RUNNING** (background, agent a77…; tests the crux: does FF9 actually FORCE memory to store hidden state, or
+is it satisfiable by a denoiser shortcut that ignores memory — same risk class as FF7). On its verdict:
+revise the plan if flawed → **record D-024** → **escalate (ESC-013) for build go-ahead** (like ESC-005 for
+FF7) → build on 4070 → EXP vs FF7 (EXP-010) + vanilla_s0 (EXP-012) on frozen probe 5503e75, n_occ
+{12,16,24,32,48}. **Do NOT start the build before D-024 + Merlin's go-ahead.** Per §4, read the verifier
+report before recording the decision.
 
 ## Recently done
 - **T-012 / D-020 — cross-frame sliding-window KV eviction cache — DONE + verified.** `stream_rollout_
