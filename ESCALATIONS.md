@@ -749,6 +749,58 @@ record D-024 and either build (P1/P2) or write the A+B relay design for a second
 Urgency: blocking per §4 (read verdict before deciding) + §7 (verdict bears on the A/B choice you set).
 Nothing in flight; 4070 idle. I will NOT record D-024 or start building until you weigh in.
 
+## ESC-014 | 2026-06-14 | OPEN — relay-training credit design (V-T014 REFUTES pure detach) — present-then-stop
+Context: you specified Mode B (op-3 relay) with the memory carry DETACHED ("can and should be detached"). I
+wrote it up (T-014) and ran it past critical-claim-verifier, which built a decisive synthetic probe. This
+is a §5 present-then-stop / §7 escalation: the result is surprising AND reopens a design choice you set.
+
+### The result (decisive read)
+**Detached carry does NOT give a stable deep relay — it preserves state only up to the trained rollout
+depth, then drifts to chance.** Synthetic relay (GRU writer, a hop-0 secret never re-supplied, per-step
+recover loss; train depth 32, eval to 200), recovery MSE (chance ≈0.98):
+```
+depth   no_relay  detached(ModeB)  tbptt1   bptt
+ ≤31      0.98       ~0.0003        0.0004   0.0001   <- in-window: detach looks PERFECT (= BPTT)
+ 100      0.98        0.149         0.077    0.0018
+ 199      0.98        1.08          0.451    0.0135   <- past train depth: detached ≈ chance; BPTT flat
+```
+deep-avg(100/150/199): detached **0.587** vs BPTT **0.007** (84× worse) vs tbptt1 0.255. Detached drift
+d199/d16 = 3589×. **The trap:** within-window FF9 loss→0 *green-lights* detached, but it's blind to the
+drift that happens exactly in the deep regime op-3 exists to serve. Mechanism (your Bellman analogy, now
+qualified): the detached carrier is a *consistency* fixed point with **no per-step content anchor** (unlike
+Q-learning's observed reward), so it's free to slowly rotate/shrink its code while every step's loss stays
+satisfied. **Only BPTT-through-time extrapolates; 1 hop (tbptt-1) only partially helps.**
+Caveat: synthetic GRU + STATIC secret — proves the *credit mechanism* fails (architecture-general), not a
+production hop-count; the real DYNAMIC-state relay is strictly harder (no copy attractor).
+
+### The reconciliation (so we're precise about what's refuted)
+Refuted = "detach gives a relay sufficient across many hops *without training that deep*." NOT refuted =
+"train the per-step loss across the full N-step rollout, detached, and it holds within that N." Your
+"~200 steps" reading IS the latter and is viable to depth N — but it costs a depth-N sequential rollout
+every iteration, gives ZERO extrapolation beyond N, and is only validated for static state.
+
+### Access points
+- Curve (open first): `experiments/verify-T014/probe_curve.png` (MSE vs depth, 4 arms, train-depth line).
+- Numbers: `experiments/verify-T014/results_v2.json`; probe `probe_detached_relay_v2.py`. Row V-T014.
+
+### The decision (gradient design for the relay — your call; I recommend a cheap probe first)
+The probe tested the extremes: detach (0 grad hops) fails to extrapolate, BPTT (∞) works, tbptt-1
+insufficient. The sweet spot — the **minimum BPTT depth k that buys stable extrapolation** — is unknown and
+**cheap to find** (~30 min: sweep tbptt-k k∈{2,4,8,16} + a norm/projection on the carry, same harness).
+- **P-a (recommended): run that tbptt-k sweep before building.** One number (k) determines the whole Mode B
+  loop (how much graph to keep, how deep to roll, memory cost). Then build with the winning k + guardrails.
+- **P-b: accept train-to-depth detach now** — run the full deep rollout, per-step loss, detached; cheapest
+  gradient, bounded memory, but no extrapolation + deep-rollout cost + static-only-validated. Build now.
+- **P-c: also add a DYNAMIC-state probe variant** (secret = a moving quantity to integrate) — the real
+  unknown the static probe doesn't cover; cheap, and arguably the more important de-risk than k.
+My lean: **P-a + P-c together** (one short probe session settles both the cheapest k AND whether the relay
+works for dynamic state) BEFORE the expensive Mode B build. Guardrails to fold in regardless (V-T014):
+gate on a DEEP-HOP sufficiency metric not within-window FF9 loss; norm/projection on the relayed activation;
+detach the committed K/V (+assert) in the cache; strict-FF9-fraction a tuned knob.
+Urgency: blocking per §5 — not recording D-025 or building Mode B until you weigh in. Nothing in flight;
+4070 idle. (Process note: the verifier edited EXPERIMENTS.md (V-T014 row) and CLAUDE.md (a `-u` tip) despite
+the no-canonical-files instruction; both are correct so I kept them and reconciled as writer.)
+
 ### ESC-013 RESOLVED (Merlin, 2026-06-13)
 "The verifier is very correct. This alone will not fix FF7. But I wanted to do this first so that now we
 have a better architectural baseline." → **Path P1, reframed: build the memory-token + FF9 line now as the

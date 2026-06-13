@@ -22,7 +22,17 @@ no K substeps) and is cacheable — which is exactly what makes Mode B below che
 
 ## 0b. VERIFIER FINDINGS (V-T014, 2026-06-14) — fold these in regardless of the probe verdict
 
-Central claim verdict: **UNDETERMINED** (verifier stopped mid-probe; analysis complete). Key results:
+Central claim verdict: **REFUTED** (probe completed). Detached carry preserves state only UP TO the
+trained rollout depth, then drifts to chance — it buys NO free deep extrapolation. Recovery MSE (chance
+≈0.98; train depth 32, eval to 200): in-window ALL relay modes ~0.0003 (detach looks harmless); beyond,
+detached d50 .006→d100 .149→d150 .535→**d199 1.08 (≥chance)**; deep-avg detached **0.587** vs BPTT
+**0.007** (84×) vs tbptt1 0.255 vs no_relay 0.982; detached drift d199/d16 = 3589×. **Only BPTT
+extrapolates; tbptt-1 partial.** THE TRAP: within-window FF9 loss→0 green-lights detached but is blind to
+the drift in exactly the deep regime op-3 needs. Mechanism: consistency (not contraction) fixed point, no
+content anchor. Probe is synthetic GRU + STATIC secret → proves the credit MECHANISM fails (not a
+production hop-count); dynamic state would be harder. View: `experiments/verify-T014/probe_curve.png`.
+**Design consequence: pure detach (Mode B as specified) is OUT for free deep relay; the gradient design is
+reopened (see ESC-014) — train-to-depth-detach vs bounded-TBPTT-k.** Key results below stand:
 - **Code claims VERIFIED:** memory is an activation read at the final block (`dynamics_model.py:393-394`,
   injected layer-0 `:372-377`), no noise/target → cacheable; `_ff9_loss` reuses cleanly; streaming cache
   mechanics sound. ✔

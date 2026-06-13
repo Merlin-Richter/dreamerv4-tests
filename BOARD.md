@@ -18,9 +18,13 @@ Updated: 2026-06-13 (ESC-009/010 RESOLVED → building D-020 cross-frame KV cach
   (Merlin 2026-06-14; folds option A into the FF9 line = A+B). Design note `tasks/T-014-relay-plan.md` written.
   Mode B = detached-carry sliding-window relay (per-step grad forward + FF9 loss, detach+evict+slide, ~200
   steps, small/variable N, reuses T-012 streaming cache for detached context). Memory = activation (cacheable).
-  **critical-claim-verifier RUNNING** (agent ab0…) on the central claim: does detached-carry per-step-FF9 train
-  a stable sufficient relay (vs bootstrap-trap/drift/collapse)? NEXT on verdict: revise → D-025 → build Mode B
-  + 50/50 + alternation → EXP-018 (depth test: frozen-probe color at n_occ 24/32/48 vs FF9-v2/FF7/vanilla).
+  **Verifier V-T014: pure detached carry REFUTED** — preserves state only to the trained rollout depth, then
+  drifts to chance (deep-avg detached 0.587 vs BPTT 0.007; only BPTT extrapolates, tbptt-1 partial). Trap:
+  within-window FF9 loss→0 is blind to deep-regime drift. Synthetic GRU+static probe; dynamic harder.
+  **Blocked on Merlin ESC-014** (gradient design): P-a cheap tbptt-k sweep [rec] / P-c dynamic-state probe /
+  P-b train-to-depth detach. Guardrails regardless (deep-hop gate, carry norm, K/V detach, strict-frac knob).
+  NEXT on his pick: probe(s) or D-025 → build Mode B → EXP-018 (frozen-probe color n_occ 24/32/48 vs FF9-v2/
+  FF7/vanilla). FF9 v2 (ops 1&2) arch+loss built + green.
 
 ## Done (2026-06-13)
 - **EXP-016 batch sweep — ACCEPTED** (ESC-012, "strong results"). Closes the KV-cache efficiency

@@ -322,3 +322,5 @@ All models use dataclass configs for reproducibility:
 - **Register tokens in D**: free scratch tokens (from recent ViT research). In the vanilla model they are unconstrained scratch; the FF7 line (D-014) repurposes them as the hidden-state *memory carrier* — temporal attention is position-wise, so each register slot is its own causal channel through time, and FF7's loss + register-carry inference make it relay occluded state past the window.
 
 There are trained versions of Tokenizer which works well and had LPIPS loss during training ('trained_autoencoder.pt') and the trained vanilla dynamics model at 'my_dynamics.pt' (its earlier rollout "failure" was an inference bug — context noised at 90%; fixed via `context_signal=0.9`, see EXP-008/D-010).
+
+Almost always run python commands with the "-u" flag so output doesn't get buffered.

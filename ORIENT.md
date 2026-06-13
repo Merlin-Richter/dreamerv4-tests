@@ -50,11 +50,17 @@ its latents) + FF9 loss on it, backward (≤1 window, NO out-of-window BPTT), de
 steps, batched heavily, small/variable N; reuses the T-012 streaming cache for the detached context. Plus
 FF9 v2 → **50/50 GT split** (strict-τ=0 vs noised-GT path). Two modes A(parallel FF9 v2)/B(relay), alternate.
 
-**NEXT ACTION: process the critical-claim-verifier verdict on T-014** (RUNNING, agent ab0…; central claim:
-does detached-carry per-step-FF9 train a STABLE, SUFFICIENT relay across ~200 hops, or bootstrap-trap /
-drift / collapse?). On verdict: revise → D-025 → build Mode B + 50/50 + alternation → EXP-018. **Do NOT
-build Mode B before the verdict + D-025.** Sequencing of the ops-1&2 FF9 baseline vs going straight to A+B
-is still open with Merlin (he was mid-clarification when the op-3 design landed; the relay is now the focus).
+**NEXT ACTION: await Merlin's ESC-014 call on the relay GRADIENT design.** Verifier V-T014 (probe completed)
+**REFUTED pure detached carry**: it preserves state only up to the trained rollout depth, then drifts to
+chance (deep-avg detached 0.587 vs BPTT 0.007; drift d199/d16=3589×). Only BPTT extrapolates; tbptt-1
+partial. THE TRAP: within-window FF9 loss→0 green-lights detached but is blind to the deep-regime drift.
+Mechanism: consistency (not contraction) fixed point, no content anchor. Caveat: synthetic GRU + STATIC
+secret (dynamic harder). View: experiments/verify-T014/probe_curve.png. → ESC-014 with options: **P-a**
+(recommended) cheap tbptt-k sweep k∈{2,4,8,16}+norm to find the min BPTT depth that extrapolates, **P-c**
+add a DYNAMIC-state probe (the real unknown), **P-b** accept train-to-depth detach. My lean P-a+P-c before
+the expensive Mode B build. Guardrails regardless: gate on DEEP-HOP sufficiency (not within-window loss);
+norm/proj on relayed activation; detach committed K/V; strict-fraction knob. **Do NOT build Mode B / record
+D-025 until Merlin picks.** FF9 v2 (ops 1&2) arch+loss remain built + green (commit 7f4e4a3).
 
 ## Recently done
 - **T-012 / D-020 — cross-frame sliding-window KV eviction cache — DONE + verified.** `stream_rollout_

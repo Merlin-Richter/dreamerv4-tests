@@ -1,2 +1,3 @@
 - [T-011 scorer audit](t011-scorer-audit.md) — billiard-residual + onset-anchor metric: what's proven, the confabulation blind spot, and the synthetic-belief probe pattern
 - [Occluded env physics facts](occluded-env-physics.md) — exact wall/clamp rule, per-axis reflect, Markov curtain action — the scorer's ground-truth rules
+- [Detached-carry relay drift](detached-carry-relay-drift.md) — V-T014 REFUTED: detached per-step-sufficiency relays preserve in-window but drift to chance past trained horizon; Bellman analogy invalid; reusable plant-and-extrapolate probe
