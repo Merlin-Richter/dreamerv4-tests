@@ -20,6 +20,41 @@ A complete memory training has three operations; FF9 v2 has only 1 & 2:
 noise, not x-predicted, no GT target). So it is produced by ONE forward per frame (teacher-forced latents,
 no K substeps) and is cacheable — which is exactly what makes Mode B below cheap.
 
+## 0b. VERIFIER FINDINGS (V-T014, 2026-06-14) — fold these in regardless of the probe verdict
+
+Central claim verdict: **UNDETERMINED** (verifier stopped mid-probe; analysis complete). Key results:
+- **Code claims VERIFIED:** memory is an activation read at the final block (`dynamics_model.py:393-394`,
+  injected layer-0 `:372-377`), no noise/target → cacheable; `_ff9_loss` reuses cleanly; streaming cache
+  mechanics sound. ✔
+- **The Bellman/fixed-point argument (§3) is PARTIALLY INVALID.** Q-learning's bootstrap contracts because
+  the TD target is anchored by an *observed reward* each step. Mode B's carrier is a continuous activation
+  with **no per-step content anchor** — its only supervision is "be readable by *this* step's reader," a
+  *consistency* condition that admits drifting/collapsing solutions, because the detach removes any gradient
+  that says "write the code the *next* reader will need." **Rescued ONLY when the per-step target REQUIRES
+  the relayed content** (a deep-hop reveal of info injected earlier and NEVER re-supplied — the
+  deep-occlusion regime). Then per-step-loss→0 forces preservation. Whether SGD reaches that fixed point vs
+  a drift/collapse one is the empirical question (probe).
+  → **DESIGN IMPLICATION:** the FF9 targets used in Mode B must include genuine deep-hop reveals where the
+  only source is the relayed memory (not re-supplied by the path). The strict-no-GT half is necessary, not
+  optional; the noised-GT half does NOT force memory (V-T013) — keep the strict fraction high & monitored.
+- **Required code guardrails (REGARDLESS):**
+  1. **Detach the committed K/V tensors** in the Mode B commit (not just the memory activation) + assert
+     `not k.requires_grad` after commit — else the cache retains graph history → growing backward graph +
+     unintended cross-step BPTT + memory blow-up. (RoPE/eviction itself is correct.)
+  2. **Norm/clamp or a small learned projection on the relayed memory** before re-injection — feeding a
+     final-layer activation to layer-0 over ~200 hops is a textbook drift/explosion risk; "very likely
+     necessary, not optional."
+  3. **Make the strict-vs-noised FF9 fraction a tuned knob** (≥0.5) and log per-fraction memory-benefit.
+  4. **Gate on an explicit deep-hop memory-sufficiency metric** (recover info injected N hops earlier);
+     within-window FF9 loss → 0 does NOT certify cross-hop preservation.
+- §4 risk one-liners: (1) bootstrap-drift REAL (probe-gated); (2) activation-relay stability REAL (add
+  norm/proj); (3) 50/50 reopens V-T013 REAL (50% may be too dilute); (4) A/B interference MODERATE
+  (curriculum/ratio knob); (5) cache-under-grad SOUND iff committed K/V detached; (6) target staleness
+  MODERATE (EMA maybe, env deterministic so likely fine).
+- Probe (`experiments/verify-T014/probe_detached_relay_v2.py`): detached vs bptt vs tbptt1 vs no_relay,
+  recover a hop-0 secret never re-supplied, depth→200. Harness validated (no_relay at chance). [verdict
+  pending probe completion — orchestrator finishing it.]
+
 ## 1. Two training modes — alternate ("take turns")
 ### Mode A — parallel windowed (FF9 v2, ops 1 & 2). Unchanged from T-013 except the 50/50 split (§2).
 Full-clip parallel; cheap. Trains base diffusion + write-mem-from-latents + read-mem-into-latents.
