@@ -1,6 +1,6 @@
 # ORIENT.md
 
-Rewritten: 2026-06-12 (T-009 built & verified; EXP-010 running)
+Rewritten: 2026-06-13 ~02:15 (EXP-010 k1 arm DONE, k3 arm training)
 
 ## What we are doing and why
 
@@ -13,12 +13,16 @@ Rewritten: 2026-06-12 (T-009 built & verified; EXP-010 running)
 
 ## In flight (this is the thing to check on cold start)
 
-**EXP-010** (local 4070, background bash chain, started 2026-06-12, ~7h total):
-1. k=1 arm: 100-epoch train (budget-matched to baseline sm0kr1cf: bs32, lr3e-4,
-   occluded.npy) → full frozen probe → `experiments/EXP-010/k1/{train.log,probe.log,results.json}`
-2. then k=3 arm, same, → `experiments/EXP-010/k3/`
+**EXP-010** (local 4070, background bash chain, started 2026-06-12):
+1. **k=1 arm DONE** (2026-06-13 02:10): 100 epochs (train 0.00635 / val 0.00651),
+   probe complete, detector gate green. `experiments/EXP-010/k1/{results.json,sheet.png}`.
+   Early sanity read (NOT reconciliation): color ΔRGB @ n_occ 12/16/24 = 52.1/59.0/79.8
+   vs chance ~101 and T-004 H3 bar <63 → k=1 clears the bar at 12 & 16. Ceiling 9.3 /
+   drift 14–32: no inference-degradation tripwire visible.
+2. **k=3 arm RUNNING** (started 02:10, ~2.85 it/s ≈ same pace; ETA ~05:30 incl. probe)
+   → `experiments/EXP-010/k3/`
 W&B: exp010-ff7k1-s0 / exp010-ff7k3-s0 (project transformer-D-dynamics).
-Chain aborts at first failure (&&-chained). Smoke: 1 epoch ≈ 106s (k=1).
+Chain aborts at first failure (&&-chained).
 If a cold start finds the chain dead mid-way: check the k*/train.log tail and W&B,
 diagnose, do NOT silently relaunch (3-same-failure rule → escalate).
 
