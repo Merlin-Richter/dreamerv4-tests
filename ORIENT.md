@@ -11,10 +11,14 @@ purpose is efficient continuous rollouts, NOT training prep)
 - **H3 position — OPEN.** EXP-013 measured blind-occlusion position memory as near-absent (vanilla ≈
   copy-last; FF7 marginally better). **Merlin (ESC-009): the position metric as coded is of uncertain
   strength — NOT frozen as a spine, NOT a hard gate.** Read stands; not litigated further.
-- **JUST DONE (T-012 / D-020): cross-frame sliding-window KV eviction cache.** Purpose (Merlin's
-  framing, corrected): simply that we can now run **efficient sliding-window continuous (open-ended)
-  rollouts** via KV caching — O(1) attention per step, no per-frame window rebuild. Infra, not an
-  experiment. (NOT framed as training prep — no training-objective / gradient-graph thinking here.)
+- **Big picture (where this is heading):** an **efficient register-relay rollout training** for H3
+  position (IDEAS.md). We are sequencing it deliberately — nail the efficient-rollout substrate first,
+  in isolation, before any training/objective work. Training is the eventual goal, NOT right now.
+- **JUST DONE (T-012 / D-020), the first subobjective: cross-frame sliding-window KV eviction cache.**
+  We can now run **efficient sliding-window continuous (open-ended) rollouts** via KV caching — O(1)
+  attention per step, no per-frame window rebuild. Implemented + verified (9/9). Infra, not an
+  experiment. (Built for rollout efficiency; training internals — objectives, gradient graphs — are
+  deliberately out of scope for this step.)
 
 ## In flight
 **Nothing running.** 4070 free. No cluster (scripts/ deferred). T-012 DONE + verified.
@@ -41,6 +45,8 @@ continuous rollout that currently recomputes the window each frame. Don't start 
 - T-008/D-017 — within-frame KV cache (`generate_cached`, bit-for-bit). The foundation D-020 builds on.
 
 ## Open threads / parked
+- **Efficient register-relay rollout training** (IDEAS.md) — the big-picture H3 *position* goal that
+  the T-012 rollout cache feeds into. Parked deliberately: do it AFTER the rollout substrate, not now.
 - EXP-013 position metric: built, of uncertain strength, parked (Merlin's call). Revisit only if a
   position method needs a yardstick.
 - Apply `stream_rollout_step` to continuous-rollout call sites (interactive viewer) — efficiency win,

@@ -3,7 +3,12 @@
 **Goal:** a persistent KV cache for autoregressive sliding-window rollouts of the dynamics model D, so
 we can run **efficient open-ended / continuous rollouts** — O(1) attention per step instead of
 re-encoding the window each frame. Easily verifiable (Merlin-directed). Infra, not an experiment — the
-correctness tests are the artifact. (Purpose is rollout efficiency only; no training/gradient framing.)
+correctness tests are the artifact.
+
+**Where this sits in the big picture:** the eventual goal is an **efficient register-relay rollout
+training** for H3 position (IDEAS.md). This task is the first subobjective — the efficient-rollout
+substrate — done in isolation. Training internals (objectives, gradient graphs) are intentionally NOT
+in scope here; they come in a later step that builds on this.
 
 ## Context (code-grounded, dynamics_model.py)
 - `generate()` (:518): uncached sliding-window rollout. Per generated frame: window = last
