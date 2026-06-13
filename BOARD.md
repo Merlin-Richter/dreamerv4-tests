@@ -16,14 +16,23 @@ Updated: 2026-06-13 (EXP-012 done → ESC-008 present-then-stop)
   relay into DynamicsModel.memory_rollout_init/step (generate_memory reuses them); viewer drives
   them for FF7 ckpts. Verified (smokes + probe dry-run + headless reveal 9.9 vs 64.4). CLAUDE.md synced.
 
-## Backlog (post-EXP-012; proposed in ESC-008, pending Merlin's verdict)
-- **Closed-loop / distributional position metric** — measure position *memory*, not open-loop
-  trajectory chaos (current open-loop GT-matched metric conflates them). EXP-012 done; next per ESC-008.
+## Backlog (post-EXP-012; ESC-008 RESOLVED — Merlin redirected the position metric)
+- **Position-memory CONSISTENCY metric (D-018)** — NEXT. Supersedes the "closed-loop/distributional"
+  framing. Measure whether the model's believed (x,y) AND velocity stay self-consistent / physically
+  coherent over the occluded steps ("what would it predict if revealed now", compared across steps),
+  NOT exact GT-trajectory match. Must credit butterfly-divergence (F2) while penalizing forgetting
+  (F1: static-center OR wander). Working design in D-018 (onset-fidelity + self-physics-consistency +
+  report-only GT-tracking-horizon; state-probe readout; ceiling/chance/copy-last/matched-horizon
+  controls). **Gate: converge design with Merlin → critical-claim-verifier audit → build + FREEZE,
+  BEFORE any H3 position method runs (§8 spine).**
   - **Design caveat (Merlin, 2026-06-13):** open-loop pos_err is doubly artifacted — (1) bounded
     box domain caps error near chance; (2) the curve TURNS OVER at long horizons (h>~20, e.g.
     vanilla 28.2@h16→24.0@h24) because the ball BOUNCES off walls and returns to prior regions, so
     a desynced prediction lands near GT by coincidence — NOT the model recovering. The new metric
-    must not credit this (measure distributional/closed-loop consistency, not GT-trajectory match).
+    must not credit this (measure self-consistency, not GT-trajectory match).
+  - **Merlin's metric critique (ESC-008):** open-loop GT-matched error wrongly penalizes BOTH the
+    "ball is center" non-tracker AND the accurate-but-butterfly-desynced tracker. Measure consistency
+    of position+velocity over steps instead.
 - **Sequential stop-grad register-relay training** (IDEAS.md) — TBPTT-1 relay so training context
   carries real relayed memory tokens (fixes the learned-init mismatch); candidate H3 *position*
   method once position is measurable. Worked out with Merlin 2026-06-13; pending ESC-008 direction.

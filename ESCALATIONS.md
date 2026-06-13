@@ -428,3 +428,25 @@ the relay-inference path, so loss-vs-relay isn't fully disentangled yet.)
 Urgency: blocking — per §5 I am not starting the next decision (position metric, relay method, or
 seed) until you weigh in. Nothing is in flight; the 4070 is idle. (Independent KV-cache work
 T-008/D-017 was committed during the EXP-012 wait; does not touch this result.)
+
+### ESC-008 RESOLVED (Merlin, 2026-06-13)
+1. **Agreed** — H2 cleanly anchored on the budget-matched baseline; `my_dynamics` retired; `vanilla_s0`
+   is the H2/H3 baseline.
+2. **Agreed** — the confound is resolved; FF7's color AND motion wins are the method, not budget;
+   EXP-009/EXP-010 conclusions are retroactively trustworthy.
+3. **Redirect on the position metric / interpretation (verbatim-in-substance):** the way position is
+   currently measured (open-loop GT-matched error) is bad — a model that predicts "ball is center"
+   always gets high loss, AND a model that predicts accurately but suffers early butterfly-effect
+   desync also scores badly. A better objective is to measure how well the predicted **position AND
+   velocity stay CONSISTENT over the occluded timesteps**: run the curtain down and, at every
+   timestep, check "what would the model predict if we reveal now" → read out (x,y,dx,dy), and
+   compare across consecutive steps (e.g. step t vs t−1) for consistency — "or something like that,
+   or something else idk, but the currently proposed [open-loop GT-matched] idea is bad."
+   → The previously-proposed "closed-loop/distributional position metric" is superseded by this
+   **belief-self-consistency** direction. Design to be converged with Merlin + checked by the new
+   `critical-claim-verifier` agent BEFORE build+freeze (§8: the metric is the spine — a logged
+   decision; pre-registration honesty = lock before any H3 position method runs). → D-018.
+**New tooling note (Merlin):** the `critical-claim-verifier` agent is committed. Use it when
+developing plans for difficult code, or difficult architecture/objective ideas, where an unbiased
+independent opinion is wanted. (Not for routine work.)
+Applied to: DECISIONS.md D-018, BOARD.md (metric task refined), ORIENT.md (rewritten).

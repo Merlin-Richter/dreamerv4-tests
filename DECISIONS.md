@@ -468,3 +468,54 @@ diverges — the HOWTO's exact failure mode). (2) the refactor perturbs the trai
 breaks checkpoint loading → back out and redo opt-in. (3) EXP-012 finishes → STOP this and process
 results first (§0.3, finished job takes priority).
 Spawns: T-008 (this work). Independent of EXP-012; no present-then-stop gate (not an experiment).
+
+## D-018 | 2026-06-13
+Context: ESC-008 resolved. Merlin agreed (1) H2 anchored on the budget-matched baseline + my_dynamics
+retired and (2) the confound is resolved (FF7 wins = method, EXP-009/010 retroactively trustworthy).
+On (3) he REJECTED the open-loop GT-matched position metric as the way to judge position memory: it
+conflates two failures it should separate — (F1) a model that never tracks (predicts center/static)
+scores badly, AND (F2) a model that tracks well but suffers early butterfly-effect desync ALSO scores
+badly — plus the artifacts already on BOARD (bounded box caps error at chance; the curve turns over
+at long horizons because the ball bounces back into prior regions, falsely crediting a desynced
+prediction). His proposed direction: measure whether the model's believed (x,y) AND velocity stay
+**self-consistent over the occluded timesteps** — at each occluded step read out "what would the
+model predict if revealed now" and compare across steps — rather than matching the exact (chaotic) GT
+trajectory. This supersedes the BOARD "closed-loop/distributional position metric" framing.
+Decision: Design, converge-with-Merlin, verifier-check, then build + FREEZE a **position-memory
+consistency metric** that (a) credits a model maintaining a coherent, physically-evolving belief about
+the hidden ball (retained position+momentum), (b) does NOT penalize butterfly-effect divergence from
+the exact GT trajectory deep in occlusion, (c) DOES penalize forgetting — both the static/center
+"forgot it's moving" mode and the wander "lost the object" mode. The metric is the spine of the H3
+*position* story (§8): its definition is a logged decision and must be LOCKED before any H3 position
+method (e.g. the sequential stop-grad register-relay, IDEAS.md) is run, to keep pre-registration
+honest. The design will be put past the `critical-claim-verifier` agent (Merlin-committed) for an
+independent measurement-validity audit before freeze.
+Working formalization to bring Merlin (not yet locked):
+  - Readout of the believed state per occluded step via a velocity-aware **state probe** on the
+    dynamics-model hidden state (registers/latents), trained+gated on teacher-forced VISIBLE rollouts
+    (cf. EXP-011 latent→xy R²=0.96 on tokenizer C; here it reads the dynamics state). Optional
+    cross-check: a counterfactual "reveal-now" readout IF the env exposes a curtain-up control
+    (to verify when building).
+  - Components: (i) ONSET FIDELITY — believed (x,y,dx,dy) vs GT at occlusion onset & in-window steps
+    (fair vs GT; catches F1-static via wrong velocity, catches forgetting once prefix scrolls out);
+    (ii) SELF-PHYSICS CONSISTENCY — seed a deterministic billiard rollout from the believed onset
+    state and measure residual of the believed trajectory to it over k steps (GT-free, desync-immune;
+    low = retained coherent motion; the static-forget degenerate is killed by (i)); (iii) report-only
+    GT-TRACKING HORIZON — first step belief–GT exceeds threshold (fair early, informative).
+  - Controls: ceiling (teacher-forced visible belief), chance (static-center/shuffled), copy-last
+    (frozen ball — must FAIL onset velocity-fidelity), matched-horizon visible (curtain-up) control.
+Alternatives rejected: (a) keep the open-loop GT metric — Merlin rejected it (conflates F1/F2 +
+artifacts). (b) skip the metric and treat color-only as the H3 result — leaves the more interesting
+position half unmeasured; he wants it measured honestly. (c) jump straight to the relay method — would
+run a method with no valid yardstick; §8 wants the spine frozen first.
+Expected outcome: a frozen, validity-audited position-memory metric on which the budget-matched
+vanilla baseline shows poor consistency beyond the window (forgets the moving object) and against
+which H3 position methods can be judged honestly.
+Would change my mind: (1) the state probe does NOT transfer from visible→occluded hidden states
+(low held-out accuracy, or it's decoding the curtain not a belief) → the readout is invalid; redesign
+the readout (e.g. reveal-action counterfactual) before trusting any number. (2) the self-physics
+consistency score is trivially passable by a degenerate belief that (i) does not catch → tighten/redo
+(this is exactly what the verifier audit is for). (3) Merlin redirects the framing (esp. whether to
+credit self-consistent-but-GT-diverged beliefs as "memory") → his call, it redefines the metric.
+Spawns: design doc + critical-claim-verifier audit → metric build/freeze task (TBD after his sign-off).
+No experiment yet; this is instrument design.
