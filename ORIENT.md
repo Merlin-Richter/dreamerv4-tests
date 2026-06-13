@@ -21,14 +21,15 @@ purpose is efficient continuous rollouts, NOT training prep)
   deliberately out of scope for this step.)
 
 ## In flight
-**Nothing running.** 4070 free. No cluster (scripts/ deferred). T-012 DONE + verified.
+**Nothing running.** 4070 free. No cluster (scripts/ deferred). T-012 DONE + verified. **EXP-015 perf
+tool DONE → blocked on Merlin (ESC-011) present-then-stop.**
 
 ## NEXT ACTION
-**Await Merlin's direction.** The KV cache is done: `generate_streaming` + `stream_rollout_init`/`step`
-give efficient continuous rollouts; `generate_windowed` is the verified uncached twin. A natural,
-verifiable *application* (not started, his call) is wiring `stream_rollout_step` into the continuous
-call sites — e.g. the interactive viewer `play_dynamics_checkpoint.py`'s vanilla path, which is a
-continuous rollout that currently recomputes the window each frame. Don't start it unprompted.
+**Await Merlin's ESC-011 verdict on EXP-015 (rollout KV-cache perf).** Decisive read: the cache makes
+continuous-rollout throughput INDEPENDENT of context length (~28 steps/s ≈ 900 frames/s at B=32, flat
+N=8→64) and wins memory too; uncached degrades 21→5.7 steps/s, speedup 1.33×→4.79×. Tool reusable
+(`perf_rollout.py --batch --windows --budget`). Offered next cut: a batch-size sweep at fixed N. Don't
+start follow-ups until he weighs in.
 
 ## Recently done
 - **T-012 / D-020 — cross-frame sliding-window KV eviction cache — DONE + verified.** `stream_rollout_

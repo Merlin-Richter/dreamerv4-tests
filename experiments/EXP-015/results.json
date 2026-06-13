@@ -1,0 +1,219 @@
+{
+  "meta": {
+    "gpu": "NVIDIA GeForce RTX 4070 Laptop GPU",
+    "batch": 32,
+    "T_ctx": 4,
+    "K": 4,
+    "embedding_dim": 256,
+    "depth": 8,
+    "n_heads": 16,
+    "n_latents": 4,
+    "bottleneck_dim": 64,
+    "n_actions": 2,
+    "budget_s": 8.0,
+    "windows": [
+      8,
+      16,
+      32,
+      64
+    ]
+  },
+  "results": [
+    {
+      "method": "cached",
+      "N": 8,
+      "B": 32,
+      "steps": 222,
+      "secs": 7.851,
+      "steps_per_s": 28.3,
+      "frames_per_s": 904.9,
+      "ms_per_step": 35.364,
+      "peak_alloc_MB": 113.5,
+      "peak_reserved_MB": 170.0
+    },
+    {
+      "method": "windowed",
+      "N": 8,
+      "B": 32,
+      "steps": 126,
+      "secs": 5.933,
+      "steps_per_s": 21.2,
+      "frames_per_s": 679.6,
+      "ms_per_step": 47.088,
+      "peak_alloc_MB": 122.1,
+      "peak_reserved_MB": 190.0
+    },
+    {
+      "method": "cached",
+      "N": 16,
+      "B": 32,
+      "steps": 225,
+      "secs": 8.005,
+      "steps_per_s": 28.1,
+      "frames_per_s": 899.4,
+      "ms_per_step": 35.579,
+      "peak_alloc_MB": 122.2,
+      "peak_reserved_MB": 190.0
+    },
+    {
+      "method": "windowed",
+      "N": 16,
+      "B": 32,
+      "steps": 106,
+      "secs": 7.667,
+      "steps_per_s": 13.8,
+      "frames_per_s": 442.4,
+      "ms_per_step": 72.331,
+      "peak_alloc_MB": 155.6,
+      "peak_reserved_MB": 244.0
+    },
+    {
+      "method": "cached",
+      "N": 32,
+      "B": 32,
+      "steps": 223,
+      "secs": 7.872,
+      "steps_per_s": 28.3,
+      "frames_per_s": 906.5,
+      "ms_per_step": 35.299,
+      "peak_alloc_MB": 153.8,
+      "peak_reserved_MB": 210.0
+    },
+    {
+      "method": "windowed",
+      "N": 32,
+      "B": 32,
+      "steps": 72,
+      "secs": 10.046,
+      "steps_per_s": 7.2,
+      "frames_per_s": 229.4,
+      "ms_per_step": 139.524,
+      "peak_alloc_MB": 232.6,
+      "peak_reserved_MB": 672.0
+    },
+    {
+      "method": "cached",
+      "N": 64,
+      "B": 32,
+      "steps": 223,
+      "secs": 8.162,
+      "steps_per_s": 27.3,
+      "frames_per_s": 874.3,
+      "ms_per_step": 36.6,
+      "peak_alloc_MB": 217.7,
+      "peak_reserved_MB": 438.0
+    },
+    {
+      "method": "windowed",
+      "N": 64,
+      "B": 32,
+      "steps": 50,
+      "secs": 8.757,
+      "steps_per_s": 5.7,
+      "frames_per_s": 182.7,
+      "ms_per_step": 175.149,
+      "peak_alloc_MB": 495.6,
+      "peak_reserved_MB": 4708.0
+    }
+  ],
+  "speedups": {
+    "8": 1.33,
+    "16": 2.04,
+    "32": 3.93,
+    "64": 4.79
+  },
+  "profiles": [
+    {
+      "method": "cached",
+      "N": 32,
+      "B": 32,
+      "n_steps": 20,
+      "top_ops": [
+        [
+          "aten::addmm",
+          209.33
+        ],
+        [
+          "ampere_sgemm_32x128_tn",
+          131.05
+        ],
+        [
+          "aten::_fused_rms_norm",
+          78.98
+        ],
+        [
+          "_ZN2at6native53_GLOBAL__N__e58679f9_20_layer_norm_kernel_cu_3ff0b71f28vectorized_layer_norm_kernelIffLb1EEEviT0_PKT_S6_S6_PS3_S7_PS4_",
+          78.98
+        ],
+        [
+          "aten::bmm",
+          57.36
+        ],
+        [
+          "ampere_sgemm_128x64_tn",
+          39.41
+        ],
+        [
+          "_ZN2at6native18elementwise_kernelILi128ELi2EZNS0_22gpu_kernel_impl_nocastIZZZNS0_23direct_copy_kernel_cudaERNS_18TensorIteratorBaseEENKUlvE1_clEvENKUlvE5_clEvEUlfE_EEvS4_RKT_EUliE_EEviT1_",
+          38.69
+        ],
+        [
+          "ampere_sgemm_32x32_sliced1x4_tn",
+          24.77
+        ]
+      ],
+      "cuda_ms_total": 888.87,
+      "split_pct": {
+        "compute": 56.1,
+        "memory": 39.0,
+        "other": 4.9
+      }
+    },
+    {
+      "method": "windowed",
+      "N": 32,
+      "B": 32,
+      "n_steps": 20,
+      "top_ops": [
+        [
+          "aten::addmm",
+          659.71
+        ],
+        [
+          "ampere_sgemm_64x64_tn",
+          435.99
+        ],
+        [
+          "aten::_fused_rms_norm",
+          366.98
+        ],
+        [
+          "_ZN2at6native53_GLOBAL__N__e58679f9_20_layer_norm_kernel_cu_3ff0b71f28vectorized_layer_norm_kernelIffLb1EEEviT0_PKT_S6_S6_PS3_S7_PS4_",
+          366.98
+        ],
+        [
+          "aten::bmm",
+          271.84
+        ],
+        [
+          "ampere_sgemm_128x64_tn",
+          219.32
+        ],
+        [
+          "aten::mul",
+          114.31
+        ],
+        [
+          "_ZN2at6native29vectorized_elementwise_kernelILi4ENS0_13BinaryFunctorIfffNS0_15binary_internal10MulFunctorIfEEEESt5arrayIPcLy3EEEEviT0_T1_",
+          91.56
+        ]
+      ],
+      "cuda_ms_total": 3268.13,
+      "split_pct": {
+        "compute": 57.2,
+        "memory": 42.6,
+        "other": 0.3
+      }
+    }
+  ]
+}

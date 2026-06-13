@@ -641,3 +641,32 @@ Would change my mind: (1) the seeded cached vs uncached comparison can't be made
 residual mismatch) → a real cache bug or a hidden nondeterminism; fix before building on it. (2) the
 mutation test passes (no divergence on broken eviction) → the comparison is insensitive; strengthen it.
 Spawns: none (folds into T-012). No experiment.
+
+## D-022 | 2026-06-13
+Context: Merlin wants a basic, reusable perf tool for the rollout KV cache (T-012) — cached vs
+no-cache, on the GPU, with a real batch dimension (training-relevant). Wants: rollout-step throughput
+("how many rollout steps we are getting"), peak GPU memory, and where time is spent, across different
+context-window sizes. Explicitly: "don't go crazy", 60s/config is an upper bound, don't run long perf.
+Decision: EXP-015 — a perf benchmark `experiments/EXP-015/perf_rollout.py` (GPU, venv python) comparing
+`generate_streaming` (cross-frame KV cache) vs `generate_windowed` (no persistent cache; the matched
+uncached twin — same semantics, so the delta is purely the cache). Real model dims (load vanilla_s0
+config+weights; perf is weight-agnostic but use realistic shapes + n_actions). Sweep context window
+N ∈ {8,16,32,64} at batch B=32 (CLI-overridable). Per config: warmup to fill the window, then a
+time-budgeted loop (default ~8s, ≤60) counting completed rollout steps → report steps/s, frames/s
+(=B×steps/s), ms/step, peak allocated+reserved MB. Plus a torch.profiler pass on one representative
+config per method → top kernels by CUDA time (where time goes; flag compute matmul/SDPA vs memory-bound
+elementwise/cat — the cache's concat is the memory-bound overhead). NOTE: exact HBM "memory-stall %"
+needs Nsight Compute; the profiler op-breakdown is the practical proxy and will be labeled as such.
+Output: results.json + a printed table + a 2-panel plot (steps/s vs N; peak MB vs N) in EXP-015/.
+Alternatives rejected: (a) compare against `generate`/`generate_cached` too — more configs, less
+apples-to-apples (different noise/semantics); streaming-vs-windowed isolates the cache. (b) Nsight
+Compute for true memory stalls — overkill for "basic"; profiler op-time is enough. (c) long runs /
+many seeds — Merlin said don't.
+Expected outcome: streaming flat-ish ms/step as N grows (O(1) attention/step, only the cache cat grows)
+while windowed grows with N (re-encodes the whole window each step) — so streaming's throughput
+advantage widens with context length; streaming uses more memory (persistent K/V cache) but bounded by
+the window. A basic tool we can rerun at other B/N.
+Would change my mind: (1) streaming is NOT faster than windowed at large N (or slower) → the per-step
+cat / cache bookkeeping dominates; report honestly and note the regime. (2) streaming peak memory blows
+up unboundedly (eviction not actually freeing) → a cache leak; investigate. (3) measurements unstable
+across repeats → lengthen budget / fix sync. Spawns: EXP-015 (perf), present-then-stop per §5.

@@ -585,3 +585,35 @@ regularizer on the windowed weights), with the register relay a small, arm-depen
 that requires the FF7 loss. No follow-up (2nd-seed check) requested now; fold into the eventual H3
 writeup as a sub-result when we get there. The relay's job is *retention* (beyond-window color), not raw
 1-step accuracy — carried forward as context for the upcoming rollout-training method. Move on. → D-020.
+
+## ESC-011 | 2026-06-13 | OPEN — present EXP-015 (rollout KV cache perf tool) — present-then-stop
+Context: You asked for a basic, reusable perf tool for the rollout KV cache (T-012): cached vs no-cache,
+GPU, with a batch dimension (training-relevant), reporting rollout-step throughput, memory, and where
+time goes, across context-window sizes. EXP-015 (D-022): `experiments/EXP-015/perf_rollout.py`,
+`generate_streaming` (cache) vs `generate_windowed` (matched uncached twin), B=32, N∈{8,16,32,64},
+~8s/config. §5 present-then-stop.
+
+### The result (decisive read)
+**The cache makes continuous-rollout throughput INDEPENDENT of context length, and wins on memory too.**
+Cached holds flat at **~28 steps/s (~900 frames/s at B=32, ~35 ms/step) from N=8 to N=64**, while the
+uncached path degrades 21→5.7 steps/s (47→175 ms/step) because it re-encodes the whole window every
+step. Speedup widens with context: **1.33× (N=8) → 4.79× (N=64).** Memory: cached grows only with the
+window (113→218 MB alloc) and stays far below windowed, which balloons to 496 MB alloc / **4708 MB
+reserved** at N=64 (large transient window tensors → allocator churn). Profiler (N=32): the cache cuts
+total CUDA work 3.7× (889 vs 3268 ms / 20 steps); both paths are ~56% compute / ~40% memory-bound
+(elementwise/cat/norm — RMSNorm is the biggest single memory-bound op). The ~40% "memory" split is a
+profiler proxy for time-waiting-on-memory; exact HBM-stall % would need Nsight Compute.
+**Mild favorable surprise:** I predicted the persistent cache would cost MORE memory; it costs LESS
+(opposite). No D-022 tripwires fired.
+
+### Access points
+- Plot (open first): `experiments/EXP-015/perf.png` (throughput / ms-per-step / peak-MB vs N, both methods).
+- Numbers: `experiments/EXP-015/results.json`. Full reconciliation: `experiments/EXP-015/NOTES.md`.
+- Rerun at other settings: `venv/Scripts/python.exe experiments/EXP-015/perf_rollout.py --batch B --windows ... --budget S`.
+
+### The question for you
+1. Is this the basic perf info you wanted, or do you want another axis (e.g. a batch-size sweep at fixed
+   N, since training throughput vs B is the natural next cut — the tool takes `--batch`)?
+2. Anything to read differently — e.g. the ~40% memory-bound split, or the windowed reserved-memory
+   blowup (allocator churn) worth a deeper look?
+Urgency: blocking per §5 — not starting follow-ups until you weigh in. Nothing in flight; 4070 idle.

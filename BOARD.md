@@ -3,7 +3,13 @@
 Updated: 2026-06-13 (ESC-009/010 RESOLVED → building D-020 cross-frame KV cache / T-012)
 
 ## In progress
-*(none)*
+*(none — EXP-015 perf tool done, blocked on Merlin ESC-011)*
+
+## Awaiting review
+- **EXP-015 — rollout KV-cache perf tool** (D-022) DONE. cached `generate_streaming` flat ~28 steps/s
+  (~900 frames/s, B=32) all N; uncached 21→5.7 steps/s; speedup 1.33×→4.79× (N 8→64); cached wins
+  memory too. Tool `experiments/EXP-015/perf_rollout.py` (reusable, `--batch/--windows/--budget`).
+  Present-then-stop → **ESC-011** (open). Views: perf.png, NOTES.md, results.json.
 
 ## Done (2026-06-13)
 - **T-012 — cross-frame sliding-window KV eviction cache (D-020) — DONE.** `stream_rollout_init`/
