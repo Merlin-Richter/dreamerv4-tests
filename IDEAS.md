@@ -145,3 +145,47 @@ carried register alongside which latent, and do we differentiate the sampler (pr
 value grows with relay window size (then the detached cross-step window K/V = the TXL recurrence).
 **Pre-registered question if pursued:** does TBPTT-1 sequential relay beat FF7-as-is on the frozen
 memory probes (color beyond-window, and—if it helps—position)?
+
+### Refinement (2026-06-13, Merlin dialogue) — the structural argument + efficiency
+
+**Why this is the *only* way to train deep-occlusion memory (strongest motivation).** Verified in
+code: the registers FF7 ever learns to *read* are written by the main full-clip forward
+(`loss()`:391) and read exactly ONE hop later (`_ff7_loss` reg0=regs[:, :n_t] :460 → predicts t+1
+:476-478). So every register the model interprets was minted in-flight from a window that still
+held the info. Within a single parallel forward, anything outside the window is simply ABSENT —
+there is no ground-truth signal to construct the example "register must hold info that already left
+every window." Sampling clips differently can't fix this: if the source frame is in the clip it's
+in the window (trained as in-window); if it's before the clip there's nothing to carry. **Only
+carrying register STATE across the window boundary — a sequential relay — manufactures the
+deep-occlusion regime.** That EXP-010 generalizes to it at all (color held < bar to n_occ 16,
+never trained on it) is impressive OOD generalization; relay-training would put it in-distribution.
+
+Two untrained regimes the relay fixes: (a) **read-side** — interpret a register whose info isn't
+re-derivable from the window; (b) **preserve-side** — hold info stable across MANY output→input
+relay hops (FF7 only trains write-from-window + read-1-hop, never preserve-across-N-hops).
+
+**Color vs position asymmetry (mechanistic, predicts what relay-training buys).** Color is static:
+the relay `reg_t=f(reg_{t-1}, occluded_frame)` has an easy COPY fixed point (occluded frame adds no
+ball info → "pass register through unchanged"), position-invariant and easy to approximate → color
+survives, and the slow approach to the bar by n_occ 24 is the *drift* of that approximate copy
+compounding. Position is dynamic: no copy fixed point — the register would have to run a motion
+integrator through occlusion, a real computation the 1-hop objective never trains → position at
+chance. Prediction: relay-training should tighten color (less deep-hop drift) and is the ONLY thing
+that could plausibly buy position (no free fixed-point to generalize from).
+
+**Efficiency (Merlin).** Sequential relay loses the full-clip parallelism, so it needs careful
+**sliding-window KV caching** (the absolute-RoPE foundation from D-017 already handles the
+rotation-continuity for this) to be competitive. Expected profile: FLOPs ~comparable to full-clip,
+but it becomes **memory-bandwidth-bound** (fetch cached K/V each step) + smaller per-step kernels
+(low occupancy). Recover parallelism by **batching across episodes** (B large; sequential in time,
+parallel across the batch). TBPTT-1 keeps *activation* memory LOW (graph for 1 step only, O(window)
+not O(T)); the new memory cost is the KV cache itself (O(B·window·depth·heads·head_dim), bounded by
+the sliding window). Net: memory footprint + bandwidth up, compute roughly even — matches Merlin's
+read.
+
+**Mixed context-window-size curriculum (Merlin).** Train most episodes at small **N≈4** (cheap per
+step AND stresses the register harder — info older than 4 frames MUST live in the register), plus
+some **N≈16** episodes so it also learns to reason over longer explicit context. N is the knob for
+how much burden sits on the register (N=1 → register carries everything, like current FF7
+inference; larger N → register only carries info older than N). Impl note: variable N is ragged —
+bucket episodes by N into homogeneous batches (or pad) rather than mixing N within a batch.

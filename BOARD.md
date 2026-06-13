@@ -19,6 +19,11 @@ Updated: 2026-06-13 (EXP-012 done → ESC-008 present-then-stop)
 ## Backlog (post-EXP-012; proposed in ESC-008, pending Merlin's verdict)
 - **Closed-loop / distributional position metric** — measure position *memory*, not open-loop
   trajectory chaos (current open-loop GT-matched metric conflates them). EXP-012 done; next per ESC-008.
+  - **Design caveat (Merlin, 2026-06-13):** open-loop pos_err is doubly artifacted — (1) bounded
+    box domain caps error near chance; (2) the curve TURNS OVER at long horizons (h>~20, e.g.
+    vanilla 28.2@h16→24.0@h24) because the ball BOUNCES off walls and returns to prior regions, so
+    a desynced prediction lands near GT by coincidence — NOT the model recovering. The new metric
+    must not credit this (measure distributional/closed-loop consistency, not GT-trajectory match).
 - **Sequential stop-grad register-relay training** (IDEAS.md) — TBPTT-1 relay so training context
   carries real relayed memory tokens (fixes the learned-init mismatch); candidate H3 *position*
   method once position is measurable. Worked out with Merlin 2026-06-13; pending ESC-008 direction.

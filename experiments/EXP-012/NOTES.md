@@ -48,6 +48,11 @@ OFF. Lets us attribute the EXP-011 dynamics gain and re-anchor H2/H3.
   WORSE than freezing the ball; both FF7 arms beat it ~3×). Open-loop pos_err: ff7_k3 tracks far
   longest (h4 4.1 / h8 8.5 / h16 14.6px) vs vanilla (9.8 / 18.5 / 28.2) ≈ my_dynamics (11.8 /
   19.1 / 24.1). Latent→xy probe R²=0.96 (position encoded in tokenizer, reproduced).
+  - **Caveat (Merlin, measurement validity):** the open-loop pos_err curves TURN OVER at long
+    horizons (vanilla 28.2@h16→24.0@h24) because the ball BOUNCES off walls and returns to prior
+    regions — a desynced prediction coincidentally lands near GT, NOT recovery. Open-loop pos_err
+    is bounded-domain + bounce-artifacted; do not over-read the long-horizon dip. Reinforces the
+    need for the closed-loop/distributional position metric (BOARD).
 
 ## Reconciliation
 Expected (D-016): (color) cliff reproduces (H2 architectural); (motion) budget-matched vanilla
