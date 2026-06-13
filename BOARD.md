@@ -21,10 +21,15 @@ Updated: 2026-06-13 (EXP-012 done → ESC-008 present-then-stop)
   framing. Measure whether the model's believed (x,y) AND velocity stay self-consistent / physically
   coherent over the occluded steps ("what would it predict if revealed now", compared across steps),
   NOT exact GT-trajectory match. Must credit butterfly-divergence (F2) while penalizing forgetting
-  (F1: static-center OR wander). Working design in D-018 (onset-fidelity + self-physics-consistency +
-  report-only GT-tracking-horizon; state-probe readout; ceiling/chance/copy-last/matched-horizon
-  controls). **Gate: converge design with Merlin → critical-claim-verifier audit → build + FREEZE,
-  BEFORE any H3 position method runs (§8 spine).**
+  (F1: static-center OR wander). Spec **tasks/T-011.md** (onset GT-anchor + best-fit constant-speed
+  billiard residual + report-only GT-tracking-horizon; **counterfactual reveal-decode readout** per
+  Merlin, NOT state-probe; ceiling/chance/copy-last + GT-floor/forgetting-surrogate calibration).
+  **Gate: converge with Merlin → verifier audit → build + FREEZE, BEFORE any H3 position method (§8).**
+  - **Status (2026-06-13):** verifier audit **DONE (V-T011)**, folded in: separates remember/forget at
+    n_occ≥8, fixed-S load-bearing, naive hallucination caught; 5 fixes applied (n_occ≥8 headline floor,
+    non-degeneracy gate, speed-fixed, lengthen anchor, **ceiling-control-first on vanilla_s0**).
+    **BLOCKED on Merlin's framing lock** (credit anchored-physical-coherence/F2 vs stricter near-GT
+    bar — verifier proved they're the same choice), then implement → calibrate → freeze.
   - **Design caveat (Merlin, 2026-06-13):** open-loop pos_err is doubly artifacted — (1) bounded
     box domain caps error near chance; (2) the curve TURNS OVER at long horizons (h>~20, e.g.
     vanilla 28.2@h16→24.0@h24) because the ball BOUNCES off walls and returns to prior regions, so

@@ -15,17 +15,22 @@ Rewritten: 2026-06-13 (ESC-008 RESOLVED → designing the position-memory consis
   ("what would it predict if revealed now", compared across steps), not exact GT match.
 
 ## In flight
-**Nothing running.** 4070 idle. **Unblocked** (ESC-008 answered). Now in INSTRUMENT-DESIGN, not
-experiment — designing the position-memory consistency metric (D-018).
+**Nothing running.** 4070 idle. **Unblocked** (ESC-008 answered). INSTRUMENT-DESIGN phase:
+position-memory consistency metric (D-018, spec tasks/T-011.md). Verifier audit **DONE** (V-T011)
+and folded into the spec. **Blocked on Merlin's one framing lock** before build (see below).
 
 ## NEXT ACTION
-Converge the D-018 metric design WITH Merlin (proposal presented this session: onset-fidelity +
-self-physics-consistency + report-only GT-tracking-horizon; state-probe readout; ceiling/chance/
-copy-last/matched-horizon controls). Open question to him: do we credit a self-consistent belief that
-has diverged from GT (butterfly) as "memory"? Then → run the design past the `critical-claim-verifier`
-agent (measurement-validity audit) → build + FREEZE the metric BEFORE any H3 position method (§8 spine).
-Leading H3 position METHOD to try once position is measurable: sequential stop-grad register-relay
-training (IDEAS.md, worked out with Merlin 2026-06-13).
+**Awaiting Merlin's framing lock** (T-011 "Open question", sharpened by the audit): accept that the
+metric measures *anchored physical coherence* (credits F2 = late GT-divergence; the verifier proved
+the confabulation limit == the F2-forgiveness Merlin asked for), with GT-tracking-horizon as the only
+near-GT constraint — OR a stricter near-GT bar (which re-introduces the butterfly penalty he rejected).
+My lean: accept it. Once locked → IMPLEMENT with the 5 verifier fixes (n_occ≥8 headline floor;
+non-degeneracy gate; speed fixed at env S; lengthen onset anchor; **run ceiling control FIRST on
+vanilla_s0** — readout feasibility is the one thing synthetic tests couldn't establish) → GT-floor +
+forgetting-surrogate calibration → FREEZE → run on vanilla_s0 + FF7 k1/k3, present-then-stop.
+Readout DECIDED (Merlin, ESC-008): counterfactual reveal-decode (NOT state-probe) — sidesteps the
+probe-transfer risk. Leading H3 position METHOD after freeze: sequential stop-grad register-relay
+(IDEAS.md).
 
 ## Recently done
 - **EXP-012 (D-016)** done; confound resolved; ESC-008 RESOLVED (1)(2) agreed, (3) metric redirect.
@@ -44,9 +49,14 @@ training (IDEAS.md, worked out with Merlin 2026-06-13).
 - **Cross-frame KV eviction cache** + tokenizer-C cache (optional, BOARD).
 
 ## Current worries
-1. **State-probe transfer (the D-018 validity risk):** a readout trained on VISIBLE hidden states may
-   not transfer to OCCLUDED ones, or may decode the curtain rather than a belief. Must validate
-   (held-out accuracy + a "not just the curtain" check) — this is the core verifier-audit target.
-2. The motion claim is single-seed (vanilla_s0 ≈ my_dynamics ~4.5px). A 2nd vanilla seed would firm
+1. **Readout feasibility (model-side, UNVERIFIED — verifier C4):** the whole reveal-decode readout
+   rests on the model rendering a clean detectable ball on the 1-frame counterfactual reveal when it
+   HAS the info. Env-side is proven (curtain action absolute/Markov; generate takes arbitrary actions),
+   but the ceiling control must be run on vanilla_s0 first; if it fails, fall back to a state-probe.
+   (The earlier state-probe-transfer worry is moot — reveal-decode readout chosen instead.)
+2. **Confabulation limit (verifier C2):** the metric credits anchored-physical-coherence, not correct
+   dead-reckoning, past the bounce-ambiguity horizon. Equals the F2-forgiveness Merlin wanted, but the
+   claim language must accompany every position number. Pending his framing lock.
+3. The motion claim is single-seed (vanilla_s0 ≈ my_dynamics ~4.5px). A 2nd vanilla seed would firm
    it if Merlin wants; he didn't ask for it.
-3. FF7's base-dynamics improvement (4.6×) still conflates loss vs relay-inference — not disentangled.
+4. FF7's base-dynamics improvement (4.6×) still conflates loss vs relay-inference — not disentangled.
