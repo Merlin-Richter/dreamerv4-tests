@@ -15,19 +15,23 @@ Rewritten: 2026-06-13 (ESC-009/010 RESOLVED by Merlin → continue; building D-0
   eviction cache. Easily verifiable; Merlin-directed. This is infra, not an experiment.
 
 ## In flight
-**Building D-020 / T-012** locally — cross-frame KV cache for sliding-window rollouts. No cluster
-(scripts/ deferred). 4070 free. No jobs. The parallel-orchestrator EXP-014 thread is done (ESC-010
-resolved).
+**Nothing running.** 4070 free. No cluster (scripts/ deferred). T-012 (cross-frame KV cache) DONE +
+verified. Awaiting Merlin's steer on whether to start the relay rollout-training method (the next H3
+position step) — NOT starting it unprompted (it's a new method/phase, his call).
 
 ## NEXT ACTION
-Implement T-012: `stream_rollout_init`/`stream_rollout_step` primitives + `generate_streaming` wrapper
-in `dynamics_model.py` (commit-once + evict-oldest persistent cache; pre-rotated K/V so eviction = slice),
-and `test_stream_cache.py`. **Gate = forward-level eviction equivalence (no RNG) bit-for-bit vs full
-windowed recompute, incl. long-rollout past the cos/sin table** + generate-level frozen-noise reference
-+ a speed sanity vs generate_cached. Then commit; this is infra (no present-then-stop). See D-020 +
-tasks/T-012-plan.md.
+**Report T-012 done; propose the rollout-training method as the next decision and let Merlin steer.**
+T-012 gave us the verified efficient-rollout substrate. The natural next step is to DESIGN the
+**sequential stop-grad register-relay rollout training** (IDEAS.md) — the candidate H3 *position*
+method — built on `stream_rollout_step` (lift no_grad + detach the cache between steps = stop-grad
+TBPTT-1). That's a new method/phase, so bring a plan to Merlin rather than barrelling in. Do NOT start
+building the training method until he weighs in.
 
 ## Recently done
+- **T-012 / D-020 — cross-frame sliding-window KV eviction cache — DONE + verified.** `stream_rollout_
+  init`/`_step` + `generate_streaming`; gate `test_stream_cache.py` 7/7 (forward-level eviction
+  bit-exact incl. past-table + actions; frozen-noise reference bit-exact; ~1.2× faster). No regression.
+  Tripwire 2 cleared (frozen-noise deviation benign on trained vanilla_s0). CLAUDE.md synced.
 - **ESC-009/010 RESOLVED** (Merlin: "resolve as whatever; continue"). Position metric NOT frozen
   (uncertain strength); EXP-014 read accepted (FF7 gain = loss). GOAL H3-position note added.
 - EXP-013 (D-018) position-memory metric built+applied; EXP-014 (D-019) FF7-gain disentangle. Both done.

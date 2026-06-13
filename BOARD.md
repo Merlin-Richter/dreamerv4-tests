@@ -3,12 +3,18 @@
 Updated: 2026-06-13 (ESC-009/010 RESOLVED → building D-020 cross-frame KV cache / T-012)
 
 ## In progress
-- **T-012 — cross-frame sliding-window KV eviction cache (D-020).** Rollout substrate for the eventual
-  register-relay rollout training; Merlin-directed, easily verifiable. `stream_rollout_init`/`_step` +
-  `generate_streaming` in dynamics_model.py; commit-once + evict-oldest persistent cache (pre-rotated
-  K/V → eviction = slice). Gate: forward-level eviction equivalence (no RNG) bit-for-bit vs full
-  windowed recompute + long-rollout-past-table + generate-level frozen-noise reference + speed sanity.
-  Infra (no present-then-stop). Plan: tasks/T-012-plan.md.
+*(none)*
+
+## Done (2026-06-13)
+- **T-012 — cross-frame sliding-window KV eviction cache (D-020) — DONE.** `stream_rollout_init`/
+  `stream_rollout_step` + `generate_streaming` in dynamics_model.py (commit-once + evict-oldest
+  persistent cache; pre-rotated K/V → eviction = pure slice). **Gate green:** `test_stream_cache.py`
+  7/7 — forward-level eviction equivalence bit-for-bit vs full windowed recompute (in-range, past the
+  cos/sin table, with actions) + generate-level frozen-noise reference bit-exact + ~1.2× faster than
+  generate_cached on a 60-frame CPU rollout. No regression (test_kv_cache 5/5, FF7 smokes 5/5).
+  **Tripwire 2 cleared:** on trained vanilla_s0 the frozen-noise deviation from generate() (latent
+  0.032 / pixel 1.76) is *smaller* than generate()'s own seed-to-seed noise (0.049 / 2.75) → benign.
+  CLAUDE.md synced. Plan: tasks/T-012-plan.md. Infra — no present-then-stop.
 
 ## Awaiting review
 - *(none open — ESC-009/010 resolved by Merlin: position metric NOT frozen (uncertain strength),

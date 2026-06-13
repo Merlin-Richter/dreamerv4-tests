@@ -728,3 +728,121 @@ class DynamicsModel(nn.Module):
             z, state = self.memory_rollout_step(state, new_id, K)
             generated.append(z)
         return torch.concat(generated, dim=1)
+
+    # ----------------------------------------- cross-frame sliding-window KV cache (D-020, T-012)
+    @staticmethod
+    def _evict_oldest(cache: list) -> None:
+        """Drop the oldest time-column from every temporal block's persistent KV cache. Because
+        cached K/V are stored ALREADY-RoPE-rotated at absolute positions (T-008), eviction is a
+        pure slice on the time axis (dim -2) — the surviving columns keep their correct absolute
+        phase, no re-rotation. Spatial blocks (None) are skipped."""
+        for lc in cache:
+            if lc is not None and lc.get('k') is not None:
+                lc['k'] = lc['k'][..., 1:, :]
+                lc['v'] = lc['v'][..., 1:, :]
+
+    @torch.no_grad()
+    def stream_rollout_init(self, context: torch.Tensor, action_idx: torch.Tensor = None,
+                            K: int = None) -> dict:
+        """Seed a cross-frame sliding-window cached rollout (D-020). Unlike generate_cached (which
+        rebuilds the cache every frame), this PERSISTS finalized frames' K/V across rollout steps
+        and evicts the oldest when the window (N-1) overflows — the efficient + correct substrate
+        for rollout training. Prefill: commit the context frames' K/V ONCE, held at context_signal.
+
+        context:    (B, T_ctx, L, D) clean latents. action_idx: (B, T_ctx) ids for them, or None.
+        Returns an opaque state dict for stream_rollout_step. NOTE on semantics: each frame's
+        context-noise is drawn ONCE at commit (not redrawn every step like generate()) — a
+        documented, defensible deviation (a committed frame's representation is fixed once
+        generated; the natural structure for rollout training). So NOT bit-identical to generate()
+        at the rollout level; bit-identical to a full windowed recompute at the forward level.
+        """
+        K = K or self.config.inference_steps
+        B, T_ctx, L, D = context.shape
+        device = context.device
+        W = self.config.max_temporal_length - 1            # max context frames in the window
+        tau_ctx_idx = round(self.config.context_signal * self.K_max)
+        d_idx_val = (K).bit_length() - 1
+
+        cache = self.new_kv_cache()
+        act_feat = self.action_features(action_idx)        # (B, T_ctx, n_act, E) or None
+        ctx_noised = self._noise_to_ctx(context)           # one draw over all context frames
+        tau_col = torch.full((B, T_ctx), tau_ctx_idx, device=device, dtype=torch.long)
+        d_col = torch.full((B, T_ctx), d_idx_val, device=device, dtype=torch.long)
+        positions = torch.arange(T_ctx, device=device)
+        # Bulk-commit the context once (per-frame temporal K/V are independent, so bulk == one-by-one).
+        self(ctx_noised, tau_col, d_col, act_feat, positions=positions, cache=cache, commit=True)
+        cache_len = T_ctx
+        while cache_len > W:                               # keep only the last W context frames
+            self._evict_oldest(cache)
+            cache_len -= 1
+        return {
+            "cache": cache, "next_pos": T_ctx, "cache_len": cache_len, "W": W,
+            "K": K, "d_idx_val": d_idx_val, "tau_ctx_idx": tau_ctx_idx,
+            "B": B, "L": L, "D": D, "device": device,
+        }
+
+    @torch.no_grad()
+    def stream_rollout_step(self, state: dict, action_id=None, K: int = None):
+        """Advance the cross-frame cached rollout by one frame (D-020). Denoise the new frame via
+        K shortcut substeps against the persistent cache (commit=False), then commit the finalized
+        frame's K/V at context_signal (commit=True) and evict the oldest if the window overflows.
+        ``action_id`` is the NEW frame's action (int / (B,) / (B,1) tensor / None).
+        Returns (z (B, 1, L, D), new_state). Mirrors _denoise_next_cached's substep math."""
+        K = K or state["K"]
+        cache, next_pos, W = state["cache"], state["next_pos"], state["W"]
+        cache_len = state["cache_len"]
+        d_idx_val, tau_ctx_idx = state["d_idx_val"], state["tau_ctx_idx"]
+        B, L, D, device = state["B"], state["L"], state["D"], state["device"]
+        d_val = 1.0 / K
+
+        new_pos = torch.tensor([next_pos], device=device)
+        act_new = None
+        if self.n_actions > 0 and action_id is not None:
+            if torch.is_tensor(action_id):
+                ids = action_id.reshape(B, 1).to(device=device, dtype=torch.long)
+            else:
+                ids = torch.full((B, 1), int(action_id), device=device, dtype=torch.long)
+            act_new = self.action_features(ids)            # (B, 1, n_act, E)
+
+        d_col = torch.full((B, 1), d_idx_val, device=device, dtype=torch.long)
+        tau_col = torch.full((B, 1), tau_ctx_idx, device=device, dtype=torch.long)
+        z = torch.randn((B, 1, L, D), device=device)       # pure noise, tau = 0 (one draw / frame)
+        for k in range(K):
+            tau = k / K
+            tau_col[:, -1] = round(tau * self.K_max)
+            # commit=False: the new frame attends to the cached context + itself, cache untouched.
+            z_hat1 = self(z, tau_col, d_col, act_new, positions=new_pos, cache=cache, commit=False)
+            v = (z_hat1 - z) / (1 - tau)
+            z = z + v * d_val
+
+        # Commit the finalized frame at context_signal so it becomes context for the next step.
+        tau_col[:, -1] = tau_ctx_idx
+        self(self._noise_to_ctx(z), tau_col, d_col, act_new,
+             positions=new_pos, cache=cache, commit=True)
+        cache_len += 1
+        while cache_len > W:
+            self._evict_oldest(cache)
+            cache_len -= 1
+        new_state = {**state, "next_pos": next_pos + 1, "cache_len": cache_len}
+        return z, new_state
+
+    @torch.no_grad()
+    def generate_streaming(self, context: torch.Tensor, n_generate: int, K: int = None,
+                           action_idx: torch.Tensor = None) -> torch.Tensor:
+        """Cross-frame sliding-window cached rollout (D-020): a thin loop over
+        stream_rollout_init/step, the rollout-training substrate. Same signature/return as
+        generate(); persists finalized frames' K/V across steps (no per-frame cache rebuild).
+        Frozen per-frame context-noise (see stream_rollout_init) => NOT bit-identical to generate()
+        but bit-identical to a full windowed recompute (test_stream_cache.py). The FF7
+        register-memory path is window-1 already and is dispatched to generate_memory unchanged."""
+        if getattr(self.config, "use_register_memory", False):
+            return self.generate_memory(context, n_generate, K, action_idx)
+        P = context.shape[1]
+        ctx_ids = action_idx[:, :P] if action_idx is not None else None
+        state = self.stream_rollout_init(context, ctx_ids, K)
+        generated = []
+        for i in range(n_generate):
+            new_id = action_idx[:, P + i] if action_idx is not None else None
+            z, state = self.stream_rollout_step(state, new_id, K)
+            generated.append(z)
+        return torch.concat(generated, dim=1)
