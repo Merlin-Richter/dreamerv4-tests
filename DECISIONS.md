@@ -424,3 +424,47 @@ position WORSE than my_dynamics at matched budget — would point to a data/seed
 budget. (3) training diverges / val loss >> FF7's 0.0065 at 100ep — config mismatch, diagnose
 before comparing.
 Spawns: EXP-012 (local 4070; train + probe + EXP-011 diagnostic rerun). Present-then-stop.
+
+## D-017 | 2026-06-13
+Context: EXP-012 (budget-matched vanilla baseline, D-016) is training on the 4070 (~2h to go);
+per §3/§5 I am waiting on its results and may do only outcome-independent work. Merlin steered
+(this session, verbatim-in-substance): "while waiting ... you can do completely separate
+independent work. What comes to mind for me is starting careful implementation of KV cache if not
+already." KV cache is BOARD task **T-008** (efficiency, NOT a prerequisite for any hypothesis;
+its outcome cannot change EXP-012's reconciliation), so it qualifies as the permitted independent
+prep. It MUST follow HOWTO/rope_kv_cache_caveat.md (D-011): the current fixed cos/sin table
+(size max_temporal_length) re-indexes positions 0..w-1 per window and is cache-incompatible —
+cached K/V cannot be re-rotated when the window slides.
+Decision: Implement KV caching for the dynamics model D (inference-only; training forward path
+left bit-identical), in layered, individually-validated pieces:
+  (1) Absolute-position RoPE: temporal Attention computes rotation on the fly from an optional
+      `positions` arg (never-reset clock); `positions=None` keeps the exact current table path
+      (zero training-path change). Enables both long rollouts past the size-16 table AND
+      rotation-stable cross-frame caching.
+  (2) KV-cache plumbing through Attention/TransformerBlock/forward (opt-in via default-None args;
+      spatial layers are within-frame and never cache).
+  (3) Cached `generate`: intra-frame reuse (the K shortcut substeps of one frame share an
+      identical context K/V — uncached _denoise_next already freezes ctx_noised across substeps,
+      so this is bit-for-bit identical to uncached generate, ~K x fewer temporal-attn FLOPs, no
+      RoPE-trap). Cross-frame eviction cache is an opt-in further optimization that freezes the
+      per-frame context-noise redraw (a minor, documented deviation) — validated deterministically
+      at the forward level, not claimed bit-identical at generate level.
+Acceptance gate (the HOWTO's bit-for-bit requirement, applied at the deterministic level):
+  - FORWARD-equivalence test: incremental cached forward (frame-by-frame, absolute positions) ==
+    full-sequence forward, max|Δ| < 1e-4 on a random model. This is the real correctness proof
+    (generate adds RNG; forward is deterministic).
+  - GENERATE-equivalence test: seeded uncached generate == intra-frame-cached generate exactly.
+  - Existing FF7 smokes (test_ff7_smoke.py) still pass (no training-path regression).
+Alternatives rejected: (a) delegate to a cold worker — the RoPE rotation-continuity trap context
+is loaded in this session; a cold spawn re-derives it and the Agent guardrail discourages
+unrequested spawns (Merlin asked for KV cache, not a worker). (b) cache the FF7 generate_memory
+path — it is already window-1 (cheap); the win is in vanilla generate + long-horizon rollouts.
+(c) start the next experiment/method instead — forbidden while waiting on EXP-012 (§3).
+Expected outcome: a validated, opt-in KV cache that leaves training and current eval numbers
+untouched (all gates green), available for the long-horizon memory rollouts H3 will need.
+Would change my mind: (1) cannot make cached==uncached within fp tolerance → a real bug in the
+absolute-RoPE/cache logic, fix before claiming anything (do NOT ship a cache that silently
+diverges — the HOWTO's exact failure mode). (2) the refactor perturbs the training forward or
+breaks checkpoint loading → back out and redo opt-in. (3) EXP-012 finishes → STOP this and process
+results first (§0.3, finished job takes priority).
+Spawns: T-008 (this work). Independent of EXP-012; no present-then-stop gate (not an experiment).

@@ -28,10 +28,19 @@ Updated: 2026-06-12 (FF7 go-ahead received; T-009 build in progress)
 - **T-003 — Cluster wrapper scripts (`scripts/`).** Probe suite + H2 baseline run
   locally on the 4070 against existing checkpoints; no cluster needed yet. Until done:
   all cluster interaction is manual by Merlin; orchestrator submits nothing.
-- **T-008 — KV caching (D and C) + continuous-RoPE rollout.** Efficiency for long
-  rollouts, NOT a prerequisite for H2. MUST follow `HOWTO/rope_kv_cache_caveat.md`
-  (cached K/V can't be re-rotated → needs an unbounded, never-reset absolute position
-  clock; current fixed cos/sin table is cache-incompatible).
+
+## Done (recent)
+- **T-008 (D) — KV caching for the dynamics model** (2026-06-13, D-017; done while waiting on
+  EXP-012, Merlin-directed). Absolute-position RoPE (on-the-fly, never-reset clock) +
+  `generate_cached` (intra-frame context K/V reuse across the K shortcut substeps). Bit-for-bit
+  identical to `generate` (seeded) and to the full forward at T beyond the cos/sin table; ~2×
+  faster at probe scale. Gate: `src/D_dynamics_model/test_kv_cache.py` 5/5 + FF7 smokes 5/5
+  (no training-path regression). Follow `HOWTO/rope_kv_cache_caveat.md`.
+  - **Follow-ups (not done, optional):** (a) cross-frame eviction cache (persist finalized
+    frames' K/V across rollout steps with sliding-window eviction) — a further speedup that
+    freezes the per-frame context-noise redraw (a documented, defensible deviation, so NOT
+    bit-identical at generate level); foundation (absolute RoPE) is already in place. (b) KV
+    cache for tokenizer C if we ever stream long observed sequences.
 
 ## Blocked
 *(none)*

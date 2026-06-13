@@ -70,7 +70,13 @@ Raw Video Frames (B, T, H, W, 3) [uint8]
 
 **Inference (generate):**
 - Autoregressive rollout: each frame uses K shortcut steps (default K=4)
-- Context is lightly noised (τ_ctx=0.1) to prevent error accumulation
+- Context is held near-clean at signal level `context_signal` (default 0.9; high = near-clean)
+  to prevent error accumulation (see EXP-008/D-010 — the old "τ_ctx=0.1" was the inference bug)
+- `generate_cached()` (T-008/D-017): KV-cached drop-in for `generate()`, **bit-for-bit identical**
+  (same RNG → same draws), ~2× faster at probe scale. Caches each frame's context K/V across the
+  K shortcut substeps. RoPE is computed at **absolute positions** on the fly (temporal Attention,
+  `positions=` arg) so cached K/V is never re-rotated and long rollouts exceed the cos/sin table —
+  see `HOWTO/rope_kv_cache_caveat.md`. Training/default forward (`positions=None`) is unchanged.
 
 ### Supporting Components
 
@@ -138,6 +144,8 @@ python train_dynamics_model.py --wandb --wandb-project my-project
 python train_dynamics_model.py --ff7 1 --lambda-ff7 1.0 --seed 0
 # Smoke tests for the FF7 paths:
 python test_ff7_smoke.py
+# KV-cache (generate_cached) correctness gate — bit-for-bit vs uncached + long-rollout RoPE:
+python test_kv_cache.py
 ```
 
 **Language Model (A):**

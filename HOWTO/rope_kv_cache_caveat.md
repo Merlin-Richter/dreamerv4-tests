@@ -1,8 +1,13 @@
 # RoPE + sliding window + KV cache — the rotation-continuity trap
 
-**Status:** flagged 2026-06-12 (Merlin, milestone / D-011). Not yet hit — KV cache is
-not implemented. Read this *before* implementing KV caching for the dynamics model
-(D) or tokenizer (C).
+**Status:** flagged 2026-06-12 (Merlin, milestone / D-011). **ADDRESSED for D** on
+2026-06-13 (T-008 / D-017): the dynamics model now has an absolute-position RoPE path and a
+KV cache (`DynamicsModel.generate_cached`, `new_kv_cache`; temporal `Attention.forward`
+`positions=`/`layer_cache=`/`commit=` args). The trap below is handled exactly as prescribed
+(on-the-fly rotation at a never-reset absolute position; cached K/V stored already-rotated and
+never re-indexed) and validated bit-for-bit in `src/D_dynamics_model/test_kv_cache.py`
+(incremental==full forward at T beyond the table; seeded generate_cached==generate). Still
+UNIMPLEMENTED for the tokenizer C — read this before caching C for streaming long sequences.
 
 ## The facts (verified against code)
 

@@ -100,15 +100,40 @@ class Attention(nn.Module):
         self.qkv = nn.Linear(config.embedding_dim, 3 * config.embedding_dim)
         self.proj = nn.Linear(config.embedding_dim, config.embedding_dim)
 
-        # RoPE tables over the temporal axis.
+        # RoPE tables over the temporal axis. The fixed-size cos/sin tables drive the default
+        # (training / uncached) path exactly as before. `rope_freqs` (the base frequencies) lets
+        # the KV-cache inference path compute rotations on the fly for ARBITRARY absolute
+        # positions — required because cached K/V is frozen at the rotation it got on entry and
+        # must never be re-indexed when the window slides (HOWTO/rope_kv_cache_caveat.md).
         d_half = self.head_dim // 2
         freqs = 10_000 ** (-2 * torch.arange(d_half, dtype=torch.float32) / self.head_dim)
         angles = torch.outer(torch.arange(config.max_temporal_length, dtype=torch.float32), freqs)
         self.register_buffer('cos', torch.cos(angles))
         self.register_buffer('sin', torch.sin(angles))
+        # Non-persistent: not in state_dict, so old checkpoints still load cleanly.
+        self.register_buffer('rope_freqs', freqs, persistent=False)
 
-    def forward(self, x: torch.Tensor):
-        # x: (B, T, N, C)
+    def _rope_cos_sin(self, T: int, positions: torch.Tensor, dtype, device):
+        """RoPE cos/sin for the time axis. positions=None -> the exact fixed-table path
+        (positions 0..T-1), byte-identical to the original. positions given -> rotations
+        computed on the fly at those ABSOLUTE positions (KV-cache / long-rollout path)."""
+        if positions is None:
+            return self.cos[:T], self.sin[:T]
+        ang = torch.outer(positions.to(device=device, dtype=torch.float32),
+                          self.rope_freqs.to(device))  # (T, d_half)
+        return torch.cos(ang).to(dtype), torch.sin(ang).to(dtype)
+
+    @staticmethod
+    def _apply_rope(t: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor) -> torch.Tensor:
+        d = t.shape[-1] // 2
+        first, second = t[..., :d], t[..., d:]
+        return torch.concat((first * cos + -second * sin, second * cos + first * sin), dim=-1)
+
+    def forward(self, x: torch.Tensor, positions: torch.Tensor = None,
+                layer_cache: dict = None, commit: bool = False):
+        # x: (B, T, N, C). positions: optional (T,) absolute time indices of these frames.
+        # layer_cache: optional {'k','v'} dict of this temporal layer's cached (rotated) K/V.
+        # commit: append this call's K/V to layer_cache (used to extend the cache).
         B, T, N, C = x.shape
 
         qkv: torch.Tensor = self.qkv(x)
@@ -123,19 +148,33 @@ class Attention(nn.Module):
 
         if not self.is_temporal:
             # Full self-attention within a frame: latents, registers, actions and the
-            # shortcut token all exchange information.
+            # shortcut token all exchange information. No time axis -> no RoPE, no cache.
             mask = None
+            k_all, v_all = k, v
         else:
-            mask = torch.triu(torch.ones(T, T, device=x.device), diagonal=1).bool()
+            # RoPE on the time axis (absolute positions; default 0..T-1 via table).
+            cos, sin = self._rope_cos_sin(T, positions, q.dtype, x.device)
+            q = self._apply_rope(q, cos, sin)
+            k = self._apply_rope(k, cos, sin)
 
-            # RoPE on the time axis.
-            q_first, q_second = q[..., :self.head_dim // 2], q[..., self.head_dim // 2:]
-            k_first, k_second = k[..., :self.head_dim // 2], k[..., self.head_dim // 2:]
-            cos, sin = self.cos[:T], self.sin[:T]
-            q = torch.concat((q_first * cos + -q_second * sin, q_second * cos + q_first * sin), dim=-1)
-            k = torch.concat((k_first * cos + -k_second * sin, k_second * cos + k_first * sin), dim=-1)
+            # Prepend cached (already-rotated) K/V from earlier frames, if any.
+            if layer_cache is not None and layer_cache.get('k') is not None:
+                k_all = torch.concat((layer_cache['k'], k), dim=-2)
+                v_all = torch.concat((layer_cache['v'], v), dim=-2)
+            else:
+                k_all, v_all = k, v
+            if commit and layer_cache is not None:
+                layer_cache['k'] = k_all
+                layer_cache['v'] = v_all
 
-        attn_scores = (q @ k.transpose(-2, -1)) * self.scale
+            # Causal mask (T_query, T_all): cached keys (the first T_all-T cols) are all earlier
+            # frames -> visible; the new keys are causal among themselves. With no cache this
+            # reduces to the original triu(T, T).
+            T_all = k_all.shape[-2]
+            mask = torch.zeros((T, T_all), dtype=torch.bool, device=x.device)
+            mask[:, T_all - T:] = torch.triu(torch.ones(T, T, device=x.device), diagonal=1).bool()
+
+        attn_scores = (q @ k_all.transpose(-2, -1)) * self.scale
         attn_scores = self.soft_cap_act(attn_scores / self.soft_cap) * self.soft_cap
         if mask is not None:
             attn_scores = attn_scores.masked_fill(mask, float('-inf'))
@@ -143,7 +182,7 @@ class Attention(nn.Module):
         attn = torch.softmax(attn_scores, dim=-1)
         attn = self.att_droput(attn)
 
-        x = attn @ v
+        x = attn @ v_all
         if not self.is_temporal:
             x = x.permute(1, 2, 3, 0, 4).reshape(B, T, N, C)
         else:
@@ -177,8 +216,9 @@ class TransformerBlock(nn.Module):
         self.mlp = SwiGLU(config)
         self.ln2 = nn.RMSNorm(config.embedding_dim)
 
-    def forward(self, x):
-        x = x + self.att(self.ln1(x))
+    def forward(self, x, positions: torch.Tensor = None,
+                layer_cache: dict = None, commit: bool = False):
+        x = x + self.att(self.ln1(x), positions=positions, layer_cache=layer_cache, commit=commit)
         x = x + self.mlp(self.ln2(x))
         return x
 
@@ -267,7 +307,8 @@ class DynamicsModel(nn.Module):
     # ------------------------------------------------------------------ forward
     def forward(self, z_tilde: torch.Tensor, tau_idx: torch.Tensor, d_idx: torch.Tensor,
                 actions: torch.Tensor = None, register_in: torch.Tensor = None,
-                return_registers: bool = False) -> torch.Tensor:
+                return_registers: bool = False, positions: torch.Tensor = None,
+                cache: list = None, commit: bool = False) -> torch.Tensor:
         """Predict clean latents (x-prediction) from noised latents.
 
         z_tilde:     (B, T, n_latents, bottleneck_dim) noised representations.
@@ -281,6 +322,12 @@ class DynamicsModel(nn.Module):
                      ``self.register_tokens`` at the remaining frames.
         return_registers: also return the final-layer register states (B, T, n_registers, E)
                      — the carrier states that generate_memory()/the FF7 loss re-inject.
+        positions:   optional (T,) absolute time indices for these frames (KV-cache / long
+                     rollout). ``None`` => the default 0..T-1 table path (training).
+        cache:       optional per-block list (len = depth) of {'k','v'} dicts (None entries for
+                     spatial blocks), produced by ``new_kv_cache()``. Temporal blocks read cached
+                     K/V and, when ``commit`` is set, append this call's K/V.
+        commit:      append this call's K/V to ``cache`` (used to extend the context cache).
         returns:     (B, T, n_latents, bottleneck_dim) predicted clean latents
                      [, (B, T, n_registers, E) register states].
         """
@@ -302,8 +349,9 @@ class DynamicsModel(nn.Module):
 
         x = torch.concat((action, lat, register, shortcut), dim=2)  # (B, T, N, E)
 
-        for block in self.blocks:
-            x = block(x)
+        for i, block in enumerate(self.blocks):
+            layer_cache = cache[i] if cache is not None else None
+            x = block(x, positions=positions, layer_cache=layer_cache, commit=commit)
 
         lat_start = self.n_action_tokens
         out = x[:, :, lat_start:lat_start + L, :]
@@ -494,6 +542,88 @@ class DynamicsModel(nn.Module):
                 # action features for [window frames ... new frame], matching _denoise_next input
                 act_window = act_feat[:, new_idx - w : new_idx + 1]
             nxt = self._denoise_next(window, K, act_window)
+            generated.append(nxt)
+            seq = torch.concat((seq, nxt), dim=1)
+        return torch.concat(generated, dim=1)
+
+    # ------------------------------------------------------------------ KV cache (inference)
+    def new_kv_cache(self) -> list:
+        """A fresh per-block KV-cache list: an empty {} for each temporal block, None for
+        spatial blocks (which attend within a frame and never cache across time)."""
+        return [({} if block.att.is_temporal else None) for block in self.blocks]
+
+    def _denoise_next_cached(self, context: torch.Tensor, K: int,
+                             actions: torch.Tensor = None,
+                             positions: torch.Tensor = None) -> torch.Tensor:
+        """KV-cached equivalent of ``_denoise_next``. The context frames are held at tau_ctx and
+        are causal, so their per-layer K/V is constant across the K shortcut substeps: encode
+        them ONCE into a cache (commit=True), then run only the single new frame each substep
+        against the cache. Bit-for-bit identical to ``_denoise_next`` (same ctx_noised + z draws),
+        at ~K x fewer temporal-attention FLOPs.
+
+        positions: absolute time indices of [context frames..., new frame], length T_ctx+1.
+                   The new frame sits at the LAST position, so it must be RoPE-rotated there —
+                   which is why the cached path needs explicit absolute positions, not the table.
+        """
+        B, T_ctx, L, _ = context.shape
+        device = context.device
+        d_val = 1.0 / K
+        d_idx_val = (K).bit_length() - 1
+        tau_ctx = self.config.context_signal
+        tau_ctx_idx = round(tau_ctx * self.K_max)
+        ctx_noised = (1 - tau_ctx) * torch.randn_like(context) + tau_ctx * context
+
+        if positions is None:
+            positions = torch.arange(T_ctx + 1, device=device)
+        ctx_pos, new_pos = positions[:T_ctx], positions[T_ctx:T_ctx + 1]
+
+        # Prefill: encode the context once, populating the per-layer KV cache.
+        cache = self.new_kv_cache()
+        d_col_ctx = torch.full((B, T_ctx), d_idx_val, device=device, dtype=torch.long)
+        tau_col_ctx = torch.full((B, T_ctx), tau_ctx_idx, device=device, dtype=torch.long)
+        act_ctx = actions[:, :T_ctx] if actions is not None else None
+        self(ctx_noised, tau_col_ctx, d_col_ctx, act_ctx,
+             positions=ctx_pos, cache=cache, commit=True)
+
+        # Substeps: only the new frame, attending to the cached context (commit=False).
+        d_col_new = torch.full((B, 1), d_idx_val, device=device, dtype=torch.long)
+        tau_col_new = torch.full((B, 1), tau_ctx_idx, device=device, dtype=torch.long)
+        act_new = actions[:, T_ctx:T_ctx + 1] if actions is not None else None
+        z = torch.randn((B, 1, L, self.bottleneck_dim), device=device)  # pure noise, tau = 0
+        for k in range(K):
+            tau = k / K
+            tau_col_new[:, -1] = round(tau * self.K_max)
+            z_hat1 = self(z, tau_col_new, d_col_new, act_new,
+                          positions=new_pos, cache=cache, commit=False)
+            v = (z_hat1 - z) / (1 - tau)
+            z = z + v * d_val
+        return z  # (B, 1, L, bottleneck_dim)
+
+    @torch.no_grad()
+    def generate_cached(self, context: torch.Tensor, n_generate: int, K: int = None,
+                        action_idx: torch.Tensor = None) -> torch.Tensor:
+        """KV-cached rollout. Same signature/semantics as ``generate`` and bit-for-bit identical
+        to it (given the same RNG state): the cache is rebuilt per generated frame, so each
+        frame's window is re-noised exactly as in the uncached path — the saving is the intra-
+        frame K-substep reuse, not cross-frame persistence. The FF7 register-memory path is
+        already window-1 (no cache benefit) and is dispatched unchanged."""
+        if getattr(self.config, "use_register_memory", False):
+            return self.generate_memory(context, n_generate, K, action_idx)
+        K = K or self.config.inference_steps
+        max_ctx = self.config.max_temporal_length - 1
+        T_ctx = context.shape[1]
+        act_feat = self.action_features(action_idx)
+        seq = context
+        generated = []
+        for i in range(n_generate):
+            window = seq[:, -max_ctx:]
+            w = window.shape[1]
+            new_idx = T_ctx + i
+            act_window = None
+            if act_feat is not None:
+                act_window = act_feat[:, new_idx - w: new_idx + 1]
+            positions = torch.arange(w + 1, device=context.device)
+            nxt = self._denoise_next_cached(window, K, act_window, positions=positions)
             generated.append(nxt)
             seq = torch.concat((seq, nxt), dim=1)
         return torch.concat(generated, dim=1)
