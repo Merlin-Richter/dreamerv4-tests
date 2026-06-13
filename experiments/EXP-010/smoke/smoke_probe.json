@@ -1,0 +1,89 @@
+{
+  "meta": {
+    "window_N": 8,
+    "prefix_P": 3,
+    "R": 1,
+    "K": 4,
+    "context_signal": 0.9,
+    "device": "cuda",
+    "dry_run": true,
+    "episodes_per_occ": 4,
+    "tokenizer": "trained_autoencoder.pt",
+    "dynamics": "smoke_ff7.pt",
+    "sheet": "sheet.png"
+  },
+  "detector_gate": {
+    "n": 4,
+    "miss_rate": 0.0,
+    "pos_err_px_p99": 0.6034262853860854,
+    "pos_err_px_mean": 0.3476188499480486,
+    "color_dRGB_p99": 0.0,
+    "color_dRGB_mean": 0.0,
+    "pass": true
+  },
+  "occ_grid": [
+    2,
+    8,
+    16
+  ],
+  "latent_mse_by_occ": {
+    "2": 0.5628682896494865,
+    "8": 0.8560908138751984,
+    "16": 0.9383770376443863
+  },
+  "pos_err_px_by_occ": {
+    "2": 12.75885260105133,
+    "8": 19.400883436203003,
+    "16": 23.443666458129883
+  },
+  "color_dRGB_by_occ": {
+    "2": 66.95928955078125,
+    "8": 82.3401985168457,
+    "16": 80.3981761932373
+  },
+  "ball_lost_rate_by_occ": {
+    "2": 0.0,
+    "8": 0.0,
+    "16": 0.0
+  },
+  "matched_horizon_drift": {
+    "latent_mse": {
+      "2": 0.3939248099923134,
+      "8": 0.8109049424529076,
+      "16": 0.9679424613714218
+    },
+    "pos_err_px": {
+      "2": 7.017780661582947,
+      "8": 19.756125807762146,
+      "16": 17.735533952713013
+    },
+    "color_dRGB": {
+      "2": 26.05170178413391,
+      "8": 73.84179210662842,
+      "16": 103.12135148048401
+    }
+  },
+  "controls": {
+    "ceiling": {
+      "n": 4,
+      "latent_mse": 0.29047442600131035,
+      "latent_mse_std": 0.0751168138304214,
+      "pos_err_px": 3.8500670790672302,
+      "color_dRGB": 20.20842754840851,
+      "ball_lost_rate": 0.0
+    },
+    "chance": {
+      "n": 4,
+      "latent_mse": 1.0208359062671661,
+      "latent_mse_std": 0.34531858367006885,
+      "pos_err_px": 25.13920545578003,
+      "color_dRGB": 56.5740385055542,
+      "ball_lost_rate": 0.0
+    }
+  },
+  "metric_validation": {
+    "pearson_latentMSE_vs_colorDRGB": 0.9472756169060722,
+    "pearson_latentMSE_vs_posErr": 0.9848866640854268,
+    "note": "latent-MSE is trustworthy as the headline iff it tracks the decomposition; position is expected to be drift-confounded (see matched_horizon_drift)."
+  }
+}

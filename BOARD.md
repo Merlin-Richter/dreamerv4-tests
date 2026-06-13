@@ -3,11 +3,16 @@
 Updated: 2026-06-12 (FF7 go-ahead received; T-009 build in progress)
 
 ## In progress
-- **EXP-010 — FF7 v1 screening** (k=1 then k=3, 100 ep each + full probe; background
-  chain on the 4070, started 2026-06-12). On completion: reconcile → present-then-stop.
+*(none — 4070 idle; awaiting Merlin's ESC-006 verdict on EXP-010)*
+
+## Awaiting review
+- **EXP-010 — FF7 v1 screening DONE & reconciled** (both arms, 2026-06-13). Supports H3
+  (color-only): clears T-004 bar at n_occ 12&16, misses 24; k3>k1; no tripwires. Position
+  at chance. Present-then-stop → ESC-006 (open). No next decision until verdict.
 
 ## Backlog
-*(empty — next items spawn from the EXP-010 verdict)*
+*(empty — next items spawn from the EXP-010 verdict; my rec in ESC-006: replicate k=3 +
+  design a position/motion-carrying FF7 variant)*
 
 ## Done (recent)
 - **T-009 — FF7 v1 built** (2026-06-12, commit ec45dc1): all 3 acceptance criteria pass

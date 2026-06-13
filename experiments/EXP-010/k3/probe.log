@@ -1,0 +1,13 @@
+[probe] window_N=8 prefix_P=3 dry_run=False
+  n_occ= 2  latentMSE=0.3554 (drift 0.1987)  posErr=7.5px (drift 2.9)  dRGB=17.8 (drift 13.7)  lost=0.00
+  n_occ= 4  latentMSE=0.5992 (drift 0.3357)  posErr=15.2px (drift 6.4)  dRGB=20.1 (drift 16.8)  lost=0.00
+  n_occ= 6  latentMSE=0.6940 (drift 0.4203)  posErr=20.6px (drift 9.5)  dRGB=24.3 (drift 20.1)  lost=0.00
+  n_occ= 7  latentMSE=0.7200 (drift 0.4522)  posErr=23.8px (drift 11.4)  dRGB=27.7 (drift 23.3)  lost=0.00
+  n_occ= 8  latentMSE=0.7394 (drift 0.4896)  posErr=24.6px (drift 11.9)  dRGB=31.6 (drift 25.4)  lost=0.00
+  n_occ= 9  latentMSE=0.7601 (drift 0.4717)  posErr=26.2px (drift 11.5)  dRGB=32.2 (drift 24.7)  lost=0.00
+  n_occ=12  latentMSE=0.7846 (drift 0.5700)  posErr=27.9px (drift 16.0)  dRGB=39.8 (drift 24.5)  lost=0.00
+  n_occ=16  latentMSE=0.7966 (drift 0.6210)  posErr=23.8px (drift 18.8)  dRGB=55.1 (drift 31.8)  lost=0.00
+  n_occ=24  latentMSE=0.8026 (drift 0.6727)  posErr=20.8px (drift 18.7)  dRGB=65.1 (drift 36.5)  lost=0.00
+[probe] sheet -> experiments\EXP-010\k3\sheet.png
+[detector gate] pass=True pos_p99=0.65px dRGB_p99=0.0 miss=0.000
+[probe] wrote experiments\EXP-010\k3\results.json  sheet sheet.png

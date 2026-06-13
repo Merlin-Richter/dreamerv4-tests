@@ -203,3 +203,65 @@ strong; "no architecture change / no new params" still holds. Same carrier, same
 frozen eval. Will be re-flagged at the EXP-010 present-then-stop.
 Applied to: DECISIONS.md D-014, BOARD.md (T-009 in progress), ORIENT.md, IDEAS.md (FF7 row
 correction).
+
+## ESC-006 | 2026-06-13 | OPEN — present EXP-010 (FF7 v1 screening) — present-then-stop
+Context: EXP-010, the first H3 method (FF7 v1, D-014), finished overnight (both arms) while no
+session was alive. k=1 and k=3, single seed, 100 ep each, frozen probe 5503e75, vs the T-004
+bar (color ΔRGB < ~63 at n_occ {12,16,24}; EXP-009 baseline is at chance there). This is a §5
+present-then-stop gate.
+
+### The result (decisive read)
+**H3 is supported in its first attempt — but the win is hidden-COLOR retention specifically,
+not full hidden-state retention.** Both FF7 arms replace the baseline's sharp post-window cliff
+(color recall → chance the instant the color-carrying prefix scrolls out of the N=8 window)
+with a smooth, gentle decay that stays well below the chance floor far past the window. Against
+the pre-registered T-004 bar (<63 at n_occ 12/16/24): both arms clear it at n_occ 12 and 16
+(k=1 52/59, k=3 40/55) and both narrowly miss only at n_occ 24 (k=1 80, k=3 65 vs bar 63 —
+k=3 by 2 points). k=3 beats k=1 at every beyond-window point, confirming the in-pass relay
+rationale. No D-014 tripwire fired: window-1 register-carry inference did NOT degrade base
+dynamics (FF7 ceiling/drift controls are equal-or-better than the EXP-009 baseline), and there
+is no loss interference (healthy val loss, near-perfect ceiling control).
+
+**The honest caveats, surfaced not buried:**
+1. **Color only; position is at chance.** The model carries the ball's *color* through
+   occlusion but not its position (pos_err ≈ chance for both arms). A register relaying a
+   static attribute is a believable mechanism; integrating hidden *motion* is not happening.
+2. **The secondary metric does not corroborate the headline.** latent-token MSE stays near
+   chance for the FF7 arms and barely separates from its drift control — because latent-MSE is
+   dominated by the at-chance position (latentMSE↔posErr r≈0.95; latentMSE↔color r≈0.7..0.8).
+   This is exactly the position-confound T-004 anticipated when it pre-registered color as the
+   headline and latent-MSE as merely validating. Read on latent-MSE alone this looks near-null;
+   the color decomposition is what reveals the retention. I judge the headline (color) the
+   correct metric here per T-004, but you should know the two disagree.
+3. **Surprise (favorable):** k=1 vastly exceeded its pre-registered expectation. I predicted
+   k=1's chained relay was untrained and would decay to chance by n_occ 12; instead it held far
+   below chance through 16. The "untrained chained interface" reasoning was too pessimistic —
+   single-frame sufficiency + param-free register-carry relays color much further than expected.
+
+### Access points (low-friction view)
+- **Headline chart (open this first):** `experiments/EXP-010/headline.png` — color recall vs
+  n_occ, all 3 series + ceiling/chance/T-004-bar reference lines; baseline cliff vs FF7 gentle
+  decay obvious at a glance. (Also `comparison.html` — same curves + latent-MSE panel, no deps.)
+- **Frame sheets (GT top / prediction bottom):** `experiments/EXP-010/k1/sheet.png`,
+  `experiments/EXP-010/k3/sheet.png`.
+- **Tables + numbers:** `experiments/EXP-010/comparison.md` ; raw `k1/results.json`,
+  `k3/results.json`. **Full reconciliation:** `experiments/EXP-010/NOTES.md`.
+- **W&B:** k=1 https://wandb.ai/models-eberhard-karls-universit-t-t-bingen/transformer-D-dynamics/runs/82klng1c
+  ; k=3 .../runs/17u810q2 (project transformer-D-dynamics).
+
+### The question for you
+(1) Do you agree with the read — FF7 v1 demonstrates genuine hidden-**color** retention well
+beyond the window, a clear win over the baseline's total collapse, with position unretained?
+(2) Is "color retained, position at chance, latent-MSE flat" enough for you to call this H3
+*progress/support*, or do you want position retention (full hidden state) before crediting H3?
+(3) Direction for next, my recommendation: this single-seed screen is promising enough to (a)
+replicate the better arm (k=3) at ≥2 seeds for stability, and (b) decide whether to push the
+*method* on position next (e.g. an FF7 variant that forces dynamics/motion state into the
+register, not just static color) vs. first hardening the color result (longer training / the
+n_occ-24 near-miss / adversarial action coverage). I lean: confirm k=3 with a second seed AND
+start designing the position-carrying variant, since color-only is a partial H3 win and
+position is the harder, more interesting half. Your call on whether to spend seeds first or
+method-iterate first.
+
+Urgency: blocking — per §5 I am not starting the next decision, seeds, or any FF7 variant
+until you weigh in. Nothing is in flight; the 4070 is idle.

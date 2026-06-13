@@ -1,43 +1,38 @@
 # ORIENT.md
 
-Rewritten: 2026-06-13 ~02:15 (EXP-010 k1 arm DONE, k3 arm training)
+Rewritten: 2026-06-13 ~06:30 (EXP-010 BOTH arms done overnight; reconciled; ESC-006 open)
 
 ## What we are doing and why
+- **H1, H2 — supported.** Frozen probe 5503e75 is the yardstick; T-004 H3 bar =
+  color ΔRGB < ~63 at n_occ ∈ {12,16,24} (EXP-009 baseline at chance ~110 there).
+- **H3 — first method (FF7 v1, D-014) screened. EXP-010 SUPPORTS H3 (color-only).**
+  Both arms replace the baseline post-window cliff with a gentle decay; clear the T-004
+  bar at n_occ 12 & 16, miss at 24; k=3 > k=1 (relay holds). Caveat: color retained,
+  **position at chance** → latent-MSE (secondary) doesn't corroborate (position confound,
+  as T-004 anticipated). No D-014 tripwires fired.
 
-- **H1, H2 — supported.** Frozen probe 5503e75 + T-004 criteria are the yardstick:
-  H3 bar = color ΔRGB < ~63 at n_occ ∈ {12,16,24} (EXP-009 baseline: chance ~110 there).
-- **H3 — FF7 v1 built (T-009 done, commit ec45dc1), EXP-010 screening RUNNING.**
-  D-014 has the full design + the build-time correction (registers don't persist across
-  vanilla generate() steps → param-free `generate_memory` register-carry rollout added;
-  probe runs unmodified via checkpoint flag dispatch).
+## In flight
+**NOTHING running. 4070 idle.** We are at a **present-then-stop gate (ESC-006)** awaiting
+Merlin's verdict on EXP-010. Per §5 the §3 prep allowance does NOT apply here — do not
+start the next decision, seeds, or any FF7 variant until he answers.
 
-## In flight (this is the thing to check on cold start)
+## NEXT ACTION
+Wait for Merlin's ESC-006 verdict. His three questions: (1) agree with the color-only read?
+(2) is color-retained/position-at-chance enough to credit H3 progress? (3) next direction —
+my rec: replicate k=3 at a 2nd seed AND start designing a position/motion-carrying FF7
+variant (color-only is the easy half). On his answer: write the next decision, then act.
 
-**EXP-010** (local 4070, background bash chain, started 2026-06-12):
-1. **k=1 arm DONE** (2026-06-13 02:10): 100 epochs (train 0.00635 / val 0.00651),
-   probe complete, detector gate green. `experiments/EXP-010/k1/{results.json,sheet.png}`.
-   Early sanity read (NOT reconciliation): color ΔRGB @ n_occ 12/16/24 = 52.1/59.0/79.8
-   vs chance ~101 and T-004 H3 bar <63 → k=1 clears the bar at 12 & 16. Ceiling 9.3 /
-   drift 14–32: no inference-degradation tripwire visible.
-2. **k=3 arm RUNNING** (started 02:10, ~2.85 it/s ≈ same pace; ETA ~05:30 incl. probe)
-   → `experiments/EXP-010/k3/`
-W&B: exp010-ff7k1-s0 / exp010-ff7k3-s0 (project transformer-D-dynamics).
-Chain aborts at first failure (&&-chained).
-If a cold start finds the chain dead mid-way: check the k*/train.log tail and W&B,
-diagnose, do NOT silently relaunch (3-same-failure rule → escalate).
-
-## NEXT ACTION when EXP-010 finishes
-Reconcile per §5 in `experiments/EXP-010/NOTES.md` (expectations pre-registered there +
-D-014 tripwires: ceiling/drift degradation; k=3 ≤ k=1; loss interference; out-of-clip
-reveals at chance is EXPECTED, not relay failure). Build comparison view (FF7 arms vs
-EXP-009 curves + sheets), decisive read, ESC-006, **present-then-stop** — no next decision
-before Merlin's verdict.
+## Access points for his review (ESC-006)
+- `experiments/EXP-010/headline.png` (the one chart that says it all)
+- `experiments/EXP-010/comparison.{md,html}`, `k1/sheet.png`, `k3/sheet.png`
+- Full reconciliation in `experiments/EXP-010/NOTES.md`; W&B 82klng1c (k1) / 17u810q2 (k3)
 
 ## Current worries
-1. Model may game the per-frame loss by emitting the color prior (= chance on probe).
-2. Window-1 `generate_memory` inference may degrade base dynamics → judge via the probe's
-   own ceiling/drift controls vs EXP-009.
-3. Chained register re-injection at inference is only approximately trained (k=1 not at
-   all beyond hop 1; k=3 in-pass only) — the central empirical question of EXP-010.
-4. Background-task timeout risk: the harness may cap the chain (~10 min?); verify the
-   trainings are actually alive past that mark (W&B heartbeat / log mtime) before idling.
+1. **Color-only win.** Position unretained — the harder, more interesting half of hidden
+   state is not solved. Is partial retention "H3 progress" in Merlin's eyes? (ESC-006 Q2.)
+2. **Single seed.** k=3's 2-pt miss at n_occ 24 and the k=1>expected surprise both want a
+   replication seed before over-reading. (Standing ≥2-seed order was removed; replicate on
+   promise — this looks promising enough.)
+3. **latent-MSE non-corroboration** is benign (position confound, pre-flagged) but means the
+   detection-free headline we hoped for is, for THIS method, carried entirely by the color
+   decomposition. Worth keeping in mind for the eventual writeup.
