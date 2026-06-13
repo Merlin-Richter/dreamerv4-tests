@@ -107,3 +107,41 @@ steps (each forward re-expands the learned tokens, dynamics_model.py:282; only l
 between steps, :405) — so FF7 also needs a **param-free inference change**: carry + inject
 each frame's final-layer register state (`generate_memory`, the same interface the training
 rollout trains). "train_dynamics_model.py ONLY" was too strong; zero-new-params still holds.
+
+---
+
+## Sequential stop-grad register-relay training (parked 2026-06-13, Merlin dialogue; not yet a decision)
+
+**Problem.** Train/inference mismatch on the FF7 register channel. At inference
+(`memory_rollout_step`) frame t-1's FINAL-layer register is injected as frame t's LAYER-0 input
+register — an output→input recurrence that compounds over many steps. In the **main diffusion
+loss** the context frames carry the *learned-init* register placeholder (`register_tokens.expand`,
+dynamics_model.py:346; loss forward passes no `register_in`, :391); cross-frame register info flows
+only *horizontally at matched depth* via temporal attention, never the deep relay. The **FF7 aux
+loss** injects registers but only **1-deep** (the injected register came from a learned-init
+context) and only the single context frame. So the model is never trained on deeply-relayed
+registers like it sees at inference — exposure bias on the memory channel.
+
+**Idea (Merlin's, refined).** Run the register relay **sequentially** at train time (a faithful
+n-deep register requires the recurrence to have actually run — `r_t^in=f(r_{t-1}^out,frame_t)`,
+non-associative, so no parallel scan; frame-by-frame is required). Carry the register **value**
+across steps so context registers look like real relayed ones. Keep gradients **local** (no BPTT
+past the window) — Transformer-XL / scheduled-sampling territory.
+
+**The subtlety that decides success (read vs write side).** Fully detaching the carried register
+(TBPTT-0) trains the model to READ realistic registers but gives ZERO gradient to WRITE a useful
+one → may learn no memory. Two coherent options:
+- (A) detached relay for read-side realism + keep FF7's in-pass injection for write-side training.
+- (B) **TBPTT-1 (recommended):** carry the register value faithfully (n-deep) but keep ONE step of
+  gradient — at step t the t-1 register is attached (trains t-1's write), everything folded into
+  t-1 is detached. Trains read+write in one mechanism, gradient never exceeds one step, subsumes
+  the FF7 aux loss into the rollout. Both keep O(1) memory in rollout length.
+
+**Open forks to pin in the eventual decision:** (1) relay over GT latents in context (only the
+*register* is relayed; latents teacher-forced — cheapest, isolates the memory-channel effect;
+Merlin leaned here) vs self-generated latents (full closed-loop). (2) diffusion sampler: feed the
+carried register alongside which latent, and do we differentiate the sampler (probably not).
+**KV-cache relevance:** small for the window-1 FF7 relay (already cheap per step); the cache's
+value grows with relay window size (then the detached cross-step window K/V = the TXL recurrence).
+**Pre-registered question if pursued:** does TBPTT-1 sequential relay beat FF7-as-is on the frozen
+memory probes (color beyond-window, and—if it helps—position)?

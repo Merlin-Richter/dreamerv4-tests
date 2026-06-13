@@ -369,3 +369,62 @@ CPU-only) — recorded in HOWTO so future runs use the venv; EXP-011 ran on CPU 
 with EXP-010's GPU numbers, so its conclusions stand.
 Applied to: DECISIONS.md D-016, dynamics_model.py + play_dynamics_checkpoint.py (T-010),
 CLAUDE.md, experiments/EXP-012/*, EXPERIMENTS.md, BOARD.md, ORIENT.md.
+
+## ESC-008 | 2026-06-13 | OPEN — present EXP-012 (budget-matched vanilla baseline) — present-then-stop
+Context: EXP-012 (D-016) is the clean control ESC-007 agreed to: a fresh vanilla dynamics model
+(--ff7 0 --fresh) at the EXACT EXP-010 FF7 budget (occluded, 100 ep, bs32, lr3e-4, seed0; val loss
+0.0066 = FF7's 0.0065), to retire my_dynamics and break the FF7-loss-vs-training-budget confound
+EXP-011 surfaced. Frozen probe 5503e75 + the EXP-011 motion diagnostic rerun across all 4 models.
+This is a §5 present-then-stop gate.
+
+### The result (decisive read)
+**The confound is resolved: FF7's wins are the method, not the training budget — on BOTH axes.**
+1. **Color / H2 — stands, on a clean baseline.** The budget-matched vanilla reproduces the sharp
+   architectural color cliff: hidden-color ΔRGB ≈ ceiling (15) while the prefix is inside the N=8
+   window, then jumps to ≈ chance (98→108) the instant it scrolls out (n_occ 6→7), and stays at
+   chance (105–110) through n_occ 24. It does NOT reproduce FF7's beyond-window retention (FF7
+   40–65, below the T-004 bar of 63 through n_occ 16). The D-016 tripwire (vanilla beyond-window
+   color < 63) did NOT fire. → EXP-010's color memory is the FF7 register relay, not budget.
+   my_dynamics retired; vanilla_s0 is the H2/H3 baseline.
+2. **Motion — the FF7 loss, not budget, makes a good 1-step dynamics model.** Teacher-forced
+   1-step pos_err: vanilla_s0 **4.66px** ≈ my_dynamics 4.51px ≫ ff7_k1 1.02 / ff7_k3 0.96px. Both
+   vanillas are *worse* than freezing the ball (copy-last 3.19px); both FF7 arms beat it ~3×.
+   Open-loop, ff7_k3 tracks far longest (8.5px@h8 vs vanilla 18.5). Latent→xy probe R²=0.96 (C
+   encodes position; reproduced).
+
+**The honest correction (mild surprise — one sub-prediction refuted):** I predicted (D-016, from
+EXP-011) that the budget-matched vanilla would substantially beat my_dynamics at motion — that
+my_dynamics's weakness was "partly undertraining." **Refuted:** two independently-trained vanillas
+land at the same ~4.5px. Motion weakness is intrinsic to the vanilla setup here, not undertraining;
+the FF7 loss is what fixes it. (Color was exactly as predicted. No halt-tripwire fired — vanilla
+≈ my_dynamics is consistent, not a seed/data bug; a 2nd vanilla seed would confirm if you want it.)
+
+**Bonus finding worth your eye:** FF7 sharpens the *base* 1-step dynamics ~4.6×, not just the
+memory relay. That's a bigger claim about the single-timestep-sufficiency objective than "it
+carries static color" — it looks like a dynamics regularizer. (The diagnostic's FF7 1-step uses
+the relay-inference path, so loss-vs-relay isn't fully disentangled yet.)
+
+### Access points (low-friction view)
+- **Color headline (open first):** `experiments/EXP-012/headline_color.png` — vanilla cliff →
+  chance vs FF7 sub-bar decay, all on the identical frozen probe, with ceiling/chance/63-bar lines.
+- **Motion headline:** `experiments/EXP-012/headline_motion.png` — open-loop pos_err vs horizon
+  (4 models) + the 1-step teacher-forced bar inset (the attribution number) + latent-probe note.
+- **Probe frame sheet:** `experiments/EXP-012/sheet.png`. Numbers: `results.json` (probe) +
+  `diagnostic.json` (motion). Full reconciliation: `experiments/EXP-012/NOTES.md`.
+- **W&B:** exp012-vanilla-s0 (project transformer-D-dynamics).
+
+### The question for you
+1. Agree H2 is now cleanly anchored on a training-matched baseline and my_dynamics is retired?
+2. Agree the confound is resolved — FF7's color AND motion wins are the method, not budget
+   (so EXP-009/EXP-010 conclusions are retroactively trustworthy)?
+3. This closes the ESC-007 baseline action. The agreed Q3 path was: baseline → closed-loop/
+   distributional position metric → judge position. My recommendation: proceed to design that
+   position metric next (it's cheap and unblocks honest position claims), and treat the
+   **sequential stop-grad register-relay training** idea we worked out today (IDEAS.md) as the
+   leading H3 *position* method to try once we can measure position. These are complementary —
+   the metric tells us how to MEASURE memory, the relay is a METHOD to improve it. Agree, or
+   redirect (e.g. relay-first, or a 2nd vanilla seed for the motion claim first)?
+
+Urgency: blocking — per §5 I am not starting the next decision (position metric, relay method, or
+seed) until you weigh in. Nothing is in flight; the 4070 is idle. (Independent KV-cache work
+T-008/D-017 was committed during the EXP-012 wait; does not touch this result.)

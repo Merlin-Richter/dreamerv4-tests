@@ -1,11 +1,14 @@
 # BOARD.md — task board
 
-Updated: 2026-06-12 (FF7 go-ahead received; T-009 build in progress)
+Updated: 2026-06-13 (EXP-012 done → ESC-008 present-then-stop)
 
 ## In progress
-- **EXP-012 — budget-matched vanilla baseline** (D-016, local 4070 via venv, ~2.6h). Train
-  (--ff7 0 --fresh, exact EXP-010 budget) → frozen probe → EXP-011 diagnostic rerun. On done:
-  reconcile (H2 cliff reproduced? FF7-loss vs budget attribution) → present-then-stop.
+*(none — blocked on Merlin's ESC-008 verdict; 4070 idle)*
+
+## Awaiting review
+- **EXP-012 — budget-matched vanilla baseline** (D-016) DONE. Confound resolved: FF7 wins are the
+  method not budget (color cliff reproduced; vanilla 1-step 4.66px ≈ my_dynamics ≫ FF7 ~1.0px).
+  my_dynamics retired. Present-then-stop → **ESC-008** (open). Views in experiments/EXP-012/.
 
 ## Done (recent)
 - **T-010 — play_dynamics_checkpoint FF7 register carry** (2026-06-13). Viewer drove vanilla
@@ -13,11 +16,14 @@ Updated: 2026-06-12 (FF7 go-ahead received; T-009 build in progress)
   relay into DynamicsModel.memory_rollout_init/step (generate_memory reuses them); viewer drives
   them for FF7 ckpts. Verified (smokes + probe dry-run + headless reveal 9.9 vs 64.4). CLAUDE.md synced.
 
-## Backlog (ESC-007; Q3 path agreed)
+## Backlog (post-EXP-012; proposed in ESC-008, pending Merlin's verdict)
 - **Closed-loop / distributional position metric** — measure position *memory*, not open-loop
-  trajectory chaos (current open-loop GT-matched metric conflates them). After EXP-012.
-- **(deferred) FF7 follow-ups from EXP-010:** replicate k=3 2nd seed; position/motion FF7
-  variant; n_occ-24 near-miss.
+  trajectory chaos (current open-loop GT-matched metric conflates them). EXP-012 done; next per ESC-008.
+- **Sequential stop-grad register-relay training** (IDEAS.md) — TBPTT-1 relay so training context
+  carries real relayed memory tokens (fixes the learned-init mismatch); candidate H3 *position*
+  method once position is measurable. Worked out with Merlin 2026-06-13; pending ESC-008 direction.
+- **(deferred) FF7 follow-ups from EXP-010:** replicate k=3 2nd seed; 2nd vanilla seed to firm the
+  EXP-012 motion claim; position/motion FF7 variant; n_occ-24 near-miss.
 
 ## Done (recent)
 - **T-009 — FF7 v1 built** (2026-06-12, commit ec45dc1): all 3 acceptance criteria pass
