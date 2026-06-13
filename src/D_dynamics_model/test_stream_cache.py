@@ -102,79 +102,70 @@ def test_eviction_equivalence_actions():
     _check_eviction(T=20, n_actions=3)
 
 
-# ------------------------------------------------------------------- generate-level frozen-noise
-def _frozen_noise_reference(model, context, n_generate, K, action_idx=None):
-    """Mirror generate_streaming's algorithm and EXACT RNG draw order (one context-noise draw, then
-    per frame: one z draw, K substeps, one commit-noise draw) but with a full windowed recompute
-    instead of the persistent cache. With the same seed this must be bit-identical to
-    generate_streaming — proving the cached rollout composes correctly end-to-end."""
-    B, T_ctx, L, D = context.shape
-    W = model.config.max_temporal_length - 1
-    tau_ctx_idx = round(model.config.context_signal * model.K_max)
-    d_idx_val = (K).bit_length() - 1
-    d_val = 1.0 / K
-    has_act = model.n_actions > 0 and action_idx is not None
-
-    ctx_noised = model._noise_to_ctx(context)                      # draw A (matches init)
-    frames = [ctx_noised[:, t:t + 1] for t in range(T_ctx)]        # noised frames, each (B,1,L,D)
-    positions_list = list(range(T_ctx))
-    ids = [action_idx[:, t] if has_act else None for t in range(T_ctx)]
-
-    generated = []
-    for i in range(n_generate):
-        new_pos = T_ctx + i
-        lo = max(0, len(frames) - W)
-        ctx = torch.cat(frames[lo:], dim=1)                       # (B, w, L, D)
-        win_pos = positions_list[lo:]
-        w = ctx.shape[1]
-        new_id = action_idx[:, new_pos] if has_act else None
-        act_in = None
-        if has_act:
-            id_seq = torch.stack(ids[lo:] + [new_id], dim=1)      # (B, w+1)
-            act_in = model.action_features(id_seq)
-        tau_col = torch.full((B, w + 1), tau_ctx_idx, dtype=torch.long)
-        d_col = torch.full((B, w + 1), d_idx_val, dtype=torch.long)
-        positions = torch.tensor(win_pos + [new_pos])
-        z = torch.randn((B, 1, L, D))                             # draw B_i (matches step)
-        for k in range(K):
-            tau = k / K
-            tau_col[:, -1] = round(tau * model.K_max)
-            z_hat1 = model(torch.cat((ctx, z), dim=1), tau_col, d_col, act_in,
-                           positions=positions)[:, -1:]
-            v = (z_hat1 - z) / (1 - tau)
-            z = z + v * d_val
-        generated.append(z)
-        frames.append(model._noise_to_ctx(z))                     # draw C_i (matches commit)
-        positions_list.append(new_pos)
-        ids.append(new_id)
-    return torch.cat(generated, dim=1)
-
-
+# ------------------------------------ generate-level: cached vs independent non-cache twin (seeded)
 def _check_generate(n_actions=0):
+    """generate_streaming (cached) == generate_windowed (independent uncached full-recompute) under a
+    shared noise_seed, bit-for-bit. The seed makes per-frame noise identical (addressed by absolute
+    frame id, not RNG call order), so the ONLY difference between the two real code paths is the
+    persistent cache — any divergence is a cache/eviction/RoPE or rollout-bookkeeping bug. Comparing
+    against an independently-structured non-cache method (not a test reimplementation that could share
+    the cache path's bug) is the point: the test can actually capture divergence."""
     torch.manual_seed(0)
     cfg = _tiny_cfg(n_actions=n_actions)
     model = DynamicsModel(cfg).eval()
-    B, T_ctx, n_gen, K = 2, 4, 12, 4   # n_gen makes the rollout slide well past the window
+    B, T_ctx, n_gen, K = 2, 4, 12, 4   # n_gen makes the rollout slide well past the window (W=7)
     context = torch.randn(B, T_ctx, cfg.n_latents, cfg.bottleneck_dim)
     action_idx = torch.randint(0, n_actions, (B, T_ctx + n_gen)) if n_actions else None
     with torch.no_grad():
-        torch.manual_seed(123)
-        g_stream = model.generate_streaming(context, n_gen, K=K, action_idx=action_idx)
-        torch.manual_seed(123)
-        g_ref = _frozen_noise_reference(model, context, n_gen, K, action_idx)
-    assert g_stream.shape == g_ref.shape == (B, n_gen, cfg.n_latents, cfg.bottleneck_dim)
-    diff = (g_stream - g_ref).abs().max().item()
-    assert diff < TOL, f"generate_streaming diverges from frozen-noise reference by {diff}"
+        g_stream = model.generate_streaming(context, n_gen, K=K, action_idx=action_idx, noise_seed=42)
+        g_wind = model.generate_windowed(context, n_gen, K=K, action_idx=action_idx, noise_seed=42)
+    assert g_stream.shape == g_wind.shape == (B, n_gen, cfg.n_latents, cfg.bottleneck_dim)
+    diff = (g_stream - g_wind).abs().max().item()
+    assert diff < TOL, f"cached generate_streaming diverges from uncached generate_windowed by {diff}"
 
 
-def test_generate_streaming_matches_frozen_reference():
-    """End-to-end: generate_streaming == frozen-noise full-recompute reference, bit-for-bit."""
+def test_generate_streaming_matches_windowed():
+    """End-to-end: cached == independent uncached twin (same seeded noise), bit-for-bit."""
     _check_generate(n_actions=0)
 
 
-def test_generate_streaming_matches_frozen_reference_actions():
+def test_generate_streaming_matches_windowed_actions():
     """Same, action-conditioned."""
     _check_generate(n_actions=3)
+
+
+def test_seeded_noise_is_reproducible():
+    """noise_seed makes the rollout deterministic regardless of global RNG state — two runs match,
+    and (sanity) a different seed gives a different rollout, so the comparison isn't trivially equal."""
+    torch.manual_seed(0)
+    cfg = _tiny_cfg()
+    model = DynamicsModel(cfg).eval()
+    B, T_ctx, n_gen, K = 2, 4, 8, 4
+    context = torch.randn(B, T_ctx, cfg.n_latents, cfg.bottleneck_dim)
+    with torch.no_grad():
+        a = model.generate_streaming(context, n_gen, K=K, noise_seed=7)
+        torch.manual_seed(999)                              # perturb global RNG
+        b = model.generate_streaming(context, n_gen, K=K, noise_seed=7)
+        c = model.generate_streaming(context, n_gen, K=K, noise_seed=8)
+    assert (a - b).abs().max().item() < TOL, "seeded rollout not reproducible across global RNG state"
+    assert (a - c).abs().max().item() > TOL, "different seeds gave identical rollouts (noise not used)"
+
+
+def test_divergence_is_detectable():
+    """The seeded cached-vs-uncached comparison must actually FAIL when the cache is broken — proving
+    the test is sensitive (Merlin's point). Here we disable eviction so the streaming window grows
+    unbounded; with identical seeded noise it must then diverge from generate_windowed."""
+    torch.manual_seed(0)
+    cfg = _tiny_cfg()
+    model = DynamicsModel(cfg).eval()
+    B, T_ctx, n_gen, K = 2, 4, 12, 4                        # rollout slides past W=7
+    context = torch.randn(B, T_ctx, cfg.n_latents, cfg.bottleneck_dim)
+    model._evict_oldest = lambda cache: None                # break eviction (instance override)
+    with torch.no_grad():
+        g_stream = model.generate_streaming(context, n_gen, K=K, noise_seed=42)
+        g_wind = model.generate_windowed(context, n_gen, K=K, noise_seed=42)
+    diff = (g_stream - g_wind).abs().max().item()
+    assert diff > TOL, f"broken eviction NOT detected (diff={diff}) — the test would be blind to a cache bug"
 
 
 def test_deviation_from_generate_is_finite():

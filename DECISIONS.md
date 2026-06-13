@@ -606,3 +606,38 @@ a positional/mask/eviction bug; fix before anything builds on it (this is the wh
 whether per-step noise redraw is load-bearing; escalate the semantics choice. (3) the primitives can't be
 made autograd-friendly for the later training use without redesign → note it now so the relay method
 isn't surprised. Spawns: T-012 (this work) — design note tasks/T-012-plan.md + impl + test_stream_cache.
+
+## D-021 | 2026-06-13
+Context: Refinement of D-020/T-012 directed by Merlin after reviewing the stream-cache tests. The
+generate-level correctness check originally compared generate_streaming against a frozen-noise
+reference REIMPLEMENTED inside the test. Merlin's point: a test-local reimplementation can share the
+same bug as the implementation, so it may not actually capture divergence. He asked to make the
+NON-CACHE version itself able to "draw noise once / based on seed if specified" so the cached rollout
+can be compared bit-exactly against a real, independent uncached path.
+Decision: Add a deterministic per-frame noise source keyed on the ABSOLUTE frame id and role
+(`_make_noise_fn`, role 0 = generation z, role 1 = context-noise) — so noise is content-addressed,
+not RNG-call-order-dependent; loop structure and caching cannot perturb which noise a frame gets.
+Thread an optional `noise_seed` through generate_streaming / stream_rollout_init/step, and add
+`generate_windowed` — the UNCACHED twin (full windowed recompute, independent stepping, same frozen
+per-frame context-noise). With a shared `noise_seed`, generate_streaming == generate_windowed
+bit-for-bit; the only difference between the two real code paths is the persistent cache, so any
+divergence is a cache/eviction/RoPE or bookkeeping bug (not a noise mismatch). Default `noise_seed=None`
+preserves the existing global-RNG behavior exactly (no change to the passing default path / KV-cache /
+FF7 regression tests).
+Verification added (test_stream_cache.py, now 9/9): (i) generate_streaming == generate_windowed under a
+shared seed, with and without actions; (ii) `test_seeded_noise_is_reproducible` — seeded rollout is
+invariant to global RNG AND a different seed changes the rollout (the comparison isn't trivially equal);
+(iii) `test_divergence_is_detectable` — a MUTATION test: disabling eviction makes the cached path
+diverge from generate_windowed, proving the comparison actually catches a broken cache. Forward-level
+RNG-free eviction equivalence (the primary gate) is unchanged.
+Alternatives rejected: (a) keep the test-local reimplementation — Merlin's exact objection (correlated
+bugs, may not capture divergence). (b) a single `_rollout(use_cache=...)` flag sharing all stepping
+code — guarantees identical noise but the two compared paths would share the rollout bookkeeping, so a
+bookkeeping bug wouldn't show; the independent `generate_windowed` cross-checks that too. (c) make
+generate() itself seedable/frozen — larger blast radius on the hot default path for no extra test power.
+Expected outcome: a test that demonstrably captures cache divergence (mutation test green), and a
+reusable deterministic uncached rollout for future debugging/reproducibility.
+Would change my mind: (1) the seeded cached vs uncached comparison can't be made bit-exact (some
+residual mismatch) → a real cache bug or a hidden nondeterminism; fix before building on it. (2) the
+mutation test passes (no divergence on broken eviction) → the comparison is insensitive; strengthen it.
+Spawns: none (folds into T-012). No experiment.

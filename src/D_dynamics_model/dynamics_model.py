@@ -731,6 +731,29 @@ class DynamicsModel(nn.Module):
 
     # ----------------------------------------- cross-frame sliding-window KV cache (D-020, T-012)
     @staticmethod
+    def _make_noise_fn(seed: int):
+        """A deterministic per-frame noise source addressed by (role, frame_id) — NOT by RNG call
+        order. role 0 = a frame's generation seed (pure noise z), role 1 = a frame's context-noise.
+        Because the draw is keyed on the absolute frame id, the cached rollout and the uncached
+        windowed rollout get IDENTICAL noise for the same frame regardless of loop structure or
+        caching — so a seeded cached-vs-uncached comparison isolates the cache (any divergence is a
+        cache/eviction/RoPE bug, not a noise mismatch). See test_stream_cache.py."""
+        def nf(role: int, frame_id: int, shape, device):
+            g = torch.Generator(device=device)
+            g.manual_seed(((int(seed) & 0xffffffff) * 1000003 + int(frame_id) * 9176
+                           + int(role) * 131 + 1) & 0x7fffffffffffffff)
+            return torch.randn(shape, generator=g, device=device)
+        return nf
+
+    def _ctx_noise_frame(self, z: torch.Tensor, frame_id: int, noise_fn) -> torch.Tensor:
+        """Hold a clean frame at signal level context_signal, drawing its context-noise ONCE. With
+        ``noise_fn`` (seeded) the draw is deterministic per frame_id; else a fresh randn_like. Same
+        formula as _noise_to_ctx, but the noise is injectable so cached/uncached paths can match."""
+        s = self.config.context_signal
+        noise = torch.randn_like(z) if noise_fn is None else noise_fn(1, frame_id, z.shape, z.device)
+        return (1 - s) * noise + s * z
+
+    @staticmethod
     def _evict_oldest(cache: list) -> None:
         """Drop the oldest time-column from every temporal block's persistent KV cache. Because
         cached K/V are stored ALREADY-RoPE-rotated at absolute positions (T-008), eviction is a
@@ -743,7 +766,7 @@ class DynamicsModel(nn.Module):
 
     @torch.no_grad()
     def stream_rollout_init(self, context: torch.Tensor, action_idx: torch.Tensor = None,
-                            K: int = None) -> dict:
+                            K: int = None, noise_seed: int = None) -> dict:
         """Seed a cross-frame sliding-window cached rollout (D-020). Unlike generate_cached (which
         rebuilds the cache every frame), this PERSISTS finalized frames' K/V across rollout steps
         and evicts the oldest when the window (N-1) overflows — the efficient + correct substrate
@@ -763,9 +786,14 @@ class DynamicsModel(nn.Module):
         tau_ctx_idx = round(self.config.context_signal * self.K_max)
         d_idx_val = (K).bit_length() - 1
 
+        nf = self._make_noise_fn(noise_seed) if noise_seed is not None else None
         cache = self.new_kv_cache()
         act_feat = self.action_features(action_idx)        # (B, T_ctx, n_act, E) or None
-        ctx_noised = self._noise_to_ctx(context)           # one draw over all context frames
+        if nf is None:
+            ctx_noised = self._noise_to_ctx(context)       # default: one draw over all context frames
+        else:                                              # seeded: per-frame, addressed by frame id
+            ctx_noised = torch.cat([self._ctx_noise_frame(context[:, t:t + 1], t, nf)
+                                    for t in range(T_ctx)], dim=1)
         tau_col = torch.full((B, T_ctx), tau_ctx_idx, device=device, dtype=torch.long)
         d_col = torch.full((B, T_ctx), d_idx_val, device=device, dtype=torch.long)
         positions = torch.arange(T_ctx, device=device)
@@ -778,7 +806,7 @@ class DynamicsModel(nn.Module):
         return {
             "cache": cache, "next_pos": T_ctx, "cache_len": cache_len, "W": W,
             "K": K, "d_idx_val": d_idx_val, "tau_ctx_idx": tau_ctx_idx,
-            "B": B, "L": L, "D": D, "device": device,
+            "B": B, "L": L, "D": D, "device": device, "noise_fn": nf,
         }
 
     @torch.no_grad()
@@ -793,6 +821,7 @@ class DynamicsModel(nn.Module):
         cache_len = state["cache_len"]
         d_idx_val, tau_ctx_idx = state["d_idx_val"], state["tau_ctx_idx"]
         B, L, D, device = state["B"], state["L"], state["D"], state["device"]
+        nf = state.get("noise_fn")
         d_val = 1.0 / K
 
         new_pos = torch.tensor([next_pos], device=device)
@@ -806,7 +835,8 @@ class DynamicsModel(nn.Module):
 
         d_col = torch.full((B, 1), d_idx_val, device=device, dtype=torch.long)
         tau_col = torch.full((B, 1), tau_ctx_idx, device=device, dtype=torch.long)
-        z = torch.randn((B, 1, L, D), device=device)       # pure noise, tau = 0 (one draw / frame)
+        z = (torch.randn((B, 1, L, D), device=device) if nf is None
+             else nf(0, next_pos, (B, 1, L, D), device))   # pure noise, tau = 0 (one draw / frame)
         for k in range(K):
             tau = k / K
             tau_col[:, -1] = round(tau * self.K_max)
@@ -817,8 +847,9 @@ class DynamicsModel(nn.Module):
 
         # Commit the finalized frame at context_signal so it becomes context for the next step.
         tau_col[:, -1] = tau_ctx_idx
-        self(self._noise_to_ctx(z), tau_col, d_col, act_new,
-             positions=new_pos, cache=cache, commit=True)
+        commit_noised = (self._noise_to_ctx(z) if nf is None
+                         else self._ctx_noise_frame(z, next_pos, nf))
+        self(commit_noised, tau_col, d_col, act_new, positions=new_pos, cache=cache, commit=True)
         cache_len += 1
         while cache_len > W:
             self._evict_oldest(cache)
@@ -828,21 +859,70 @@ class DynamicsModel(nn.Module):
 
     @torch.no_grad()
     def generate_streaming(self, context: torch.Tensor, n_generate: int, K: int = None,
-                           action_idx: torch.Tensor = None) -> torch.Tensor:
-        """Cross-frame sliding-window cached rollout (D-020): a thin loop over
+                           action_idx: torch.Tensor = None, noise_seed: int = None) -> torch.Tensor:
+        """Cross-frame sliding-window CACHED rollout (D-020): a thin loop over
         stream_rollout_init/step, the rollout-training substrate. Same signature/return as
         generate(); persists finalized frames' K/V across steps (no per-frame cache rebuild).
         Frozen per-frame context-noise (see stream_rollout_init) => NOT bit-identical to generate()
-        but bit-identical to a full windowed recompute (test_stream_cache.py). The FF7
-        register-memory path is window-1 already and is dispatched to generate_memory unchanged."""
+        but bit-identical to generate_windowed (the uncached twin) under the same ``noise_seed``
+        (test_stream_cache.py — that comparison isolates the cache). ``noise_seed`` makes the rollout
+        deterministic/reproducible; None = global-RNG draws. The FF7 register-memory path is window-1
+        already and is dispatched to generate_memory unchanged."""
         if getattr(self.config, "use_register_memory", False):
             return self.generate_memory(context, n_generate, K, action_idx)
         P = context.shape[1]
         ctx_ids = action_idx[:, :P] if action_idx is not None else None
-        state = self.stream_rollout_init(context, ctx_ids, K)
+        state = self.stream_rollout_init(context, ctx_ids, K, noise_seed=noise_seed)
         generated = []
         for i in range(n_generate):
             new_id = action_idx[:, P + i] if action_idx is not None else None
             z, state = self.stream_rollout_step(state, new_id, K)
             generated.append(z)
+        return torch.concat(generated, dim=1)
+
+    @torch.no_grad()
+    def generate_windowed(self, context: torch.Tensor, n_generate: int, K: int = None,
+                          action_idx: torch.Tensor = None, noise_seed: int = None) -> torch.Tensor:
+        """UNCACHED sliding-window rollout with the SAME frozen per-frame context-noise semantics as
+        generate_streaming, implemented by full windowed recompute (no persistent cache). This is the
+        non-cache twin used to validate the cache: with a shared ``noise_seed`` both paths draw
+        identical per-frame noise (addressed by absolute frame id), so generate_streaming == this,
+        bit-for-bit — any divergence is a cache/eviction/RoPE bug, not a noise mismatch. Independent
+        stepping logic (a list of finalized frames, not a cache) so it also cross-checks the rollout
+        bookkeeping. ``noise_seed=None`` still freezes each frame's context-noise (drawn once)."""
+        if getattr(self.config, "use_register_memory", False):
+            return self.generate_memory(context, n_generate, K, action_idx)
+        K = K or self.config.inference_steps
+        B, T_ctx, L, D = context.shape
+        device = context.device
+        W = self.config.max_temporal_length - 1
+        tau_ctx_idx = round(self.config.context_signal * self.K_max)
+        d_idx_val = (K).bit_length() - 1
+        d_val = 1.0 / K
+        nf = self._make_noise_fn(noise_seed) if noise_seed is not None else None
+        has_act = self.n_actions > 0 and action_idx is not None
+
+        # Finalized context-noised frames, indexed by absolute frame id (== list index).
+        frames = [self._ctx_noise_frame(context[:, t:t + 1], t, nf) for t in range(T_ctx)]
+        generated = []
+        for i in range(n_generate):
+            p = T_ctx + i                                  # absolute id of the frame being generated
+            lo = max(0, len(frames) - W)                   # window start (== p - w)
+            ctx = torch.concat(frames[lo:], dim=1)         # (B, w, L, D)
+            w = ctx.shape[1]
+            positions = torch.arange(p - w, p + 1, device=device)
+            act_in = self.action_features(action_idx[:, p - w:p + 1]) if has_act else None
+            tau_col = torch.full((B, w + 1), tau_ctx_idx, device=device, dtype=torch.long)
+            d_col = torch.full((B, w + 1), d_idx_val, device=device, dtype=torch.long)
+            z = (torch.randn((B, 1, L, D), device=device) if nf is None
+                 else nf(0, p, (B, 1, L, D), device))
+            for k in range(K):
+                tau = k / K
+                tau_col[:, -1] = round(tau * self.K_max)
+                z_hat1 = self(torch.concat((ctx, z), dim=1), tau_col, d_col, act_in,
+                              positions=positions)[:, -1:]
+                v = (z_hat1 - z) / (1 - tau)
+                z = z + v * d_val
+            generated.append(z)
+            frames.append(self._ctx_noise_frame(z, p, nf))  # freeze this frame's context-noise once
         return torch.concat(generated, dim=1)

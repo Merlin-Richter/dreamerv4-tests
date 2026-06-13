@@ -85,11 +85,18 @@ Raw Video Frames (B, T, H, W, 3) [uint8]
   re-rotation). One deliberate semantic deviation from `generate()`: each frame's context-noise is
   drawn **once** at commit instead of redrawn every step (a frame's committed representation is
   fixed once generated — the natural structure for rollout training). So NOT bit-identical to
-  `generate()`, but bit-identical to a full windowed recompute / frozen-noise reference (the gate),
-  and the residual deviation from `generate()` is within its own seed-to-seed noise on a trained
-  model (smaller, in fact). FF7 register-memory path is window-1 already → dispatched to
-  `generate_memory` unchanged. Built `@torch.no_grad()` (inference); the relay rollout-training
-  method will lift no_grad + detach the cache between steps (stop-grad TBPTT-1).
+  `generate()`, but bit-identical to `generate_windowed` (the **uncached twin**, below), and the
+  residual deviation from `generate()` is within its own seed-to-seed noise on a trained model
+  (smaller, in fact). FF7 register-memory path is window-1 already → dispatched to `generate_memory`
+  unchanged. Built `@torch.no_grad()` (inference); the relay rollout-training method will lift
+  no_grad + detach the cache between steps (stop-grad TBPTT-1).
+- `generate_windowed()` (T-012): the **uncached twin** of `generate_streaming` — same frozen
+  per-frame context-noise semantics by full windowed recompute (no persistent cache), independent
+  stepping logic. Both take `noise_seed`: a deterministic per-frame noise source keyed on the
+  **absolute frame id** (not RNG call order), so a shared seed gives the two paths identical noise
+  and `generate_streaming == generate_windowed` bit-for-bit — the test that isolates the cache (any
+  divergence is a cache/eviction/RoPE bug, not a noise mismatch). `noise_seed` also makes any rollout
+  reproducible across global-RNG state.
 
 ### Supporting Components
 

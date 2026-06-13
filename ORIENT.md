@@ -29,9 +29,13 @@ building the training method until he weighs in.
 
 ## Recently done
 - **T-012 / D-020 — cross-frame sliding-window KV eviction cache — DONE + verified.** `stream_rollout_
-  init`/`_step` + `generate_streaming`; gate `test_stream_cache.py` 7/7 (forward-level eviction
-  bit-exact incl. past-table + actions; frozen-noise reference bit-exact; ~1.2× faster). No regression.
-  Tripwire 2 cleared (frozen-noise deviation benign on trained vanilla_s0). CLAUDE.md synced.
+  init`/`_step` + `generate_streaming` + `generate_windowed` (uncached twin); gate `test_stream_cache.py`
+  9/9 (forward-level eviction bit-exact incl. past-table + actions; cached==uncached-twin under shared
+  seed; mutation test catches broken cache; ~1.1× faster). No regression. Tripwire 2 cleared
+  (frozen-noise deviation benign on trained vanilla_s0).
+- **D-021 (Merlin) — test-validity refinement:** seeded per-frame noise keyed on absolute frame id +
+  `generate_windowed` so the cached rollout is bit-checked against a REAL independent non-cache path,
+  not a test reimplementation; mutation test proves divergence is detectable. CLAUDE.md synced.
 - **ESC-009/010 RESOLVED** (Merlin: "resolve as whatever; continue"). Position metric NOT frozen
   (uncertain strength); EXP-014 read accepted (FF7 gain = loss). GOAL H3-position note added.
 - EXP-013 (D-018) position-memory metric built+applied; EXP-014 (D-019) FF7-gain disentangle. Both done.

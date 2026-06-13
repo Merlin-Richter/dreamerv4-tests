@@ -51,9 +51,15 @@ so that method can lift the no_grad and detach-on-commit without redesign.
    causal mask. Run T both within and well past `max_temporal_length`.
 2. **Long-rollout past the cos/sin table:** T >> max_temporal_length — eviction through unbounded
    absolute positions (the documented RoPE-overflow trap) stays equal to full recompute.
-3. **Generate-level:** `generate_streaming` == a frozen-noise reference rollout (identical RNG draw
-   order), bit-for-bit, with and without actions; AND report the (expected small) deviation from
-   standard `generate()` to confirm the frozen-noise semantics is benign.
+3. **Generate-level (D-021, Merlin):** `generate_streaming` (cached) == `generate_windowed` (the
+   independent UNCACHED twin) under a shared `noise_seed`, bit-for-bit, with and without actions. The
+   seed is a per-frame noise source keyed on the ABSOLUTE frame id (not RNG call order), so both real
+   code paths get identical noise and the only difference is the cache → divergence = a real cache bug.
+   This replaces the earlier test-local frozen-noise reimplementation (which could share the
+   implementation's bug). Plus: `test_seeded_noise_is_reproducible` (seed determinism + different seed
+   changes the rollout) and `test_divergence_is_detectable` (MUTATION test — break eviction, confirm
+   the comparison fails → the test is sensitive). AND report the (small) deviation from standard
+   `generate()` to confirm the frozen-noise semantics is benign.
 4. **Speed sanity (not a gate):** `generate_streaming` faster than `generate_cached` on a long rollout
    (no per-frame cache rebuild).
 

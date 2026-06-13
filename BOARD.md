@@ -9,12 +9,16 @@ Updated: 2026-06-13 (ESC-009/010 RESOLVED → building D-020 cross-frame KV cach
 - **T-012 — cross-frame sliding-window KV eviction cache (D-020) — DONE.** `stream_rollout_init`/
   `stream_rollout_step` + `generate_streaming` in dynamics_model.py (commit-once + evict-oldest
   persistent cache; pre-rotated K/V → eviction = pure slice). **Gate green:** `test_stream_cache.py`
-  7/7 — forward-level eviction equivalence bit-for-bit vs full windowed recompute (in-range, past the
-  cos/sin table, with actions) + generate-level frozen-noise reference bit-exact + ~1.2× faster than
+  9/9 — forward-level eviction equivalence bit-for-bit vs full windowed recompute (in-range, past the
+  cos/sin table, with actions) + generate-level cached==uncached-twin + ~1.1× faster than
   generate_cached on a 60-frame CPU rollout. No regression (test_kv_cache 5/5, FF7 smokes 5/5).
   **Tripwire 2 cleared:** on trained vanilla_s0 the frozen-noise deviation from generate() (latent
   0.032 / pixel 1.76) is *smaller* than generate()'s own seed-to-seed noise (0.049 / 2.75) → benign.
-  CLAUDE.md synced. Plan: tasks/T-012-plan.md. Infra — no present-then-stop.
+  **D-021 (Merlin) test-validity refinement:** added `generate_windowed` (independent uncached twin) +
+  seeded per-frame noise (`noise_seed`, keyed on absolute frame id) so the cached rollout is compared
+  bit-exactly against a REAL non-cache path (not a test reimplementation); MUTATION test
+  (`test_divergence_is_detectable`) proves the comparison catches a broken cache. CLAUDE.md synced.
+  Plan: tasks/T-012-plan.md. Infra — no present-then-stop.
 
 ## Awaiting review
 - *(none open — ESC-009/010 resolved by Merlin: position metric NOT frozen (uncertain strength),
