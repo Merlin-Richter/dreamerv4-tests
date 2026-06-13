@@ -81,7 +81,7 @@ def _check_incremental(T):
 
 
 def test_generate_cached_matches_generate():
-    """Seeded uncached generate == intra-frame-cached generate (same RNG -> same draws)."""
+    """Seeded uncached generate == context-cached generate (same RNG -> same draws)."""
     torch.manual_seed(0)
     cfg = _tiny_cfg()
     model = DynamicsModel(cfg).eval()

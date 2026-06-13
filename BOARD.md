@@ -32,7 +32,8 @@ Updated: 2026-06-12 (FF7 go-ahead received; T-009 build in progress)
 ## Done (recent)
 - **T-008 (D) — KV caching for the dynamics model** (2026-06-13, D-017; done while waiting on
   EXP-012, Merlin-directed). Absolute-position RoPE (on-the-fly, never-reset clock) +
-  `generate_cached` (intra-frame context K/V reuse across the K shortcut substeps). Bit-for-bit
+  `generate_cached` (reuses the context window's K/V across the K shortcut substeps that denoise
+  one frame; NOT within-frame token caching). Bit-for-bit
   identical to `generate` (seeded) and to the full forward at T beyond the cos/sin table; ~2×
   faster at probe scale. Gate: `src/D_dynamics_model/test_kv_cache.py` 5/5 + FF7 smokes 5/5
   (no training-path regression). Follow `HOWTO/rope_kv_cache_caveat.md`.

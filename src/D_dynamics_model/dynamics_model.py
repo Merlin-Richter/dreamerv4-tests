@@ -604,9 +604,11 @@ class DynamicsModel(nn.Module):
                         action_idx: torch.Tensor = None) -> torch.Tensor:
         """KV-cached rollout. Same signature/semantics as ``generate`` and bit-for-bit identical
         to it (given the same RNG state): the cache is rebuilt per generated frame, so each
-        frame's window is re-noised exactly as in the uncached path — the saving is the intra-
-        frame K-substep reuse, not cross-frame persistence. The FF7 register-memory path is
-        already window-1 (no cache benefit) and is dispatched unchanged."""
+        frame's window is re-noised exactly as in the uncached path. The saving is reusing the
+        context window's K/V across the K shortcut substeps that denoise one frame (the context
+        is constant + causal, so its K/V is identical every substep) — NOT cross-frame
+        persistence and NOT anything within a frame's jointly-denoised tokens. The FF7
+        register-memory path is already window-1 (no cache benefit) and is dispatched unchanged."""
         if getattr(self.config, "use_register_memory", False):
             return self.generate_memory(context, n_generate, K, action_idx)
         K = K or self.config.inference_steps

@@ -30,7 +30,8 @@ present-then-stop. After: Q3 path = closed-loop/distributional position metric.
 
 ## Recently done
 - **T-008 (D) — KV cache** (D-017, 2026-06-13, Merlin-directed independent work while EXP-012
-  trains). Absolute-position RoPE + `generate_cached` (intra-frame substep K/V reuse), bit-for-bit
+  trains). Absolute-position RoPE + `generate_cached` (reuses context-window K/V across the K
+  shortcut substeps per frame; not within-frame token caching), bit-for-bit
   == `generate`, ~2× faster, validated past the cos/sin table. Gate green: test_kv_cache.py 5/5,
   FF7 smokes 5/5. Training/default forward unchanged. Cross-frame eviction cache left as optional
   follow-up (BOARD). Does NOT touch EXP-012.
