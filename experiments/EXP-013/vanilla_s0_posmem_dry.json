@@ -1,0 +1,115 @@
+{
+  "meta": {
+    "dynamics": "vanilla_s0.pt",
+    "tokenizer": "trained_autoencoder.pt",
+    "window_N": 8,
+    "prefix_P": 3,
+    "K": 4,
+    "k_max": 16,
+    "n_anchor": 5,
+    "n_seeds": 8,
+    "device": "cuda",
+    "dry_run": true
+  },
+  "ceiling": {
+    "found_rate": 1.0,
+    "pos_err_px_mean": 5.288226664066315,
+    "pos_err_px_p90": 8.401845741271973,
+    "readout_ok": false
+  },
+  "billiard_residual_mean": 13.793018414708033,
+  "onset_pos_err_mean": 13.597643460322656,
+  "onset_vel_err_mean": 14.3231071570649,
+  "tracking_horizon_mean": 0.375,
+  "ball_lost_rate_mean": 0.0,
+  "per_seed": [
+    {
+      "billiard_residual": 15.048206313235347,
+      "onset_pos_err": 12.534239863665118,
+      "onset_vel_err": 15.340003953498819,
+      "tracking_horizon": 0,
+      "ball_lost_rate": 0.0,
+      "degenerate": false,
+      "n_occ": 16,
+      "residual_trustworthy": true,
+      "S": 2.915820837020874
+    },
+    {
+      "billiard_residual": 11.59880554152586,
+      "onset_pos_err": 13.9222805862467,
+      "onset_vel_err": 16.13254108932777,
+      "tracking_horizon": 1,
+      "ball_lost_rate": 0.0,
+      "degenerate": false,
+      "n_occ": 16,
+      "residual_trustworthy": true,
+      "S": 2.7837841510772705
+    },
+    {
+      "billiard_residual": 15.721204729073095,
+      "onset_pos_err": 19.300766149931967,
+      "onset_vel_err": 12.985915068171431,
+      "tracking_horizon": 0,
+      "ball_lost_rate": 0.0,
+      "degenerate": false,
+      "n_occ": 16,
+      "residual_trustworthy": true,
+      "S": 3.597039222717285
+    },
+    {
+      "billiard_residual": 13.64799492722068,
+      "onset_pos_err": 20.51544170513834,
+      "onset_vel_err": 22.925473081565993,
+      "tracking_horizon": 0,
+      "ball_lost_rate": 0.0,
+      "degenerate": false,
+      "n_occ": 16,
+      "residual_trustworthy": true,
+      "S": 3.4025142192840576
+    },
+    {
+      "billiard_residual": 13.478938377585955,
+      "onset_pos_err": 6.812490114772227,
+      "onset_vel_err": 5.839554244831322,
+      "tracking_horizon": 0,
+      "ball_lost_rate": 0.0,
+      "degenerate": false,
+      "n_occ": 16,
+      "residual_trustworthy": true,
+      "S": 4.045784950256348
+    },
+    {
+      "billiard_residual": 12.256104587979788,
+      "onset_pos_err": 7.0425007656193,
+      "onset_vel_err": 8.876140864015095,
+      "tracking_horizon": 0,
+      "ball_lost_rate": 0.0,
+      "degenerate": false,
+      "n_occ": 16,
+      "residual_trustworthy": true,
+      "S": 3.0507664680480957
+    },
+    {
+      "billiard_residual": 13.460339110203083,
+      "onset_pos_err": 5.516045209734886,
+      "onset_vel_err": 10.461778389532274,
+      "tracking_horizon": 2,
+      "ball_lost_rate": 0.0,
+      "degenerate": false,
+      "n_occ": 16,
+      "residual_trustworthy": true,
+      "S": 3.4437191486358643
+    },
+    {
+      "billiard_residual": 15.132553730840456,
+      "onset_pos_err": 23.13738328747271,
+      "onset_vel_err": 22.023450565576496,
+      "tracking_horizon": 0,
+      "ball_lost_rate": 0.0,
+      "degenerate": false,
+      "n_occ": 16,
+      "residual_trustworthy": true,
+      "S": 2.1980576515197754
+    }
+  ]
+}

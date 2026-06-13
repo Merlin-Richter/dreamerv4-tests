@@ -25,11 +25,11 @@ Updated: 2026-06-13 (EXP-012 done → ESC-008 present-then-stop)
   billiard residual + report-only GT-tracking-horizon; **counterfactual reveal-decode readout** per
   Merlin, NOT state-probe; ceiling/chance/copy-last + GT-floor/forgetting-surrogate calibration).
   **Gate: converge with Merlin → verifier audit → build + FREEZE, BEFORE any H3 position method (§8).**
-  - **Status (2026-06-13):** verifier audit **DONE (V-T011)**, folded in: separates remember/forget at
-    n_occ≥8, fixed-S load-bearing, naive hallucination caught; 5 fixes applied (n_occ≥8 headline floor,
-    non-degeneracy gate, speed-fixed, lengthen anchor, **ceiling-control-first on vanilla_s0**).
-    **BLOCKED on Merlin's framing lock** (credit anchored-physical-coherence/F2 vs stricter near-GT
-    bar — verifier proved they're the same choice), then implement → calibrate → freeze.
+  - **Status (2026-06-13):** BUILT + VALIDATED + APPLIED (EXP-013). Framing locked (anchored-physical-
+    coherence). Verifier audit V-T011 folded; calibration reproduces it; readout faithful (FF7 k=1=1.9px).
+    `src/probe/position_consistency.py`. **Result: blind position memory near-absent** — vanilla≈copy-last,
+    FF7 marginally better (k1<copy-last; k3 best 1st step). **BLOCKED on Merlin ESC-009** (agree read /
+    freeze with coherence-horizon headline / proceed to relay method or wait for EXP-014).
   - **Design caveat (Merlin, 2026-06-13):** open-loop pos_err is doubly artifacted — (1) bounded
     box domain caps error near chance; (2) the curve TURNS OVER at long horizons (h>~20, e.g.
     vanilla 28.2@h16→24.0@h24) because the ball BOUNCES off walls and returns to prior regions, so

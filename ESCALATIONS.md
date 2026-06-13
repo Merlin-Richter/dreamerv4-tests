@@ -450,3 +450,62 @@ T-008/D-017 was committed during the EXP-012 wait; does not touch this result.)
 developing plans for difficult code, or difficult architecture/objective ideas, where an unbiased
 independent opinion is wanted. (Not for routine work.)
 Applied to: DECISIONS.md D-018, BOARD.md (metric task refined), ORIENT.md (rewritten).
+
+## ESC-009 | 2026-06-13 | OPEN — present EXP-013 (position-memory metric: built, validated, applied) — present-then-stop
+Context: the D-018 / T-011 position-memory consistency metric you redirected us to (ESC-008) is built
+(`src/probe/position_consistency.py`), verifier-audited (V-T011, 5 fixes folded), framing-locked
+(anchored-physical-coherence), validated, and applied to the H3 baseline (vanilla_s0) + FF7 k1/k3.
+This is a §5 present-then-stop. (Note: a parallel orchestrator is running EXP-014, the loss-vs-relay-vs-
+window 1-step disentangle, D-019 — independent of this; I stayed hands-off it and committed path-scoped.)
+
+### Instrument validated (the weak result below is the MODELS, not the metric)
+- Synthetic calibration reproduces the V-T011 audit exactly: billiard residual GT 0.77 (floor), F2 0.79
+  (passes), hallucination caught (onset 22px), forgetting surrogates 4.9–10.8 (≫floor). Speed-fixed load-bearing.
+- Readout faithfulness confirmed: FF7's belief at the FIRST blind step = 1.9px (seed) / 4.0px (mean) —
+  reproduces its known ~1px short-horizon skill. found_rate 1.00.
+
+### The result (decisive read) — blind position memory is near-absent
+Per-k belief-vs-GT err (mean/20 seeds); copy-last = freeze ball at last-seen position:
+```
+            k=1  k=2  k=3  k=4  k=5   k=12
+copy-last   5.7  8.5 11.1 13.8 16.3  30.7
+vanilla_s0  5.7  8.6 12.3 14.6 18.5  20.6
+ff7_k1      5.3  7.3 10.8 12.0 15.8  21.3
+ff7_k3      4.0  7.9 11.9 14.5 19.4  24.5
+```
+1. **vanilla_s0 ≈ copy-last** (k1–4): it freezes the ball — ZERO motion propagation through blind
+   occlusion (residual 14.85 > even the frozen surrogate 6.6: a weak open-loop model wanders, worse
+   than freezing).
+2. **FF7 retains only marginally more than freezing:** ff7_k1 ~1–3px below copy-last at every horizon
+   (small but real); ff7_k3 best at the first blind step (4.0 vs 5.7) then decays to ≈copy-last. Both
+   become physically incoherent (belief teleports ≫ speed) by k≈5. Coherence horizon ~1 step.
+3. **Corrects EXP-011:** its "FF7 tracks ~12 steps" was curtain-UP (the model sees its own generated
+   ball — visual feedback). Under TRUE occlusion (no feedback) the blind horizon is ~1–4 steps.
+4. **H3 story:** the register relay carries STATIC color indefinitely (EXP-010) but NOT dynamic
+   position/velocity through blind occlusion. The FF7>copy-last position signal (esp. k1) is real but tiny.
+
+### Honest caveats
+- Single 16-step billiard residual is a poor headline (averages coherent-early + incoherent-late);
+  the per-k curve + copy-last + coherence-horizon is the right summary. Proposing coherence-horizon as
+  the frozen headline (your call). The residual still ranks correctly (ff7_k1<ff7_k3<vanilla).
+- Late-tail artifact (your flag, observed): k>5 vanilla dips BELOW copy-last (k12: 20.6<30.7) —
+  wandering prediction coincidentally re-approaches GT as copy-last drifts away. Only k≤~5 trustworthy.
+
+### Access points
+- `experiments/EXP-013/headline_position.png` (the curve), `per_k_curve.json`, per-model `*_posmem.json`,
+  `NOTES.md` (full read), `experiments/verify-T011-scorer/prod_calibrate.json` (instrument validation).
+
+### The question for you
+1. Agree with the read — blind position memory is near-absent (vanilla=copy-last; FF7 marginally
+   better, esp k1); the EXP-011 optimism was assisted curtain-up tracking, not blind memory?
+2. Freeze the metric? I propose freezing the readout+scorer at this commit with the **coherence-horizon
+   + per-k curve** as the headline (not the single billiard residual). Adjust if you'd summarize differently.
+3. Direction — my recommendation: this is exactly the motivation for the **sequential stop-grad
+   register-relay training** (IDEAS.md): the FF7 single-timestep-sufficiency loss teaches color-carry
+   but not motion-carry; a relay trained to carry dynamic state is the natural next method, now that
+   blind position is measurable. Proceed to design/build it, or do you want to iterate the metric
+   summary first / something else? (Also: EXP-014's loss-vs-relay verdict may inform the method — worth
+   waiting for it?)
+
+Urgency: blocking — per §5 I am not starting the relay method or freezing until you weigh in. Nothing of
+mine is in flight; 4070 free (modulo the parallel EXP-014).

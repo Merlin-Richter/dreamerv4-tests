@@ -1,6 +1,6 @@
 # ORIENT.md
 
-Rewritten: 2026-06-13 (ESC-008 RESOLVED → designing the position-memory consistency metric, D-018)
+Rewritten: 2026-06-13 (EXP-013 DONE → position memory near-absent; blocked on ESC-009. Parallel orch: EXP-014/D-019)
 
 ## What we are doing and why
 - **H1, H2 — supported.** Frozen probe 5503e75. H3 color bar (T-004) = ΔRGB < 63 at n_occ {12,16,24}.
@@ -15,22 +15,21 @@ Rewritten: 2026-06-13 (ESC-008 RESOLVED → designing the position-memory consis
   ("what would it predict if revealed now", compared across steps), not exact GT match.
 
 ## In flight
-**Nothing running.** 4070 idle. **Unblocked** (ESC-008 answered). INSTRUMENT-DESIGN phase:
-position-memory consistency metric (D-018, spec tasks/T-011.md). Verifier audit **DONE** (V-T011)
-and folded into the spec. **Blocked on Merlin's one framing lock** before build (see below).
+**Nothing of mine running.** 4070 free (modulo a PARALLEL orchestrator running EXP-014 — the
+loss-vs-relay-vs-window 1-step disentangle, D-019; I'm hands-off it, path-scoped commits only).
+EXP-013 DONE → **blocked on Merlin's ESC-009 verdict** (present-then-stop).
 
 ## NEXT ACTION
-**Awaiting Merlin's framing lock** (T-011 "Open question", sharpened by the audit): accept that the
-metric measures *anchored physical coherence* (credits F2 = late GT-divergence; the verifier proved
-the confabulation limit == the F2-forgiveness Merlin asked for), with GT-tracking-horizon as the only
-near-GT constraint — OR a stricter near-GT bar (which re-introduces the butterfly penalty he rejected).
-My lean: accept it. Once locked → IMPLEMENT with the 5 verifier fixes (n_occ≥8 headline floor;
-non-degeneracy gate; speed fixed at env S; lengthen onset anchor; **run ceiling control FIRST on
-vanilla_s0** — readout feasibility is the one thing synthetic tests couldn't establish) → GT-floor +
-forgetting-surrogate calibration → FREEZE → run on vanilla_s0 + FF7 k1/k3, present-then-stop.
-Readout DECIDED (Merlin, ESC-008): counterfactual reveal-decode (NOT state-probe) — sidesteps the
-probe-transfer risk. Leading H3 position METHOD after freeze: sequential stop-grad register-relay
-(IDEAS.md).
+**Awaiting Merlin's ESC-009 verdict.** EXP-013 built+validated+applied the position-memory metric.
+Decisive read: **blind position memory is near-absent** — vanilla_s0 ≈ copy-last (freezes ball, zero
+motion propagation); FF7 retains only marginally more (ff7_k1 <copy-last throughout; ff7_k3 best 1st
+blind step then ≈copy-last); EXP-011's "~12 step tracking" was curtain-UP (visual feedback), blind
+horizon ~1–4 steps. Register relay carries static COLOR not dynamic POSITION. Metric validated
+(calibration==V-T011; readout faithful FF7 k=1=1.9px) — weak result is the models, not the instrument.
+Questions to Merlin (ESC-009): (1) agree with read; (2) freeze metric with coherence-horizon headline
+(not the muddy single billiard residual); (3) proceed to the **sequential stop-grad register-relay
+training** (IDEAS.md) as the H3 position METHOD — the natural fix since FF7's single-timestep loss
+teaches color-carry not motion-carry — or wait for EXP-014's loss-vs-relay verdict first.
 
 ## Recently done
 - **EXP-012 (D-016)** done; confound resolved; ESC-008 RESOLVED (1)(2) agreed, (3) metric redirect.

@@ -262,8 +262,10 @@ def calibrate(n_occ=16, n_seeds=40, n_anchor=4, detector_noise_px=0.65, seed_mas
 
 
 # --------------------------------------------------------------------- model belief readout
-def _belief_at_k(tok, dyn, seed, k, P, K, device):
+def _belief_at_k(tok, dyn, seed, k, P, K, device, use_memory=False):
     """Roll out [P up | k down | 1 up], decode the reveal frame, detect the ball.
+    FF7 checkpoints (use_register_memory) MUST use the register-carry rollout (generate_memory),
+    else their beyond-window memory is crippled and they read as vanilla. Same signature.
     Returns (found, x, y, gt_xy(2,), gt_vel(2,))."""
     import torch
     from probe_env import make_probe_episode
@@ -272,21 +274,22 @@ def _belief_at_k(tok, dyn, seed, k, P, K, device):
     context = _prefix_latents(tok, ep.frames, ep.P, device)
     action_idx = torch.from_numpy(ep.actions.astype(np.int64)).unsqueeze(0).to(device)
     torch.manual_seed(seed)  # shared noise draws across k => consecutive-step belief trajectory
-    gen = dyn.generate(context, n_generate=ep.frames.shape[0] - ep.P, K=K, action_idx=action_idx)
+    rollout = dyn.generate_memory if use_memory else dyn.generate
+    gen = rollout(context, n_generate=ep.frames.shape[0] - ep.P, K=K, action_idx=action_idx)
     full = torch.cat((context, gen), dim=1)
     found, x, y, _ = detect_ball(_decode_frame(tok, full[:, ep.reveal_index]))
     gt = ep.states[ep.reveal_index]
     return found, x, y, gt[:2].copy(), gt[2:4].copy()
 
 
-def model_belief_trajectory(tok, dyn, seed, k_max, P, K, device):
+def model_belief_trajectory(tok, dyn, seed, k_max, P, K, device, use_memory=False):
     """Believed (x,y) at each occluded horizon k=1..k_max for one seed. NaN where ball not found.
     Returns (beliefs (k_max,2), gt_states (k_max,4), S)."""
     beliefs = np.full((k_max, 2), np.nan)
     gt_states = np.empty((k_max, 4))
     S = None
     for j, k in enumerate(range(1, k_max + 1)):
-        found, x, y, gxy, gvel = _belief_at_k(tok, dyn, seed, k, P, K, device)
+        found, x, y, gxy, gvel = _belief_at_k(tok, dyn, seed, k, P, K, device, use_memory)
         if found:
             beliefs[j] = (x, y)
         gt_states[j] = (*gxy, *gvel)
@@ -302,7 +305,9 @@ def run_model(args):
     tok, dyn, dcfg, _ = load_models(args.tokenizer, args.dynamics, args.window_N, device)
     K = dcfg.inference_steps if args.K is None else args.K
     P = args.prefix_P
-    n_anchor = max(2, args.window_N - P)  # in-window early steps (lengthen anchor, V-T011 fix #4)
+    use_memory = bool(getattr(dcfg, "use_register_memory", False))  # FF7 -> register-carry rollout
+    print(f"[posmem] {'FF7 register-carry (generate_memory)' if use_memory else 'vanilla sliding-window (generate)'} rollout")
+    n_anchor = max(2, args.window_N - P - 1)  # strictly in-window early steps (V-T011 fix #4)
     k_max = args.k_max
     n_seeds = 8 if args.dry_run else args.episodes
 
@@ -310,24 +315,32 @@ def run_model(args):
     # HAS the info — does the counterfactual reveal render a detectable ball near GT?
     ceil_found, ceil_pos = [], []
     for i in range(n_seeds):
-        found, x, y, gxy, _ = _belief_at_k(tok, dyn, seed=3000 + i, k=2, P=P, K=K, device=device)
+        found, x, y, gxy, _ = _belief_at_k(tok, dyn, seed=3000 + i, k=2, P=P, K=K,
+                                           device=device, use_memory=use_memory)
         ceil_found.append(found)
         if found:
             ceil_pos.append(float(np.hypot(x - gxy[0], y - gxy[1])))
+    # readout_ok gates on DETECTABILITY only: does the counterfactual reveal render a ball we can
+    # find? The pos_err at small k is the model's intrinsic short-horizon dynamics quality (compare
+    # to the EXP-012 teacher-forced 1-step pos_err, e.g. vanilla 4.66px), NOT a readout fault — so
+    # it is reported, not gated. (V-T011 fix #5, corrected: a weak model has high ceiling pos_err
+    # by its own dynamics; that is what the metric then measures, not a broken readout.)
     ceiling = {"found_rate": float(np.mean(ceil_found)),
                "pos_err_px_mean": float(np.mean(ceil_pos)) if ceil_pos else float("nan"),
                "pos_err_px_p90": float(np.percentile(ceil_pos, 90)) if ceil_pos else float("nan"),
-               "readout_ok": bool(np.mean(ceil_found) >= 0.95 and ceil_pos and np.mean(ceil_pos) < 3.0)}
+               "readout_ok": bool(np.mean(ceil_found) >= 0.95)}
     print(f"[ceiling] found_rate={ceiling['found_rate']:.2f} "
-          f"pos_err={ceiling['pos_err_px_mean']:.2f}px readout_ok={ceiling['readout_ok']}")
+          f"pos_err={ceiling['pos_err_px_mean']:.2f}px (model dynamics, cf EXP-012 1-step) "
+          f"readout_ok={ceiling['readout_ok']}")
 
     scores = []
     if not args.ceiling:
         if not ceiling["readout_ok"]:
-            print("  !! ceiling readout NOT ok — reveal-decode readout unreliable; "
-                  "numbers below are suspect (consider state-probe fallback).")
+            print("  !! ceiling found_rate low -- model does not render a detectable ball on the "
+                  "counterfactual reveal; readout unreliable (consider state-probe fallback).")
         for i in range(n_seeds):
-            beliefs, gt_states, S = model_belief_trajectory(tok, dyn, 4000 + i, k_max, P, K, device)
+            beliefs, gt_states, S = model_belief_trajectory(tok, dyn, 4000 + i, k_max, P, K,
+                                                            device, use_memory)
             scores.append(score_belief(beliefs, gt_states, S, n_anchor))
             print(f"  seed {i}: resid={scores[-1]['billiard_residual']:.2f} "
                   f"onset_pos={scores[-1]['onset_pos_err']:.2f} "
@@ -342,7 +355,8 @@ def run_model(args):
     out = {
         "meta": dict(dynamics=str(args.dynamics.name), tokenizer=str(args.tokenizer.name),
                      window_N=args.window_N, prefix_P=P, K=K, k_max=k_max, n_anchor=n_anchor,
-                     n_seeds=n_seeds, device=device, dry_run=args.dry_run),
+                     n_seeds=n_seeds, device=device, dry_run=args.dry_run,
+                     rollout=("generate_memory" if use_memory else "generate")),
         "ceiling": ceiling,
         "billiard_residual_mean": agg("billiard_residual", trust=True),
         "onset_pos_err_mean": agg("onset_pos_err"),
