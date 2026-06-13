@@ -38,13 +38,23 @@ could cheat from); **last frame t+j at sampled τ** (training target; low-τ_j f
 last frame only, un-ramped.** Distinct MEMORY token type (registers→scratch); withhold-via-τ=0 (no
 `absent_latent` token). Mechanism: within a window frame t+j attends DIRECTLY to frame t's memory → trains
 "memory = sufficient full-state object," NOT the cross-window relay (that's option A, layered on next).
-Build progress: ✅ architecture (memory tokens) + `_ff9_loss` v2 done, all gates green (FF9 7/7, FF7 5/5,
-KV 5/5, stream 9/9; commit 7f4e4a3). **Remaining before the training run:** (3) `train_dynamics_model.py
---ff9` flag + knobs (ff9_k, lambda_ff9, ff9_ramp); (4) `generate_full_state_memory` + dispatch (memory-carry
-rollout for frozen-probe eval) + memory-sufficiency probe; (5) train seed0 100ep bs32, committed
-config.yaml+run.sh → EXP-017 present-then-stop. Measure: PRIMARY within-window memory sufficiency
-(L(mem)≪L(no-mem)) + no base-dynamics regression; POSITIONING frozen-probe color vs FF7/vanilla_s0 (expect
-≈FF7). Tripwires (D-024): mem not load-bearing / base regression / color worse than FF7 → halt.
+Build progress: ✅ FF9 v2 architecture (memory tokens) + `_ff9_loss` built, gates green (FF9 7/7, FF7 5/5,
+KV 5/5, stream 9/9; commit 7f4e4a3). **Scope EXPANDED (Merlin 2026-06-14):** training must include all THREE
+memory operations; FF9 v2 only has 1 (write mem←latents) & 2 (read mem→latents). **Operation 3 (write
+mem←memory) = the relay = option A**, now folded in (A+B converging, as V-T013 predicted). Memory is an
+ACTIVATION (final-layer hidden state; no GT target, not denoised) → produced 1 forward/frame, cacheable.
+
+**Op-3 design (Merlin) = Mode B, in `tasks/T-014-relay-plan.md`:** sliding window N, memory carried
+DETACHED; per step one grad forward produces the newest frame's memory (reads cached detached context +
+its latents) + FF9 loss on it, backward (≤1 window, NO out-of-window BPTT), detach + evict + slide; ~200
+steps, batched heavily, small/variable N; reuses the T-012 streaming cache for the detached context. Plus
+FF9 v2 → **50/50 GT split** (strict-τ=0 vs noised-GT path). Two modes A(parallel FF9 v2)/B(relay), alternate.
+
+**NEXT ACTION: process the critical-claim-verifier verdict on T-014** (RUNNING, agent ab0…; central claim:
+does detached-carry per-step-FF9 train a STABLE, SUFFICIENT relay across ~200 hops, or bootstrap-trap /
+drift / collapse?). On verdict: revise → D-025 → build Mode B + 50/50 + alternation → EXP-018. **Do NOT
+build Mode B before the verdict + D-025.** Sequencing of the ops-1&2 FF9 baseline vs going straight to A+B
+is still open with Merlin (he was mid-clarification when the op-3 design landed; the relay is now the focus).
 
 ## Recently done
 - **T-012 / D-020 — cross-frame sliding-window KV eviction cache — DONE + verified.** `stream_rollout_

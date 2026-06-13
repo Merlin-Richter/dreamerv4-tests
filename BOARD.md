@@ -13,9 +13,14 @@ Updated: 2026-06-13 (ESC-009/010 RESOLVED → building D-020 cross-frame KV cach
   - ⏳ (3) `train_dynamics_model.py --ff9` flag + knobs (ff9_k, lambda_ff9, ff9_ramp).
   - ⏳ (4) `generate_full_state_memory` + dispatch (memory-carry rollout, analog of generate_memory) for
     frozen-probe eval; memory-sufficiency probe (L(mem)≪L(no-mem)).
-  - ⏳ (5) train seed0 (100ep bs32, committed config.yaml+run.sh) → EXP-017 present-then-stop.
-  Measure: PRIMARY within-window memory sufficiency + no base-dyn regression; POSITIONING frozen-probe color
-  vs FF7/vanilla_s0 (expect ≈FF7). Verifier finding (2) accepted: cross-window relay (option A) is NEXT.
+  - ⏳ (5) train seed0 → EXP-017 (the ops-1&2 baseline; sequencing vs going straight to A+B still open w/ Merlin).
+- **T-014 — FF9 relay training (operation 3 = write-memory-from-memory) + 50/50 split + mode alternation**
+  (Merlin 2026-06-14; folds option A into the FF9 line = A+B). Design note `tasks/T-014-relay-plan.md` written.
+  Mode B = detached-carry sliding-window relay (per-step grad forward + FF9 loss, detach+evict+slide, ~200
+  steps, small/variable N, reuses T-012 streaming cache for detached context). Memory = activation (cacheable).
+  **critical-claim-verifier RUNNING** (agent ab0…) on the central claim: does detached-carry per-step-FF9 train
+  a stable sufficient relay (vs bootstrap-trap/drift/collapse)? NEXT on verdict: revise → D-025 → build Mode B
+  + 50/50 + alternation → EXP-018 (depth test: frozen-probe color at n_occ 24/32/48 vs FF9-v2/FF7/vanilla).
 
 ## Done (2026-06-13)
 - **EXP-016 batch sweep — ACCEPTED** (ESC-012, "strong results"). Closes the KV-cache efficiency

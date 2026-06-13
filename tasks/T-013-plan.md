@@ -109,6 +109,10 @@ Same combined-step structure as FF7 (main windowed diffusion loss unchanged; FF9
     attendable full-state object," NOT the cross-window relay (preserve after the source leaves the window).
     The relay is option A, layered on next. This is why FF9 v2 is an architectural BASELINE, not a depth fix.
   - Config knobs: `ff9_k` (max lookahead), `ff9_ramp` (on/off, default off), `ff9_tau_last` sampling.
+  - **50/50 GT split (Merlin 2026-06-14, → T-014 §2):** per rollout choose p=0.5 strict-no-GT (path τ=0,
+    above) vs normal noised-GT path (memory composes with present-but-noisy context — matches the rollout
+    distribution where t+1 is already decoded when t+2 is predicted). Knob `ff9_gt_frac`. To implement
+    alongside the relay mode (T-014); not in the current built `_ff9_loss` yet.
 - Backprop path: through the injected `mem_t` into the windowed pass that wrote it → trains the **write**
   side; k≥2 trains the in-pass memory→memory **relay** (one hop of gradient, TBPTT-1-like). Deep
   preserve-across-N-hops is the *sequential relay* extension (parked; option A) — NOT in FF9 v1.
