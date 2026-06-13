@@ -451,7 +451,7 @@ developing plans for difficult code, or difficult architecture/objective ideas, 
 independent opinion is wanted. (Not for routine work.)
 Applied to: DECISIONS.md D-018, BOARD.md (metric task refined), ORIENT.md (rewritten).
 
-## ESC-009 | 2026-06-13 | OPEN — present EXP-013 (position-memory metric: built, validated, applied) — present-then-stop
+## ESC-009 | 2026-06-13 | RESOLVED — present EXP-013 (position-memory metric: built, validated, applied) — present-then-stop
 Context: the D-018 / T-011 position-memory consistency metric you redirected us to (ESC-008) is built
 (`src/probe/position_consistency.py`), verifier-audited (V-T011, 5 fixes folded), framing-locked
 (anchored-physical-coherence), validated, and applied to the H3 baseline (vanilla_s0) + FF7 k1/k3.
@@ -510,7 +510,24 @@ ff7_k3      4.0  7.9 11.9 14.5 19.4  24.5
 Urgency: blocking — per §5 I am not starting the relay method or freezing until you weigh in. Nothing of
 mine is in flight; 4070 free (modulo the parallel EXP-014).
 
-## ESC-010 | 2026-06-13 | OPEN — present EXP-014 (disentangle FF7 base-dynamics gain) — present-then-stop
+### ESC-009 RESOLVED (Merlin, 2026-06-13)
+Steering (verbatim-in-substance): "I am not sure whether the position metric is a strong evaluation
+metric the way it was coded. But I don't want to walk in circles. Just resolve the escalations as
+whatever. I want to continue." → His call:
+- **Reservation recorded, not litigated.** Merlin is not confident the EXP-013 position-memory
+  consistency metric, *as coded*, is a strong evaluation instrument. He explicitly does NOT want to
+  re-iterate or re-design it now (no circles).
+- **Do NOT ceremonially freeze it as the H3 position spine.** It is "built, of uncertain strength."
+  The EXP-013 read (blind position memory near-absent: vanilla_s0 ≈ copy-last; FF7 only marginally
+  better, esp. k1) stands as the current best read but is NOT treated as a hard pre-registered gate
+  that future methods must clear. If a position method later needs a yardstick, the metric's strength
+  is revisited then — not now.
+- **Direction: continue.** Next work = **KV cache for sliding-window rollouts** (easily verifiable),
+  as preparation for rollout training (the eventual sequential register-relay method). → D-020.
+Applied to: GOAL.md (H3 position note — metric of uncertain strength, not frozen), DECISIONS.md D-020,
+BOARD.md, ORIENT.md. EXP-013 left as-is (result stands; not a frozen gate).
+
+## ESC-010 | 2026-06-13 | RESOLVED — present EXP-014 (disentangle FF7 base-dynamics gain) — present-then-stop
 Context: Independent thread (D-019), parallel to the D-018/ESC-009 position-metric work — chosen to NOT
 touch the metric spine. Resolves the open ORIENT worry #4 / EXP-012 "bonus finding": FF7 sharpens 1-step
 teacher-forced pos_err ~4.6x (vanilla_s0 4.66 >> ff7 ~1.0px), but that ~1px was produced through the
@@ -560,3 +577,11 @@ from this result until you weigh in. Nothing of mine is in flight; 4070 free.
 Coordination note: this thread kept strict isolation from the metric work — no edits to
 src/probe/position_consistency.py / EXP-013, path-scoped commits only (never git add -A), append-only
 state edits with my own IDs (D-019, EXP-014, ESC-010), ORIENT/BOARD left to the metric orchestrator.
+
+### ESC-010 RESOLVED (Merlin, 2026-06-13)
+Resolved together with ESC-009 ("just resolve the escalations as whatever. I want to continue"). The
+read **stands and is accepted**: FF7's ~4.6× 1-step base-dynamics gain is the LOSS (a dynamics
+regularizer on the windowed weights), with the register relay a small, arm-dependent secondary effect
+that requires the FF7 loss. No follow-up (2nd-seed check) requested now; fold into the eventual H3
+writeup as a sub-result when we get there. The relay's job is *retention* (beyond-window color), not raw
+1-step accuracy — carried forward as context for the upcoming rollout-training method. Move on. → D-020.

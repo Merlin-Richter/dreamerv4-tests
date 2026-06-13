@@ -1,14 +1,18 @@
 # BOARD.md — task board
 
-Updated: 2026-06-13 (EXP-012 done → ESC-008 present-then-stop)
+Updated: 2026-06-13 (ESC-009/010 RESOLVED → building D-020 cross-frame KV cache / T-012)
 
 ## In progress
-*(none — blocked on Merlin's ESC-008 verdict; 4070 idle)*
+- **T-012 — cross-frame sliding-window KV eviction cache (D-020).** Rollout substrate for the eventual
+  register-relay rollout training; Merlin-directed, easily verifiable. `stream_rollout_init`/`_step` +
+  `generate_streaming` in dynamics_model.py; commit-once + evict-oldest persistent cache (pre-rotated
+  K/V → eviction = slice). Gate: forward-level eviction equivalence (no RNG) bit-for-bit vs full
+  windowed recompute + long-rollout-past-table + generate-level frozen-noise reference + speed sanity.
+  Infra (no present-then-stop). Plan: tasks/T-012-plan.md.
 
 ## Awaiting review
-- **EXP-012 — budget-matched vanilla baseline** (D-016) DONE. Confound resolved: FF7 wins are the
-  method not budget (color cliff reproduced; vanilla 1-step 4.66px ≈ my_dynamics ≫ FF7 ~1.0px).
-  my_dynamics retired. Present-then-stop → **ESC-008** (open). Views in experiments/EXP-012/.
+- *(none open — ESC-009/010 resolved by Merlin: position metric NOT frozen (uncertain strength),
+  EXP-014 read accepted. EXP-013/EXP-014 results stand; not gates.)*
 
 ## Done (recent)
 - **T-010 — play_dynamics_checkpoint FF7 register carry** (2026-06-13). Viewer drove vanilla

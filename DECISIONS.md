@@ -554,3 +554,55 @@ fails to reproduce EXP-012's ~1px → my harness diverges from the diagnostic; f
 Spawns: EXP-014 (analysis-only; ends present-then-stop per §5, escalated to Merlin). Coordination: no
 `git add -A` (other orchestrator has uncommitted position_consistency.py); path-scoped commits only;
 ORIENT/BOARD left to the live orchestrator to avoid clobbering its dashboard.
+
+## D-020 | 2026-06-13
+Context: ESC-009/ESC-010 resolved ("resolve as whatever; continue"). Merlin reservation: the EXP-013
+position-memory metric, as coded, may not be a strong eval instrument — NOT frozen as a spine; position
+retention stays open. He directed the next, easily-verifiable work item: **a KV cache for sliding-window
+rollouts, as preparation for rollout training** (the eventual sequential register-relay method that
+unrolls the dynamics model many steps and needs a cheap, correct rollout substrate).
+Current infra (code-grounded this session): `generate()` (dynamics_model.py:518) is the uncached
+sliding-window rollout — each step re-noises the last N-1=7 frames and runs K shortcut substeps,
+re-encoding the whole window every frame. `generate_cached()` (:603) caches the window's K/V across the
+K substeps WITHIN one frame but REBUILDS the cache per frame (bit-identical to generate, ~Kx fewer
+temporal FLOPs, no cross-frame reuse). The temporal attention already supports a persistent cache:
+K/V are stored ALREADY-RoPE-ROTATED at absolute positions (Attention.forward :160-168, T-008/D-017),
+with `cache=`/`commit=`/`positions=` plumbing and `new_kv_cache()`.
+Decision: Build a **cross-frame sliding-window KV eviction cache** for rollouts: commit each finalized
+frame's K/V into the persistent cache ONCE, and EVICT the oldest time-column when the cache exceeds the
+window (N-1). Because cached K/V are pre-rotated at absolute positions, eviction is a pure slice — no
+re-rotation (the absolute-RoPE foundation from T-008 is exactly what makes this trivial). Expose it as
+reusable primitives mirroring the FF7 relay pattern — `stream_rollout_init(context, action_idx)` /
+`stream_rollout_step(state, action_id)` — plus a thin `generate_streaming()` wrapper looping over them,
+so the rollout-training method can drive the same primitives. The ONE semantic difference from
+`generate()`: each frame's context-noise is drawn ONCE at commit and reused while it sits in the window,
+instead of redrawn every step — a documented, defensible deviation (a frame's committed representation
+is fixed once generated), and the natural structure for rollout training (context = fixed/detached).
+So this is NOT bit-identical to `generate()` at the generate level; it IS bit-identical to a frozen-noise
+reference and to a full windowed recompute at the forward level.
+Verification (the gate — "easily verifiable", forward-level is the real gate per test_kv_cache.py):
+  (1) FORWARD-LEVEL eviction equivalence, NO RNG: streaming cache (commit+evict each frame) == full
+      windowed forward over [t-W+1..t] with explicit positions, bit-for-bit (TOL 1e-4), for the new
+      frame at every step. This isolates eviction + absolute-RoPE + causal mask from any noise change.
+  (2) LONG-rollout past the cos/sin table (T >> max_temporal_length): same equivalence, exercises
+      unbounded absolute positions through eviction (the documented RoPE-overflow trap).
+  (3) GENERATE-LEVEL: generate_streaming == a frozen-noise reference rollout (same draw order),
+      bit-for-bit; AND quantify the deviation from standard generate() (expected tiny) to confirm the
+      frozen-noise semantics is benign. With and without action conditioning.
+  (4) Speed: streaming is faster than generate_cached at rollout scale (it does NOT rebuild the cache
+      per frame) — sanity print, not a gate.
+This is implementation infra (NOT an experiment): no present-then-stop gate; the correctness tests are
+the artifact. FF7 register-memory path is dispatched unchanged (already window-1, no cache benefit).
+Alternatives rejected: (a) jump straight to the relay rollout-training method — Merlin wants the
+verifiable substrate first; building training on an unverified rollout cache would conflate cache bugs
+with method results. (b) tokenizer-C KV cache (BOARD follow-up b) — not on the rollout-training path.
+(c) make it bit-identical to generate() by also caching/redrawing per-step noise — defeats the purpose
+(no cross-frame reuse) and the frozen-noise semantics is what training wants anyway.
+Expected outcome: a tested `generate_streaming` + init/step primitives, all forward-level equivalence
+tests green, measurably faster than generate_cached on long rollouts, ready as the rollout-training base.
+Would change my mind: (1) forward-level eviction equivalence FAILS (cached-evicted != full recompute) →
+a positional/mask/eviction bug; fix before anything builds on it (this is the whole point of the gate).
+(2) the frozen-noise deviation from generate() is NOT small (rollout diverges materially) → re-examine
+whether per-step noise redraw is load-bearing; escalate the semantics choice. (3) the primitives can't be
+made autograd-friendly for the later training use without redesign → note it now so the relay method
+isn't surprised. Spawns: T-012 (this work) — design note tasks/T-012-plan.md + impl + test_stream_cache.

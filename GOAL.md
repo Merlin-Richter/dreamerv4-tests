@@ -119,3 +119,14 @@ Note: reconstruction/next-frame loss alone never decides a memory claim — any 
 must be judged on the frozen probe, against the H2 baseline (T-004 bar) under identical
 provenance discipline (≥2 seeds on promising results; single-seed screening allowed — Merlin
 relaxed the standing 2-seed order 2026-06-12).
+
+**Position-memory update (2026-06-13, ESC-009).** A position-memory *consistency* metric was built
+and applied (EXP-013, D-018): under TRUE blind occlusion, blind position memory is near-absent —
+vanilla_s0 ≈ copy-last (freezes the ball), FF7 only marginally better (esp. k1); the register relay
+carries static *color* indefinitely but not dynamic *position/velocity*. **Caveat (Merlin):** he is
+not confident this metric, as coded, is a strong evaluation instrument, and chose NOT to freeze it as
+the H3 position spine — it is "built, of uncertain strength." So this read is the current best
+understanding, NOT a hard pre-registered gate. H3 *position* retention stays **open**; the next method
+to attempt it is the **sequential register-relay rollout training** (IDEAS.md), for which efficient
+sliding-window rollouts are being prepared (D-020). The metric's strength is revisited if/when a
+position method needs a yardstick.
