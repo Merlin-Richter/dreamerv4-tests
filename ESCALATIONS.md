@@ -347,3 +347,25 @@ and move on, or (c) design an FF7 variant aimed at position before deciding? My 
 
 Urgency: blocking — per §5 I am not starting the next decision (baseline retrain, metric change,
 or any variant) until you weigh in. Nothing is in flight; the 4070 is idle.
+
+### ESC-007 RESOLVED (Merlin, 2026-06-13)
+- **Agrees with the reframing** ("You seem to be right"): tested ff7_k3 interactively in
+  play_dynamics_checkpoint.py — motion looks reasonable. So the base model CAN track motion;
+  occluded-position-at-chance is not a base-capability wall.
+- **New task (inserted):** play_dynamics_checkpoint.py appeared to NOT carry the FF7 register/
+  memory tokens forward — after ~4 curtain frames it produced a random image. Asked to check
+  whether the script handles what FF7 needs and add it if missing. → **T-010 (DONE):** confirmed
+  the viewer used the vanilla fixed-4-window path (no register carry); refactored the relay into
+  reusable DynamicsModel.memory_rollout_init/step (generate_memory now a thin loop over them) and
+  drove them in the viewer for use_register_memory checkpoints. Verified: 5/5 FF7 smokes, probe
+  dry-run matches EXP-010, headless reveal test color dRGB 9.9 (memory) vs 64.4 (vanilla off).
+- **"Other than that, I agree!"** → taken as agreeing with the ESC-007 recommendations:
+  (Q2) train a budget-matched vanilla baseline — **D-016 / EXP-012 launched** (local 4070, vanilla
+  --ff7 0 --fresh at the exact EXP-010 budget; train+probe+EXP-011-rerun, present-then-stop);
+  (Q3) baseline first, then a closed-loop/distributional position metric, then judge position.
+Note: EXP-010 had no saved config.yaml (provenance gap); EXP-012 fixes this with committed
+config.yaml + run.sh. CUDA is only visible via venv/Scripts/python.exe here (bare python is
+CPU-only) — recorded in HOWTO so future runs use the venv; EXP-011 ran on CPU but reconciles
+with EXP-010's GPU numbers, so its conclusions stand.
+Applied to: DECISIONS.md D-016, dynamics_model.py + play_dynamics_checkpoint.py (T-010),
+CLAUDE.md, experiments/EXP-012/*, EXPERIMENTS.md, BOARD.md, ORIENT.md.

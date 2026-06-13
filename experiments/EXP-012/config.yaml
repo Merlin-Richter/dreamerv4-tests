@@ -1,0 +1,35 @@
+# EXP-012 — budget-matched vanilla dynamics baseline (D-016)
+# Purpose: a clean H2/H3 baseline trained with the IDENTICAL budget/data/architecture as the
+# EXP-010 FF7 arms, differing ONLY in the FF7 loss + register-carry inference (--ff7 0). Lets us
+# attribute the dynamics-quality gain (EXP-011: 1-step 4.5px my_dynamics vs 1.0px FF7) to the
+# FF7 loss vs mere training budget, and retire the older my_dynamics as the baseline.
+
+provenance:
+  code: master @ <resolved at launch>     # T-010 commit (refactor verified; vanilla path unchanged)
+  tokenizer: trained_autoencoder.pt        # frozen, same as EXP-009/010
+  data: occluded.npy + occluded_actions.npy
+  probe_for_eval: 5503e75 (frozen)
+
+# Architecture comes from DynamicsModelConfig code defaults (verified == FF7 ckpt: embedding_dim
+# 256, depth 8, n_heads 16, max_temporal_length 16, max_sampling_steps 128, inference_steps 4,
+# n_registers 4, bottleneck_dim 64, n_latents 4, context_signal 0.9). Identical to ff7_k3 minus
+# use_register_memory/ff7_k.
+training:
+  epochs: 100            # matches EXP-010
+  batch_size: 32         # matches EXP-010 (327 iters/epoch <-> 32; default)
+  lr: 3.0e-4             # matches EXP-010 (built-in cosine decay -> ~1e-6)
+  seed: 0                # matches FF7 arms; train/val split is seed-0 fixed regardless
+  ff7: 0                 # VANILLA (no FF7 loss, no register-carry inference)
+  fresh: true            # random init, like the FF7 arms (not resumed from my_dynamics)
+  val_fraction: 0.05
+
+command: >
+  python src/D_dynamics_model/train_dynamics_model.py
+  --frames occluded.npy --actions occluded_actions.npy --tokenizer trained_autoencoder.pt
+  --epochs 100 --batch-size 32 --lr 3e-4 --seed 0 --ff7 0 --fresh
+  --checkpoint experiments/EXP-012/vanilla_s0.pt
+  --wandb --wandb-project transformer-D-dynamics --wandb-name exp012-vanilla-s0
+
+eval_after_train: >
+  python -m src.probe.revisit_probe --dynamics experiments/EXP-012/vanilla_s0.pt
+  --tokenizer trained_autoencoder.pt --out experiments/EXP-012/results.json

@@ -390,3 +390,37 @@ architecture) becomes the gating task before more H3 method work. (3) ball is ge
 yet model still ≈ copy-last ⇒ strong (a) signal.
 Spawns: EXP-011 (local 4070, no training). Built inline (single-threaded local analysis I am
 blocked on; consistent with the EXP-008 inline precedent — no worker delegation benefit here).
+
+## D-016 | 2026-06-13
+Context: EXP-011 showed the FF7 checkpoints track motion far better than my_dynamics (1-step
+teacher-forced 1.0px vs 4.5px), but I could NOT attribute this to the FF7 loss vs the FF7 runs
+simply being trained 100 epochs while my_dynamics (old baseline, approximate provenance) was
+trained less. EXP-009 (H2 baseline = my_dynamics) and EXP-010 (FF7, fresh 100ep) are therefore
+not training-matched. Merlin agreed (ESC-007) to train a budget-matched vanilla baseline.
+Checkpoint-config inspection confirmed ff7_k3 and my_dynamics share the IDENTICAL architecture
+(DynamicsModelConfig defaults), so the only clean control is a fresh vanilla run at the FF7 budget.
+Decision: Run EXP-012 — train a vanilla dynamics model (--ff7 0 --fresh) with the EXACT EXP-010
+config (occluded.npy + occluded_actions.npy, trained_autoencoder.pt tokenizer, 100 epochs,
+batch 32, lr 3e-4 cosine, seed 0), then evaluate on the frozen probe 5503e75 AND re-run the
+EXP-011 diagnostic on it. This (i) retires my_dynamics as the H2/H3 baseline, (ii) attributes the
+EXP-011 dynamics gain (FF7 loss vs training budget), (iii) re-anchors the H2 cliff and the H3
+comparison on a training-matched baseline. Local 4070 (cluster wrappers T-003 not built; ~2.6h
+training based on EXP-010 pace + probe). Config committed at experiments/EXP-012/{config.yaml,run.sh}
+(fixes the EXP-010 config.yaml provenance gap).
+Alternatives rejected: (a) keep my_dynamics as baseline — confounds every FF7 claim with training
+budget; (b) multi-seed baseline now — single seed first to match the single-seed FF7 screen, add
+seeds only if the comparison is close (Merlin relaxed the 2-seed order); (c) cluster run — wrappers
+aren't built and the 4070 ran EXP-010 fine overnight, so no need.
+Expected outcome (predictions): the vanilla baseline reproduces the EXP-009 post-window COLOR
+cliff (architectural; better training won't let a sliding window see past its N=8 window) — so H2
+stands. On MOTION: I expect the budget-matched vanilla to be substantially better at 1-step
+position than my_dynamics (4.5px) — i.e. much of my_dynamics's weakness was undertraining — but
+still somewhat worse than FF7 (~1.0px) if the FF7 loss genuinely helps dynamics. If vanilla
+1-step ≈ FF7 (~1px), the dynamics gain was training budget, not the FF7 loss.
+Would change my mind: (1) vanilla baseline shows BEYOND-window color recall < chance (clearing
+the T-004 bar) — would mean EXP-010's color "memory" was a training/inference artifact, not the
+register relay (architecturally surprising → halt + rethink H3 attribution). (2) vanilla 1-step
+position WORSE than my_dynamics at matched budget — would point to a data/seed/init issue, not
+budget. (3) training diverges / val loss >> FF7's 0.0065 at 100ep — config mismatch, diagnose
+before comparing.
+Spawns: EXP-012 (local 4070; train + probe + EXP-011 diagnostic rerun). Present-then-stop.

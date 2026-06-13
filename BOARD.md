@@ -3,19 +3,19 @@
 Updated: 2026-06-12 (FF7 go-ahead received; T-009 build in progress)
 
 ## In progress
-*(none — 4070 idle; awaiting Merlin's ESC-007 verdict on EXP-011)*
+- **EXP-012 — budget-matched vanilla baseline** (D-016, local 4070 via venv, ~2.6h). Train
+  (--ff7 0 --fresh, exact EXP-010 budget) → frozen probe → EXP-011 diagnostic rerun. On done:
+  reconcile (H2 cliff reproduced? FF7-loss vs budget attribution) → present-then-stop.
 
-## Awaiting review
-- **EXP-011 — position-deficit diagnostic DONE & reconciled** (2026-06-13). Reframes the worry:
-  position encoded in latents (C fine, R²=0.96); my_dynamics weak at motion (a); FF7 tracks
-  motion well (b, ~1px 1-step). Occluded pos-at-chance = dead-reckoning chaos. CONFOUND: FF7
-  vs my_dynamics not training-matched. → ESC-007 (open). No next decision until verdict.
+## Done (recent)
+- **T-010 — play_dynamics_checkpoint FF7 register carry** (2026-06-13). Viewer drove vanilla
+  fixed-4-window (no register relay) → random ball after curtain (Merlin's symptom). Refactored
+  relay into DynamicsModel.memory_rollout_init/step (generate_memory reuses them); viewer drives
+  them for FF7 ckpts. Verified (smokes + probe dry-run + headless reveal 9.9 vs 64.4). CLAUDE.md synced.
 
-## Backlog (proposed in ESC-007, gated on Merlin)
-- **Budget-matched vanilla baseline retrain** (same 100 ep/data as FF7) — retire my_dynamics,
-  attribute the dynamics gain, re-anchor H2/H3. First overnight/cluster-worthy run candidate.
+## Backlog (ESC-007; Q3 path agreed)
 - **Closed-loop / distributional position metric** — measure position *memory*, not open-loop
-  trajectory chaos (the current open-loop GT-matched metric conflates them).
+  trajectory chaos (current open-loop GT-matched metric conflates them). After EXP-012.
 - **(deferred) FF7 follow-ups from EXP-010:** replicate k=3 2nd seed; position/motion FF7
   variant; n_occ-24 near-miss.
 

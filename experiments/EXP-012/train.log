@@ -1,0 +1,19 @@
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from C:\Users\richt\_netrc.
+wandb: Currently logged in as: merlin_ (models-eberhard-karls-universit-t-t-bingen) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.27.2
+wandb: Run data is saved locally in C:\Users\richt\OneDrive\Desktop\Code\transformer\wandb\run-20260613_110251-hojsoc81
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run exp012-vanilla-s0
+wandb:  View project at https://wandb.ai/models-eberhard-karls-universit-t-t-bingen/transformer-D-dynamics
+wandb:  View run at https://wandb.ai/models-eberhard-karls-universit-t-t-bingen/transformer-D-dynamics/runs/hojsoc81
+Loaded actions from occluded_actions.npy  (n_actions=2)
+Epochs:   0%|          | 0/100 [00:00<?, ?it/s]
+Train 1/100:   0%|          | 0/327 [00:00<?, ?it/s][A
+Train 1/100:   1%|          | 3/327 [00:01<02:12,  2.44it/s][A
+Train 1/100:   2%|2         | 8/327 [00:02<01:32,  3.44it/s][A
+Train 1/100:   4%|3         | 13/327 [00:03<01:22,  3.80it/s][A
+Train 1/100:   6%|5         | 18/327 [00:04<01:17,  4.00it/s][A
+Train 1/100:   7%|7         | 23/327 [00:05<01:14,  4.10it/s][A
+Train 1/100:   9%|8         | 28/327 [00:07<01:12,  4.12it/s][A
+Train 1/100:  10%|#         | 33/327 [00:08<01:10,  4.14it/s][A
+Train 1/100:  12%|#1        | 38/327 [00:09<01:09,  4.15it/s][A

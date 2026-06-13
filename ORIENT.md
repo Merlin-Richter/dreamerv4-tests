@@ -1,47 +1,40 @@
 # ORIENT.md
 
-Rewritten: 2026-06-13 ~08:00 (EXP-011 done & reconciled; ESC-007 open — present-then-stop)
+Rewritten: 2026-06-13 ~09:00 (T-010 done; EXP-012 budget-matched baseline TRAINING)
 
 ## What we are doing and why
 - **H1, H2 — supported.** Frozen probe 5503e75; T-004 H3 bar = color ΔRGB < ~63 at n_occ {12,16,24}.
-- **H3 — FF7 v1 supports COLOR (EXP-010).** Position was the open worry → diagnosed in EXP-011.
-- **EXP-011 reframes the position worry:**
-  1. Position is fully encoded in the tokenizer latents (linear probe R²=0.96) → deficit is in
-     the dynamics D, NOT the encoder C (D-015 tripwire did not fire).
-  2. my_dynamics is a weak motion model — 1-step teacher-forced 4.5px, WORSE than copy-last 3.2px
-     (≈ failure (a)). The old baseline is undertrained at motion.
-  3. FF7 tracks motion WELL: 1-step ~1.0px, open-loop to 14.8px@h12 (k3) before chaos → failure
-     (b), not inability. EXP-010's "position at chance" was a reveal-frame snapshot in the
-     saturated regime; horizon-resolved, FF7 clearly tracks position.
-  → Occluded position-at-chance = dead-reckoning a bouncing ball through occlusion (chaotic),
-    a measurement issue, NOT a base-capability wall. Position-memory is NOT doomed.
+- **H3 — FF7 v1 supports COLOR (EXP-010).** Position reframed by EXP-011: position is encoded in
+  the tokenizer (probe R²=0.96, deficit is in D not C); FF7 tracks motion well (1-step ~1px,
+  open-loop ~12 steps); my_dynamics is a weak motion model (1-step 4.5px). Occluded-pos-at-chance
+  = dead-reckoning chaos, not a base-capability wall. Merlin agreed (ESC-007).
+- **EXP-011 surfaced a confound:** FF7-better-dynamics vs my_dynamics-undertrained is unidentified;
+  EXP-009/010 are not training-matched. → EXP-012 fixes it.
 
 ## In flight
-**NOTHING running. 4070 idle. present-then-stop gate (ESC-007) — awaiting Merlin's verdict.**
-Per §5 the §3 prep allowance does NOT apply: do not start a baseline retrain, metric change, or
-any FF7 variant until he answers.
+**EXP-012 — budget-matched VANILLA baseline TRAINING** (D-016, background task b6ox435tv, local
+4070 via venv/Scripts/python.exe). Exact EXP-010 budget, --ff7 0 --fresh, 100ep+probe (~2.6h).
+run.sh chains: train → frozen probe → (then I rerun the EXP-011 diagnostic on it). Logs:
+experiments/EXP-012/{train.log,probe.log}. W&B exp012-vanilla-s0.
+**Confirm liveness:** train.log should show "Epoch 1" within ~2 min at ~90s/epoch (GPU). If it
+stalls or runs CPU-slow → check venv/CUDA (HOWTO/gpu_venv.md), do NOT silently relaunch.
 
-## Open methodological issue (raised in ESC-007)
-EXP-009 baseline (my_dynamics) and EXP-010 (FF7, fresh 100-ep) are **NOT training-matched**.
-Can't attribute FF7's better dynamics to the loss vs just more training. Color-memory conclusion
-survives (sliding-window cliff is architectural), but H3 wants a **budget-matched vanilla
-baseline**; my_dynamics likely retired. This is the first overnight/cluster-worthy run candidate.
+## NEXT ACTION when EXP-012 finishes
+Reconcile in experiments/EXP-012/NOTES.md (pre-registered there): (1) does it reproduce the
+EXP-009 post-window COLOR cliff? (H2 should stand — architectural.) (2) Rerun the EXP-011
+diagnostic (`venv python experiments/EXP-011/diagnose.py` won't pick it up — add vanilla_s0.pt to
+MODELS or a one-off) → vanilla 1-step pos_err: ≈FF7 ⇒ gain was budget; >FF7 ⇒ FF7 loss helps
+dynamics. (3) D-016 tripwire: vanilla beyond-window color < bar ⇒ EXP-010 color win wasn't the
+relay ⇒ halt. Build comparison view (vanilla vs FF7 vs my_dynamics), decisive read, ESC-008,
+present-then-stop. After: Q3 path = closed-loop/distributional position metric.
 
-## NEXT ACTION
-Wait for ESC-007 verdict. His three questions: (1) agree with the reframing? (2) train a
-budget-matched vanilla baseline (my rec: yes — needed regardless)? (3) position path —
-closed-loop/distributional metric vs color-only-and-move-on vs FF7 position variant (my lean:
-baseline first, then closed-loop position metric, then judge position). On his answer: write the
-next decision, then act.
-
-## Access points for his review (ESC-007)
-- `experiments/EXP-011/headline.png` (open-loop pos_err vs horizon; killer numbers in title)
-- `experiments/EXP-011/results.json`; full reconciliation `experiments/EXP-011/NOTES.md`
+## Recently done
+- **T-010** — play_dynamics_checkpoint carries FF7 registers (refactor → memory_rollout_init/step;
+  verified 9.9 vs 64.4 dRGB). Merlin can re-test interactively on ff7_k3.
 
 ## Current worries
-1. The FF7-loss-vs-more-training confound is real and blocks a clean H3 attribution until a
-   budget-matched vanilla baseline exists.
-2. Don't over-claim FF7 "solved motion" — it's better than my_dynamics, but open-loop still
-   decays to chance by h~16; the win is 1-step + medium-horizon tracking.
-3. Position-memory through occlusion still genuinely unproven (chaos makes the open-loop metric
-   uninformative) — needs a metric that measures memory, not trajectory chaos.
+1. EXP-012 liveness/GPU — verify it's training on GPU (not CPU/stalled) before trusting the ~2.6h ETA.
+2. batch-size=32 is inferred (EXP-010 had no saved config; 327 iters/epoch ⇒ 32). If the
+   comparison hinges on a tiny gap, the budget-match isn't perfect — note when reconciling.
+3. The EXP-011 diagnostic rerun on vanilla needs wiring (its MODELS dict is hardcoded) — small task
+   at reconciliation time.
