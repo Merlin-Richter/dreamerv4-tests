@@ -498,6 +498,82 @@ class DynamicsModel(nn.Module):
             seq = torch.concat((seq, nxt), dim=1)
         return torch.concat(generated, dim=1)
 
+    def _noise_to_ctx(self, z: torch.Tensor) -> torch.Tensor:
+        """Hold clean latents at signal level context_signal (near-1 = near-clean) so the
+        model can read them as context. Shared by _denoise_next and the memory rollout."""
+        t = self.config.context_signal
+        return (1 - t) * torch.randn_like(z) + t * z
+
+    @torch.no_grad()
+    def memory_rollout_init(self, context: torch.Tensor, ctx_action_idx: torch.Tensor = None,
+                            K: int = None) -> dict:
+        """Seed an FF7 register-carry rollout from a context window (the prefix pass of
+        generate_memory). The last context frame's final-layer register state seeds the carry.
+
+        context:        (B, T_ctx, L, D) clean latents.
+        ctx_action_idx: (B, T_ctx) long action ids for the context frames, or None.
+        Returns an opaque state dict to feed to memory_rollout_step (carries reg_prev, z_prev,
+        the previous action id, and the sampling constants). This is the stateful, open-ended
+        form of the same relay generate_memory runs in a closed loop.
+        """
+        K = K or self.config.inference_steps
+        B, T_ctx = context.shape[0], context.shape[1]
+        d_idx_val = (K).bit_length() - 1
+        tau_ctx_idx = min(round(self.config.context_signal * self.K_max), self.K_max - 1)
+        act_feat = self.action_features(ctx_action_idx)  # (B, T_ctx, n_act, E) or None
+        tau_col = torch.full((B, T_ctx), tau_ctx_idx, device=context.device, dtype=torch.long)
+        d_col = torch.full((B, T_ctx), d_idx_val, device=context.device, dtype=torch.long)
+        _, regs = self(self._noise_to_ctx(context), tau_col, d_col, act_feat, return_registers=True)
+        return {
+            "reg_prev": regs[:, -1:],            # (B, 1, R, E) carried register state
+            "z_prev": context[:, -1:],           # (B, 1, L, D) carried clean latent
+            "prev_action": (ctx_action_idx[:, -1:] if ctx_action_idx is not None else None),
+            "K": K, "d_idx_val": d_idx_val, "tau_ctx_idx": tau_ctx_idx,
+        }
+
+    @torch.no_grad()
+    def memory_rollout_step(self, state: dict, action_id=None, K: int = None):
+        """Advance an FF7 register-carry rollout by one frame. ``action_id`` is the action for
+        the NEW frame: an int, or a (B,) / (B,1) long tensor, or None (unlabeled model).
+        Returns (z_new (B, 1, L, D), new_state)."""
+        K = K or state["K"]
+        reg_prev, z_prev = state["reg_prev"], state["z_prev"]
+        B, _, L, D = z_prev.shape
+        device = z_prev.device
+        d_idx_val, tau_ctx_idx = state["d_idx_val"], state["tau_ctx_idx"]
+
+        new_action = None
+        act2 = None
+        if self.n_actions > 0 and action_id is not None:
+            if torch.is_tensor(action_id):
+                new_action = action_id.reshape(B, 1).to(device=device, dtype=torch.long)
+            else:
+                new_action = torch.full((B, 1), int(action_id), device=device, dtype=torch.long)
+            prev = state["prev_action"]
+            prev = new_action if prev is None else prev.reshape(B, 1)
+            act2 = self.action_features(torch.cat((prev, new_action), dim=1))  # (B,2,n_act,E)
+
+        reg_in = torch.concat((reg_prev, self.register_tokens.expand(B, 1, -1, -1)), dim=1)
+        zc = self._noise_to_ctx(z_prev)
+        tau2 = torch.full((B, 2), tau_ctx_idx, device=device, dtype=torch.long)
+        d2 = torch.full((B, 2), d_idx_val, device=device, dtype=torch.long)
+
+        z = torch.randn((B, 1, L, D), device=device)  # pure noise, tau = 0
+        for kstep in range(K):
+            tau = kstep / K
+            tau2[:, -1] = round(tau * self.K_max)
+            z_hat1 = self(torch.concat((zc, z), dim=1), tau2, d2, act2, register_in=reg_in)[:, -1:]
+            v = (z_hat1 - z) / (1 - tau)
+            z = z + v * (1.0 / K)
+
+        # Extract the new frame's register state (its clean latent held at tau_ctx) for the carry.
+        tau2[:, -1] = tau_ctx_idx
+        inp = torch.concat((zc, self._noise_to_ctx(z)), dim=1)
+        _, regs = self(inp, tau2, d2, act2, register_in=reg_in, return_registers=True)
+        new_state = {**state, "reg_prev": regs[:, -1:], "z_prev": z,
+                     "prev_action": new_action if new_action is not None else state["prev_action"]}
+        return z, new_state
+
     @torch.no_grad()
     def generate_memory(self, context: torch.Tensor, n_generate: int, K: int = None,
                         action_idx: torch.Tensor = None) -> torch.Tensor:
@@ -508,53 +584,15 @@ class DynamicsModel(nn.Module):
 
         Vanilla generate() has no persistent state beyond the latent window; this is the
         param-free inference change that lets the trained register relay actually run.
-        Same signature/return as generate().
+        Same signature/return as generate(). action_idx: (B, T_ctx + n_generate) ids or None.
+        Thin closed loop over memory_rollout_init/step (the open-ended interactive form).
         """
-        K = K or self.config.inference_steps
-        B, P, L, D = context.shape
-        device = context.device
-        d_idx_val = (K).bit_length() - 1
-        tau_ctx = self.config.context_signal
-        tau_ctx_idx = min(round(tau_ctx * self.K_max), self.K_max - 1)
-        act_feat = self.action_features(action_idx)  # (B, T_total, n_act, E) or None
-
-        def noise_to_ctx(z: torch.Tensor) -> torch.Tensor:
-            return (1 - tau_ctx) * torch.randn_like(z) + tau_ctx * z
-
-        # Prefix pass: causal over the P context frames (learned registers); the last
-        # frame's register state seeds the carry.
-        tau_col = torch.full((B, P), tau_ctx_idx, device=device, dtype=torch.long)
-        d_col = torch.full((B, P), d_idx_val, device=device, dtype=torch.long)
-        act = act_feat[:, :P] if act_feat is not None else None
-        _, regs = self(noise_to_ctx(context), tau_col, d_col, act, return_registers=True)
-        reg_prev = regs[:, -1:]      # (B, 1, R, E)
-        z_prev = context[:, -1:]     # (B, 1, L, D) clean
-
-        tau2 = torch.full((B, 2), tau_ctx_idx, device=device, dtype=torch.long)
-        d2 = torch.full((B, 2), d_idx_val, device=device, dtype=torch.long)
-
+        P = context.shape[1]
+        ctx_ids = action_idx[:, :P] if action_idx is not None else None
+        state = self.memory_rollout_init(context, ctx_ids, K)
         generated = []
         for i in range(n_generate):
-            new_idx = P + i  # absolute index of the frame being generated
-            act2 = act_feat[:, new_idx - 1:new_idx + 1] if act_feat is not None else None
-            reg_in = torch.concat(
-                (reg_prev, self.register_tokens.expand(B, 1, -1, -1)), dim=1)
-            zc = noise_to_ctx(z_prev)
-
-            z = torch.randn((B, 1, L, D), device=device)  # pure noise, tau = 0
-            for kstep in range(K):
-                tau = kstep / K
-                tau2[:, -1] = round(tau * self.K_max)
-                inp = torch.concat((zc, z), dim=1)
-                z_hat1 = self(inp, tau2, d2, act2, register_in=reg_in)[:, -1:]
-                v = (z_hat1 - z) / (1 - tau)
-                z = z + v * (1.0 / K)
-
-            # Extract the new frame's register state (its clean latent held at tau_ctx).
-            tau2[:, -1] = tau_ctx_idx
-            inp = torch.concat((zc, noise_to_ctx(z)), dim=1)
-            _, regs = self(inp, tau2, d2, act2, register_in=reg_in, return_registers=True)
-            reg_prev = regs[:, -1:]
-            z_prev = z
+            new_id = action_idx[:, P + i] if action_idx is not None else None
+            z, state = self.memory_rollout_step(state, new_id, K)
             generated.append(z)
         return torch.concat(generated, dim=1)

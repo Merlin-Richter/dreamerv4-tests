@@ -8,9 +8,13 @@ generates exactly one new frame:
   0  action 0 (curtain up / revealed)
   1  action 1 (curtain down / occluded)
 
-The dynamics model always sees a sliding temporal window of four latents when denoising
-the next frame (frame 5 uses latents 1–4, frame 6 uses 2–5, etc.). Rollouts continue
-indefinitely until reset.
+For a vanilla model the dynamics sees a sliding temporal window of four latents when
+denoising the next frame (frame 5 uses latents 1–4, frame 6 uses 2–5, etc.). For an FF7
+register-memory checkpoint (config.use_register_memory=True) the viewer instead drives the
+param-free register-carry relay (memory_rollout_init/step): each frame carries the previous
+frame's register state forward, so hidden state survives past the latent window — without it,
+an FF7 model degrades to vanilla and hallucinates a random ball once the curtain outlasts the
+4-frame window. Rollouts continue indefinitely until reset.
 
 Run from repo root:
     python src/D_dynamics_model/play_dynamics_checkpoint.py
@@ -120,6 +124,9 @@ class InteractiveRollout:
         self.n_eps = raw.shape[0]
         self.n_frames = raw.shape[1]
         self.scale = max(2, 512 // max(h, w))
+        # FF7 checkpoints need the register-carry relay; vanilla ones use the sliding window.
+        self.use_memory = bool(getattr(model.config, "use_register_memory", False))
+        self.mem_state: dict | None = None
 
         self.latents: torch.Tensor | None = None
         self.actions: list[int] = []
@@ -155,7 +162,13 @@ class InteractiveRollout:
         else:
             self.actions = [0] * ROLLOUT_CTX
 
-        ctx_idx = ROLLOUT_CTX - 1
+        # Seed the FF7 register-carry relay from the context window (prefix pass). The last
+        # context frame's register state + latent are carried forward by step().
+        if self.use_memory:
+            ctx_ids = torch.tensor([self.actions], device=self.device, dtype=torch.long)
+            self.mem_state = self.model.memory_rollout_init(
+                self.latents, ctx_ids, self.inference_steps)
+
         gt = clip[-1]
         self.current_bgr = tensor01_to_bgr(torch.from_numpy(gt))
         self.current_is_gt = True
@@ -165,16 +178,20 @@ class InteractiveRollout:
     def step(self, action: int) -> None:
         assert self.latents is not None
 
-        window = self.latents[:, -ROLLOUT_CTX:]
-        # Action ids for the ROLLOUT_CTX context frames plus the frame being generated.
-        act_ids = self.actions[-ROLLOUT_CTX:] + [action]
+        if self.use_memory:
+            # FF7 register-carry relay: one step, carrying register state across the window.
+            nxt, self.mem_state = self.model.memory_rollout_step(
+                self.mem_state, action, self.inference_steps)
+        else:
+            # Vanilla sliding-window: denoise the next frame from the last ROLLOUT_CTX latents.
+            window = self.latents[:, -ROLLOUT_CTX:]
+            act_ids = self.actions[-ROLLOUT_CTX:] + [action]
+            act_window = None
+            if self.model.n_actions > 0:
+                act_idx = torch.tensor([act_ids], device=self.device, dtype=torch.long)
+                act_window = self.model.action_features(act_idx)
+            nxt = self.model._denoise_next(window, self.inference_steps, act_window)
 
-        act_window = None
-        if self.model.n_actions > 0:
-            act_idx = torch.tensor([act_ids], device=self.device, dtype=torch.long)
-            act_window = self.model.action_features(act_idx)
-
-        nxt = self.model._denoise_next(window, self.inference_steps, act_window)
         self.latents = torch.cat((self.latents, nxt), dim=1)
         self.actions.append(int(action))
         self.n_generated += 1
@@ -193,9 +210,10 @@ class InteractiveRollout:
 
         frame_idx = self.frame_base + len(self.actions) - 1
         kind = "GT ctx" if self.current_is_gt else "generated"
+        mode = "FF7 register-carry" if self.use_memory else f"vanilla window={ROLLOUT_CTX}"
         lines = [
             f"ep {self.ep}  frame {frame_idx}  ({kind})  action={last_action}",
-            f"ctx={ROLLOUT_CTX}  tok_ctx={self.tokenizer_context}  "
+            f"mode={mode}  tok_ctx={self.tokenizer_context}  "
             f"gen_steps={self.n_generated}  K={self.inference_steps}",
             "0=revealed  1=occluded  space/r=reset  q/Esc=quit",
         ]
@@ -278,8 +296,12 @@ def main() -> None:
         w=w,
     )
 
+    use_memory = bool(getattr(cfg, "use_register_memory", False))
     print("Interactive dynamics rollout")
-    print(f"  dynamics temporal context: {ROLLOUT_CTX} frames (fixed)")
+    print(f"  inference mode:            "
+          + ("FF7 register-carry relay (memory_rollout_step)" if use_memory
+             else f"vanilla sliding window ({ROLLOUT_CTX} latents)"))
+    print(f"  dynamics temporal context: {ROLLOUT_CTX} frames (vanilla seed / FF7 prefix)")
     print(f"  tokenizer encode length:   {max(ROLLOUT_CTX, tok_ctx)} frames on reset")
     print("  0 = curtain up   1 = curtain down   space/r = new context   q/Esc = quit")
 

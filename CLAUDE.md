@@ -132,7 +132,9 @@ python train_dynamics_model.py --epochs 20 --batch-size 32 --context-length 16
 # With W&B:
 python train_dynamics_model.py --wandb --wandb-project my-project
 # FF7 register-memory training (D-014): adds the single-timestep-sufficiency loss with
-# lookahead K and makes generate() carry register state at inference (window-1 rollout):
+# lookahead K. At inference, use_register_memory=True checkpoints carry register state across
+# the window via generate_memory, which is a thin loop over the reusable primitives
+# memory_rollout_init / memory_rollout_step (also driven by the interactive viewer):
 python train_dynamics_model.py --ff7 1 --lambda-ff7 1.0 --seed 0
 # Smoke tests for the FF7 paths:
 python test_ff7_smoke.py
@@ -158,6 +160,13 @@ python src/C_multi_image_auto_encoder/train_autoencoder_bouncing.py \
 # Inspect dynamics rollout (interactive)
 python src/D_dynamics_model/train_dynamics_model.py --test-checkpoint
 python src/D_dynamics_model/play_dynamics_checkpoint.py  # Single-frame interactive
+# Auto-detects FF7 checkpoints (config.use_register_memory): drives the register-carry relay
+# (memory_rollout_init/step) so hidden state survives past the latent window. Vanilla
+# checkpoints use the sliding-window path. The on-screen "mode=" line shows which is active.
+# To inspect an FF7 model on the occluded env:
+python src/D_dynamics_model/play_dynamics_checkpoint.py \
+  --checkpoint experiments/EXP-010/k3/ff7_k3_s0.pt --tokenizer trained_autoencoder.pt \
+  --frames occluded.npy --actions occluded_actions.npy
 ```
 
 ### Wandb Integration
@@ -278,6 +287,6 @@ All models use dataclass configs for reproducibility:
 - **Shortcut forcing in D**: Allows efficient inference (4 steps instead of 128) while training with per-frame diffusion signal
 - **RoPE on temporal axis**: Allows extrapolation beyond training sequence length
 - **Frozen tokenizer in D**: Ensures latent space stability; dynamics model only learns transitions
-- **Register tokens in D**: Unused scratch space for the model to store intermediate computations (from recent vision transformer research)
+- **Register tokens in D**: free scratch tokens (from recent ViT research). In the vanilla model they are unconstrained scratch; the FF7 line (D-014) repurposes them as the hidden-state *memory carrier* — temporal attention is position-wise, so each register slot is its own causal channel through time, and FF7's loss + register-carry inference make it relay occluded state past the window.
 
 There are trained versions of Tokenizer which works well and had LPIPS loss during training ('trained_autoencoder.pt') and the trained vanilla dynamics model at 'my_dynamics.pt' (its earlier rollout "failure" was an inference bug — context noised at 90%; fixed via `context_signal=0.9`, see EXP-008/D-010).
