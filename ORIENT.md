@@ -11,9 +11,14 @@ purpose is efficient continuous rollouts, NOT training prep)
 - **H3 position — OPEN.** EXP-013 measured blind-occlusion position memory as near-absent (vanilla ≈
   copy-last; FF7 marginally better). **Merlin (ESC-009): the position metric as coded is of uncertain
   strength — NOT frozen as a spine, NOT a hard gate.** Read stands; not litigated further.
-- **Big picture (where this is heading):** an **efficient register-relay rollout training** for H3
-  position (IDEAS.md). We are sequencing it deliberately — nail the efficient-rollout substrate first,
-  in isolation, before any training/objective work. Training is the eventual goal, NOT right now.
+- **Big picture (Merlin restated 2026-06-13):** high-level plan is unchanged — *experiment with
+  architectures + objectives to find one with persistent memory*. Currently on the **memory-token**
+  line; **its capability to persist memory is still UNPROVEN** (color-only so far). New design ideas
+  captured in IDEAS.md (2026-06-13): split MEMORY tokens (full-state carrier) from REGISTER scratch;
+  **memory-only sufficiency** objective (FF9); "produce vs generate" (training cost is ~2–4×, not
+  ÷window, because latents are teacher-forceable — only memory must be produced by running the model).
+  These are noted ideas, NOT a committed build. The KV-cache subobjective (done) is the production-path
+  engine for the eventual sequential variant.
 - **JUST DONE (T-012 / D-020), the first subobjective: cross-frame sliding-window KV eviction cache.**
   We can now run **efficient sliding-window continuous (open-ended) rollouts** via KV caching — O(1)
   attention per step, no per-frame window rebuild. Implemented + verified (9/9). Infra, not an

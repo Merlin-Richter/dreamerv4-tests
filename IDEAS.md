@@ -41,7 +41,7 @@ per-frame loss by emitting the color prior (= chance).
 ## A. Carriers (mechanism)
 | ID | Idea | Notes | Status | Outcome / ref |
 |----|------|-------|--------|---------------|
-| MC1 | Persistent memory tokens (slots), read/write via attention, **exempt from window eviction** | minimal change; the existing `n_registers=4` scratch tokens are a natural home if made persistent | untried | |
+| MC1 | Persistent memory tokens (slots), read/write via attention, **exempt from window eviction** | minimal change; the existing `n_registers=4` scratch tokens are a natural home if made persistent. **REFINED 2026-06-13 (Merlin):** make MEMORY tokens a *distinct* token type and revert REGISTER tokens to pure scratchpad — see "Memory tokens as a distinct carrier" below | untried | |
 | MC2 | Recurrent state (GRU/LSTM) summarizing the latent chain, state vector persists | explicit update; classic long-range | untried | |
 | MC3 | SSM / Mamba-style linear recurrent state | stable long-range, cheap rollout | untried | |
 | MC4 | Compressive memory: summarize evicted frames instead of dropping (Compressive-Transformer / ∞-former) | keeps a lossy trace of everything | untried | |
@@ -60,6 +60,7 @@ per-frame loss by emitting the color prior (= chance).
 | FF6 | Auxiliary "what will I see if I look back" query head at reveal | task-shaped variant of FF1 | untried | |
 | FF7 | **Single-timestep sufficiency** (Merlin): from ONE timestep's latent+register, predict the next **k frames (k small: 1–3, even 1)** under arbitrary actions. **k is the supervised lookahead depth, UNRELATED to the context window** — do NOT scale it to span occlusion. Retention is NOT from large k; it emerges because the loss is imposed at *every* timestep under *arbitrary* actions (incl. "lift curtain", reachable in 1 step) with the register carried recurrently: every occluded register must be able to produce the revealed ball next frame ⇒ must hold color ⇒ recurrence passes it forward indefinitely. Bellman/Q-learning logic — a 1-step-sufficient statistic under all actions is sufficient for the whole future (ties to FF8). **Overwrite latents with real latents** (stronger than detach: detach still lets the forward pass read color off the latent; overwriting with the color-free occluded latent forces the register to be the only carrier) so only **register tokens** learn off-screen info. Self-supervised (target = env's own future frames). **NO architecture change needed** — the carry already exists: temporal attention (`dynamics_model.py:110-121`) is *position-wise* over frames, so each register slot is its own causal channel through time; spatial layers move info latent↔register within a frame. FF7 is a training-procedure change only. Retention beyond the window = a **relay**: each frame re-copies the info into its own register from the previous frame before the source scrolls out; the per-frame sufficiency loss trains each hop locally (no single backprop spans the occlusion — Bellman). Retention length bounded by relay reliability, NOT by window or k. | the proposed first attempt; gradient flows from the k-rollout back through the registers into the normal windowed diffusion forward pass | untried | |
 | FF8 | **Bootstrapped backward memory credit** (Merlin, speculative): propagate a "memory worked / didn't" signal back one timestep at a time, Q-learning-style (horizon-1 updates that still encode long-range outcomes). Unknown if mathematically sound — worthy attempt once FF7 works. | future; addresses long-range credit assignment without full BPTT | untried | |
+| FF9 | **Memory-only full-state sufficiency** (Merlin, 2026-06-13): from the MEMORY tokens **alone** (current latent withheld), predict the next k states under random/adversarial actions. Memory must encode the *full* state (on- AND off-screen), not just off-screen — withholding the latent is what forces that and prevents memory churn when visibility switches. See dedicated section below. | refines FF7; decouples memory from register-scratch; reduces target-chasing | untried | |
 
 ## C. Training regimes
 | ID | Idea | Notes | Status |
@@ -189,3 +190,72 @@ some **N≈16** episodes so it also learns to reason over longer explicit contex
 how much burden sits on the register (N=1 → register carries everything, like current FF7
 inference; larger N → register only carries info older than N). Impl note: variable N is ragged —
 bucket episodes by N into homogeneous batches (or pad) rather than mixing N within a batch.
+
+---
+
+## Memory tokens as a distinct carrier + memory-only sufficiency (Merlin, 2026-06-13)
+
+**High-level plan (unchanged):** experiment with architectures + objectives to find one with
+*persistent* memory. We're currently on the memory-token line; **its capability to persist memory is
+still unproven** (EXP-010 = beyond-window COLOR only; EXP-013 = blind position near-absent). The ideas
+below are a refinement of that line — captured for the record, not a committed build.
+
+**Split the roles (carrier).**
+- **MEMORY tokens** — a *distinct* token type, the persistent carrier; objective = *encapsulate the
+  full current state*.
+- **REGISTER tokens** — revert to their original role: throwaway scratchpad for the model, **no memory
+  duty**. Decoupling stops FF7's conflation (the same `n_registers` tokens being both scratch and
+  carrier). (Architecture note: this adds memory-token slots distinct from registers.)
+
+**Objective (FF9, memory-only sufficiency) — concrete.** Given **only the memory tokens** (the current
+latent is *withheld*), the model must predict the next **k** states under **random and/or
+adversarially-picked** actions.
+- *Stochasticity caveat (worth thinking about):* with inherent environment randomness the memory
+  can't predict the exact future — the objective must tolerate it (encode the predictable/sufficient
+  state; don't penalize env noise — distributional / expectation target, TBD).
+
+**Why memory-ONLY, not latent+memory (the key choice).** If the loss provides current latent **and**
+memory, the model learns to store *only off-screen* info in memory (the latent already supplies
+on-screen) → **unstable**: when screen content switches (different things on/off screen) the model
+must *reshuffle* the memory tokens. Feeding **only** memory forces it to be a clean,
+**everything-included** object (full state, on- and off-screen), so its contents don't churn as
+visibility changes.
+
+**Why this reduces target-chasing.** A clear objective focused on a *few-frame reconstruction* from
+memory-only is a more stable target than training memory against *other* memory tokens (a
+self-referential moving target). Cleaner credit assignment, less chasing.
+
+**Compute optimizations — DEFER until persistence is proven (performance-only, do NOT do first):**
+- *Sparse memory frames:* memory tokens may not be needed every frame — e.g. add memory tokens to
+  denoise only every 4th frame. Saves compute; revisit only once memory works.
+- *Parallel multi-set training (slide-by-m):* don't train one memory set at a time — generate+train
+  the next **4 or 8** memory sets in one parallel window, then slide the window by that much.
+  *Example:* context window 16, memory tokens already known for frames 1–12 → generate (and train on)
+  frames 13–16's memory in one step. The freshly-generated memory (13–16) isn't grounded yet, so keep
+  it honest one of two ways (both should work):
+  - (a) tell the model a **"memory noise level"** so e.g. memory@t=14 knows memory@t=13 is not-yet-real
+    memory; OR
+  - (b) simply **mask** memory@t=14 from attending to memory@t=13.
+  This reclaims parallelism over the sequential relay — the "produce m memory sets per forward" form of
+  the produce-vs-generate point below.
+
+### Refinement (2026-06-13, pt 2) — "produce vs generate": the cost is NOT ÷window
+
+From the EXP-015 perf discussion. The ÷window / ~0.15×-throughput fear applies to **generating**
+during training (per-frame, K denoising substeps, sequential). But relay/memory training never has to
+generate: **latents are teacher-forceable** (GT frame → frozen encoder, fully parallel), so the only
+thing with no ground truth — the thing we must *produce by running the model* — is the **memory/register
+state** itself (Merlin's asymmetry: unlike latents, memory has no label, it's a model-dependent
+recurrent quantity). Producing the handoff state is **one forward per window** (teacher-forced latents
+at tau_ctx, **no denoising substeps**), and it can be `no_grad` (stop-grad handoff / TBPTT-1). So the
+recurrence is **window-granular**: cost ≈ (relay depth in windows)+1 forwards + one parallel grad step
+≈ **2–4× plain training, NOT ÷window**.
+- **The genuine blocker is learning, not throughput.** With a stop-grad handoff you train *carry* but
+  not *store* (credit assignment): gradient must reach the write step (≥ TBPTT-1 through the last
+  production window) or the model never learns to put the right thing in (bootstrap trap), compounded
+  by handoff **staleness** (the memory is a moving target as the model updates — target-network-like).
+- **Where the KV cache (T-012) earns its place in training:** it accelerates exactly the no-grad
+  memory-PRODUCTION rollout — the "we can't get the memory tokens for free like latents" step — most
+  when the handoff is deep or frame-granular. Not on the gradient path; on the production path.
+- The slide-by-m trick (above) is the same insight from the other side: produce m memory sets per
+  parallel forward to claw parallelism back.
