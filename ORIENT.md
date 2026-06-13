@@ -26,15 +26,20 @@ purpose is efficient continuous rollouts, NOT training prep)
   deliberately out of scope for this step.)
 
 ## In flight
-**Nothing running.** 4070 free. No cluster (scripts/ deferred). T-012 DONE + verified. **EXP-015 perf
-tool DONE → blocked on Merlin (ESC-011) present-then-stop.**
+**Nothing running.** 4070 free. No cluster (scripts/ deferred). **EXP-016 (batch-limit parallelism sweep,
+D-023) DONE → blocked on Merlin (ESC-012) present-then-stop.** (ESC-011 RESOLVED — he directed this batch
+cut.)
 
 ## NEXT ACTION
-**Await Merlin's ESC-011 verdict on EXP-015 (rollout KV-cache perf).** Decisive read: the cache makes
-continuous-rollout throughput INDEPENDENT of context length (~28 steps/s ≈ 900 frames/s at B=32, flat
-N=8→64) and wins memory too; uncached degrades 21→5.7 steps/s, speedup 1.33×→4.79×. Tool reusable
-(`perf_rollout.py --batch --windows --budget`). Offered next cut: a batch-size sweep at fixed N. Don't
-start follow-ups until he weighs in.
+**Await Merlin's ESC-012 verdict on EXP-016 (batch-limit parallelism sweep).** Decisive read: more
+parallelism → MORE speedup — cached/windowed steps/s ratio rises monotone 5.85×(B32)→14.0×(B512) because
+only cached scales (frames/s 731→1427) while windowed is throughput-FLAT (~105–126, saturated). At each
+method's own VRAM ceiling (cached B=512/52%, windowed B=1024/82% — cached is MORE memory-hungry at N=32,
+flipping EXP-015's N=64 asymmetry) cached still wins 13.5× end-to-end. Caveat: abs steps/s ±30% run-to-run
+(laptop thermal); ratio+shape stable. **Timing fixed** (Merlin flagged the runs were way too slow / hung
+10 min): measure from pre-filled window + predictive VRAM guard that never launches a past-VRAM (sysmem-
+thrash) config + `-u`/no-tail live streaming. Offered next cut: same sweep at N=64 (asymmetry flips) or a
+repeat for error bars. Don't start follow-ups until he weighs in.
 
 ## Recently done
 - **T-012 / D-020 — cross-frame sliding-window KV eviction cache — DONE + verified.** `stream_rollout_

@@ -51,32 +51,33 @@ def _run(dyn, method, context, n_gen, K, action_idx):
 
 @torch.no_grad()
 def bench_config(dyn, dcfg, method, N, B, K, T_ctx, budget_s, device):
+    """Steady-state per-step rollout cost. Measured from a PRE-FILLED window (context = N-1 frames),
+    so every generated step is steady-state from the first — no window-fill transient to amortise, so
+    a few steps suffice (cheap). One short warmup (kernels) + a tiny calibrate + one budget-capped
+    measured pass that ALSO yields peak memory (no separate memory pass)."""
     dyn.config.max_temporal_length = N                       # context window (W = N-1)
-    # warmup: fill the window + warm kernels
-    n_warm = max(N + 8, 16)
-    ctx, act = _make_inputs(dyn, dcfg, B, T_ctx, n_warm, device)
-    _run(dyn, method, ctx, n_warm, K, act); torch.cuda.synchronize()
+    T_full = max(N - 1, 1)                                    # full window -> no fill transient
 
-    # calibrate ms/step on a short run, then size the measured run to ~budget
-    n_cal = max(N + 8, 24)
-    ctx, act = _make_inputs(dyn, dcfg, B, T_ctx, n_cal, device)
+    # warmup: warm kernels/autotuner/allocator at this (B, window) shape (4 iters — 2 was too few,
+    # left fast configs under-warmed and ~30% slow); window already full from context
+    ctx, act = _make_inputs(dyn, dcfg, B, T_full, 4, device)
+    _run(dyn, method, ctx, 4, K, act); torch.cuda.synchronize()
+
+    # short calibrate (3 steady steps) -> ms/step, used only to size the measured pass
+    ctx, act = _make_inputs(dyn, dcfg, B, T_full, 3, device)
     torch.cuda.synchronize(); t0 = time.perf_counter()
-    _run(dyn, method, ctx, n_cal, K, act); torch.cuda.synchronize()
-    ms_step = (time.perf_counter() - t0) * 1e3 / n_cal
-    n_meas = int(min(5000, max(50, budget_s * 1000.0 / max(ms_step, 1e-3))))
+    _run(dyn, method, ctx, 3, K, act); torch.cuda.synchronize()
+    ms_step = (time.perf_counter() - t0) * 1e3 / 3
+    # many steps when cheap (accurate), few when each step is slow but stable (bounded). Floor 8
+    # keeps fast-config noise low; the VRAM guard (not under-sampling) is what bounds the slow tail.
+    n_meas = int(min(64, max(8, budget_s * 1000.0 / max(ms_step, 1e-3))))
 
-    # throughput: one long rollout (no re-prefill bias), budget-bounded
-    ctx, act = _make_inputs(dyn, dcfg, B, T_ctx, n_meas, device)
+    # measured pass: throughput + peak memory in one short steady-state rollout
+    ctx, act = _make_inputs(dyn, dcfg, B, T_full, n_meas, device)
+    torch.cuda.empty_cache(); torch.cuda.reset_peak_memory_stats()
     torch.cuda.synchronize(); t0 = time.perf_counter()
     out = _run(dyn, method, ctx, n_meas, K, act); torch.cuda.synchronize()
     elapsed = time.perf_counter() - t0
-    del out
-
-    # memory: short steady-state rollout (small output history) -> working set incl. the cache
-    n_mem = max(2 * N, 32)
-    ctx, act = _make_inputs(dyn, dcfg, B, T_ctx, n_mem, device)
-    torch.cuda.empty_cache(); torch.cuda.reset_peak_memory_stats()
-    out = _run(dyn, method, ctx, n_mem, K, act); torch.cuda.synchronize()
     peak_alloc = torch.cuda.max_memory_allocated() / 2**20
     peak_resv = torch.cuda.max_memory_reserved() / 2**20
     del out, ctx, act; torch.cuda.empty_cache()
@@ -115,6 +116,138 @@ def profile_config(dyn, dcfg, method, N, B, K, T_ctx, device, n_steps=20):
                 split_pct={k: round(100 * v / tot, 1) for k, v in split.items()})
 
 
+def _is_oom(err: Exception) -> bool:
+    return isinstance(err, torch.cuda.OutOfMemoryError) or "out of memory" in str(err).lower()
+
+
+@torch.no_grad()
+def batch_sweep(dyn, dcfg, N, batches, K, T_ctx, budget_s, device, total_MB):
+    """Push batch up toward each method's OWN memory ceiling at fixed N; record where each OOMs.
+
+    Returns (results, ceilings). `results` is per (method,batch) bench dicts (successful only);
+    `ceilings` is the max-fitting batch + its throughput per method."""
+    results, ceilings = [], {}
+    vram_cap = 0.92 * total_MB                                # stay in real VRAM; beyond this WDDM
+    #                                                          spills to system RAM (ms -> minutes)
+    hdr = (f"{'method':8s} {'B':>6s} {'steps/s':>9s} {'frames/s':>11s} {'ms/step':>9s} "
+           f"{'peakMB':>8s} {'resvMB':>8s} {'%mem':>6s}")
+    print(hdr); print("-" * len(hdr))
+    for method in ("cached", "windowed"):
+        last_ok = None
+        for B in batches:
+            # predictive memory guard: extrapolate reserved-MB linearly from the last successful
+            # config; if the NEXT batch would cross VRAM, stop escalating BEFORE launching it (a
+            # past-VRAM config sysmem-thrashes for minutes instead of cleanly OOM-ing).
+            if last_ok is not None:
+                pred = last_ok["peak_reserved_MB"] * B / last_ok["B"]
+                if pred > vram_cap:
+                    print(f"{method:8s} {B:>6d} {'SKIP':>9s}  (predicted ~{pred:.0f}MB > {vram_cap:.0f}MB "
+                          f"VRAM cap; ceiling = B={last_ok['B']})")
+                    break
+            torch.cuda.empty_cache(); torch.cuda.reset_peak_memory_stats()
+            try:
+                r = bench_config(dyn, dcfg, method, N, B, K, T_ctx, budget_s, device)
+            except Exception as e:                       # noqa: BLE001 — want OOM + anything else
+                torch.cuda.empty_cache()
+                if _is_oom(e):
+                    print(f"{method:8s} {B:>6d} {'OOM':>9s}  (ceiling = B={last_ok['B'] if last_ok else None})")
+                    break
+                raise
+            r["pct_mem"] = round(100 * r["peak_reserved_MB"] / total_MB, 1)
+            # if a config slipped past the predictor into sysmem fallback, record it but stop here
+            if r["peak_reserved_MB"] > total_MB:
+                print(f"{r['method']:8s} {r['B']:>6d} {r['steps_per_s']:>9.1f} {r['frames_per_s']:>11.1f} "
+                      f"{r['ms_per_step']:>9.3f} {r['peak_alloc_MB']:>8.1f} {r['peak_reserved_MB']:>8.1f} "
+                      f"{r['pct_mem']:>5.1f}%  <- OVER VRAM (sysmem fallback; excluded from ceiling)")
+                r["oversubscribed"] = True
+                results.append(r)
+                break
+            results.append(r); last_ok = r
+            print(f"{r['method']:8s} {r['B']:>6d} {r['steps_per_s']:>9.1f} {r['frames_per_s']:>11.1f} "
+                  f"{r['ms_per_step']:>9.3f} {r['peak_alloc_MB']:>8.1f} {r['peak_reserved_MB']:>8.1f} "
+                  f"{r['pct_mem']:>5.1f}%")
+            torch.cuda.empty_cache()
+        if last_ok:
+            ceilings[method] = last_ok
+        print()
+    return results, ceilings
+
+
+def run_batch_sweep(dyn, dcfg, dcfg_meta, N, batches, K, T_ctx, budget_s, device, outdir, total_MB):
+    results, ceilings = batch_sweep(dyn, dcfg, N, batches, K, T_ctx, budget_s, device, total_MB)
+
+    # speedup vs batch on the SHARED batches (both methods fit)
+    by = {(r["method"], r["B"]): r for r in results}
+    cached_Bs = sorted(b for (m, b) in by if m == "cached")
+    wind_Bs = sorted(b for (m, b) in by if m == "windowed")
+    shared = sorted(set(cached_Bs) & set(wind_Bs))
+    print("speedup (cached steps/s ÷ windowed steps/s) vs batch:")
+    speedups = {}
+    for B in shared:
+        c, w = by[("cached", B)]["steps_per_s"], by[("windowed", B)]["steps_per_s"]
+        speedups[B] = round(c / w, 2)
+        print(f"  B={B:>5d}: {speedups[B]}x  ({c:.1f} vs {w:.1f} steps/s)")
+
+    print("\nmax-fitting batch per method (its own memory ceiling):")
+    for method in ("cached", "windowed"):
+        c = ceilings.get(method)
+        if c:
+            print(f"  [{method}] B={c['B']}  {c['steps_per_s']:.1f} steps/s  {c['frames_per_s']:.1f} "
+                  f"frames/s  ({c['peak_reserved_MB']:.0f} MB resv, {c['pct_mem']}% of {total_MB:.0f})")
+    if "cached" in ceilings and "windowed" in ceilings:
+        cc, cw = ceilings["cached"], ceilings["windowed"]
+        print(f"\n  cached fits B={cc['B']} vs windowed B={cw['B']}  "
+              f"(batch headroom {cc['B']/max(cw['B'],1):.2f}x); "
+              f"peak frames/s {cc['frames_per_s']:.0f} (cached) vs {cw['frames_per_s']:.0f} (windowed) "
+              f"= {cc['frames_per_s']/max(cw['frames_per_s'],1e-9):.2f}x end-to-end throughput")
+
+    payload = dict(meta=dict(**dcfg_meta, mode="batch_sweep", N=N, batches=batches, total_MB=total_MB),
+                   results=results, ceilings=ceilings, speedups=speedups)
+    outdir.mkdir(parents=True, exist_ok=True)
+    (outdir / "results.json").write_text(json.dumps(payload, indent=2))
+    print(f"\nwrote {outdir/'results.json'}")
+    _plot_batch_sweep(payload, outdir, total_MB)
+
+
+def _plot_batch_sweep(payload, outdir, total_MB):
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except Exception as e:
+        print(f"(plot skipped: {e})"); return
+    by = {(r["method"], r["B"]): r for r in payload["results"]}
+    N = payload["meta"]["N"]
+    fig, ax = plt.subplots(1, 3, figsize=(15, 4.4))
+    for method, mk in (("cached", "o-"), ("windowed", "s--")):
+        Bs = sorted(b for (m, b) in by if m == method)
+        if not Bs:
+            continue
+        ax[0].plot(Bs, [by[(method, b)]["frames_per_s"] for b in Bs], mk, label=method)
+        ax[1].plot(Bs, [by[(method, b)]["steps_per_s"] for b in Bs], mk, label=method)
+        ax[2].plot(Bs, [by[(method, b)]["peak_reserved_MB"] for b in Bs], mk, label=method)
+        bmax = max(Bs)                                   # mark each method's ceiling
+        ax[0].annotate(f"max B={bmax}", (bmax, by[(method, bmax)]["frames_per_s"]),
+                       fontsize=8, ha="right", va="bottom")
+    spk = payload["speedups"]
+    if spk:
+        ax2 = ax[1].twinx()
+        sb = sorted(spk)
+        ax2.plot(sb, [spk[b] for b in sb], "^:", color="green", alpha=.6, label="speedup")
+        ax2.set_ylabel("cached/windowed speedup", color="green"); ax2.tick_params(labelcolor="green")
+    ax[2].axhline(total_MB, color="r", lw=1, ls=":", label=f"GPU limit {total_MB:.0f}MB")
+    ax[0].set(title=f"end-to-end throughput (N={N})", xlabel="batch size", ylabel="frames/s")
+    ax[1].set(title="rollout-step rate (N={})".format(N), xlabel="batch size", ylabel="steps/s")
+    ax[2].set(title="peak GPU memory (reserved)", xlabel="batch size", ylabel="MB reserved")
+    for a in ax:
+        a.legend(fontsize=8); a.grid(alpha=.3); a.set_xscale("log", base=2)
+    fig.suptitle(f"EXP-016 batch-limit parallelism sweep @ N={N} — {payload['meta']['gpu']} "
+                 f"(cached=generate_streaming vs windowed=generate_windowed)")
+    fig.tight_layout()
+    fig.savefig(outdir / "perf_batch.png", dpi=110)
+    print(f"wrote {outdir/'perf_batch.png'}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--batch", type=int, default=32)
@@ -124,21 +257,42 @@ def main():
     ap.add_argument("--ckpt", type=str, default="experiments/EXP-012/vanilla_s0.pt")
     ap.add_argument("--tokenizer", type=str, default="trained_autoencoder.pt")
     ap.add_argument("--prof-window", type=int, default=32)
+    ap.add_argument("--outdir", type=str, default=None, help="output dir (default: this script's dir)")
+    # batch-sweep mode (EXP-016): fix N, push batch toward each method's OWN memory ceiling
+    ap.add_argument("--batch-sweep", action="store_true", help="run batch-limit sweep instead of N-sweep")
+    ap.add_argument("--batches", type=str, default="32,64,128,256,512,1024,2048,4096",
+                    help="ascending batch sizes to try (batch-sweep mode)")
+    ap.add_argument("--sweep-window", type=int, default=16, help="fixed N for batch-sweep mode")
     args = ap.parse_args()
     assert args.budget <= 60, "budget capped at 60s/config"
     device = "cuda"
     assert torch.cuda.is_available(), "run with venv python for CUDA"
     Ns = [int(x) for x in args.windows.split(",")]
     B, K = args.batch, None
+    outdir = pathlib.Path(args.outdir).resolve() if args.outdir else HERE
 
-    tok, dyn, dcfg, _ = load_models(ROOT / args.tokenizer, ROOT / args.ckpt, Ns[0], device)
+    init_N = args.sweep_window if args.batch_sweep else Ns[0]
+    tok, dyn, dcfg, _ = load_models(ROOT / args.tokenizer, ROOT / args.ckpt, init_N, device)
     K = dcfg.inference_steps
+    total_MB = torch.cuda.get_device_properties(0).total_memory / 2**20
     meta = dict(gpu=torch.cuda.get_device_name(0), batch=B, T_ctx=args.tctx, K=K,
                 embedding_dim=dcfg.embedding_dim, depth=dcfg.depth, n_heads=dcfg.n_heads,
                 n_latents=dcfg.n_latents, bottleneck_dim=dcfg.bottleneck_dim,
                 n_actions=getattr(dcfg, "n_actions", 0), budget_s=args.budget, windows=Ns)
-    print(f"GPU {meta['gpu']} | model E{dcfg.embedding_dim} d{dcfg.depth} h{dcfg.n_heads} "
-          f"K={K} n_act={meta['n_actions']} | B={B} T_ctx={args.tctx} budget={args.budget}s/config\n")
+    print(f"GPU {meta['gpu']} ({total_MB:.0f}MB) | model E{dcfg.embedding_dim} d{dcfg.depth} "
+          f"h{dcfg.n_heads} K={K} n_act={meta['n_actions']} | T_ctx={args.tctx} "
+          f"budget={args.budget}s/config\n")
+
+    if args.batch_sweep:
+        batches = [int(x) for x in args.batches.split(",")]
+        N = args.sweep_window
+        dmeta = dict(gpu=meta["gpu"], T_ctx=args.tctx, K=K, embedding_dim=dcfg.embedding_dim,
+                     depth=dcfg.depth, n_heads=dcfg.n_heads, n_latents=dcfg.n_latents,
+                     bottleneck_dim=dcfg.bottleneck_dim, n_actions=meta["n_actions"],
+                     budget_s=args.budget)
+        print(f"BATCH-SWEEP @ N={N}, batches={batches}\n")
+        run_batch_sweep(dyn, dcfg, dmeta, N, batches, K, args.tctx, args.budget, device, outdir, total_MB)
+        return
 
     results = []
     hdr = f"{'method':8s} {'N':>4s} {'steps':>6s} {'steps/s':>9s} {'frames/s':>10s} {'ms/step':>9s} {'peakMB':>8s} {'resvMB':>8s}"
@@ -173,12 +327,13 @@ def main():
             print(f"      {ms:8.2f}ms  {name}")
 
     payload = dict(meta=meta, results=results, speedups=speedups, profiles=profs)
-    (HERE / "results.json").write_text(json.dumps(payload, indent=2))
-    print(f"\nwrote {HERE/'results.json'}")
-    _plot(meta, results, speedups)
+    outdir.mkdir(parents=True, exist_ok=True)
+    (outdir / "results.json").write_text(json.dumps(payload, indent=2))
+    print(f"\nwrote {outdir/'results.json'}")
+    _plot(meta, results, speedups, outdir)
 
 
-def _plot(meta, results, speedups):
+def _plot(meta, results, speedups, outdir=HERE):
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -199,8 +354,8 @@ def _plot(meta, results, speedups):
         a.axhline(0, color="k", lw=.5)
     fig.suptitle(f"EXP-015 rollout KV cache perf — {meta['gpu']}  (cached=generate_streaming vs windowed=generate_windowed)")
     fig.tight_layout()
-    fig.savefig(HERE / "perf.png", dpi=110)
-    print(f"wrote {HERE/'perf.png'}")
+    fig.savefig(outdir / "perf.png", dpi=110)
+    print(f"wrote {outdir/'perf.png'}")
 
 
 if __name__ == "__main__":

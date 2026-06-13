@@ -3,13 +3,20 @@
 Updated: 2026-06-13 (ESC-009/010 RESOLVED → building D-020 cross-frame KV cache / T-012)
 
 ## In progress
-*(none — EXP-015 perf tool done, blocked on Merlin ESC-011)*
+*(none — EXP-016 batch sweep done, blocked on Merlin ESC-012)*
 
 ## Awaiting review
+- **EXP-016 — batch-limit parallelism sweep** (D-023) DONE. Fixed N=32, batch→VRAM ceiling. Speedup
+  GROWS with batch 5.85×→14.0× (cached scales 731→1427 frames/s; windowed FLAT ~105–126). Cached more
+  memory-hungry at N=32 → ceiling B=512 (52%) vs windowed B=1024 (82%); cached still 13.5× end-to-end.
+  **Timing fixed** (Merlin flagged too-slow/hang): pre-filled-window measure + predictive VRAM guard +
+  `-u`/no-tail streaming. Tool `perf_rollout.py --batch-sweep --sweep-window --batches --outdir`.
+  Present-then-stop → **ESC-012** (open). Views: experiments/EXP-016/perf_batch.png, NOTES.md, results.json.
+
+## Done (2026-06-13)
 - **EXP-015 — rollout KV-cache perf tool** (D-022) DONE. cached `generate_streaming` flat ~28 steps/s
   (~900 frames/s, B=32) all N; uncached 21→5.7 steps/s; speedup 1.33×→4.79× (N 8→64); cached wins
-  memory too. Tool `experiments/EXP-015/perf_rollout.py` (reusable, `--batch/--windows/--budget`).
-  Present-then-stop → **ESC-011** (open). Views: perf.png, NOTES.md, results.json.
+  memory too. Tool `experiments/EXP-015/perf_rollout.py` (reusable). ESC-011 RESOLVED (→ EXP-016).
 
 ## Done (2026-06-13)
 - **T-012 — cross-frame sliding-window KV eviction cache (D-020) — DONE.** `stream_rollout_init`/

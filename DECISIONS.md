@@ -670,3 +670,42 @@ Would change my mind: (1) streaming is NOT faster than windowed at large N (or s
 cat / cache bookkeeping dominates; report honestly and note the regime. (2) streaming peak memory blows
 up unboundedly (eviction not actually freeing) → a cache leak; investigate. (3) measurements unstable
 across repeats → lengthen budget / fix sync. Spawns: EXP-015 (perf), present-then-stop per §5.
+
+## D-023 | 2026-06-13
+Context: ESC-011 — Merlin accepted the EXP-015 perf tool and directed the offered next cut: rerun "with a
+significantly higher batch-size … to be close to the GPU memory limit for each approach and compare their
+steps/s … see if we get more speedup as we do more parallelism." EXP-015 swept context window N at a fixed
+B=32 with BOTH methods at the same batch. The new question is orthogonal: hold N fixed and push BATCH up.
+Key asymmetry to surface: cached (`generate_streaming`) has the smaller working set (EXP-015: at N=64,B=32
+windowed reserved 4708 MB vs cached ~218 MB alloc), so on this 8 GB laptop 4070 cached should fit a LARGER
+batch before OOM than windowed — a double throughput win (faster per step AND more parallelism). "Memory
+limit for each approach" therefore means each method at ITS OWN max-fitting batch, not a shared batch.
+Decision: EXP-016 — extend the reusable tool `experiments/EXP-015/perf_rollout.py` with a `--batch-sweep`
+mode: fix N (default 16, = training context length), sweep an ascending batch list, run each method
+independently, catch CUDA OOM and record the largest batch that fits per method (stop escalating that
+method on OOM). Report per (method,batch): steps/s, frames/s (=B×steps/s — the real throughput when batch
+differs), ms/step, peak alloc/reserved MB. Headline outputs: (a) each method's max-fitting batch + its
+steps/s & frames/s there; (b) speedup (cached÷windowed steps/s) vs batch on the shared batches — does it
+grow, flatten, or shrink as parallelism rises; (c) frames/s vs batch for both, annotating where windowed
+OOMs but cached keeps scaling. Write to `experiments/EXP-016/` via a new `--outdir` (keeps EXP-015 intact).
+Run local 4070 (venv python, CUDA). Budget small (≤8s/config); the N-sweep mode is untouched.
+Alternatives rejected: (a) a single huge B at fixed N — answers "does cached fit a bigger batch" but not
+"does speedup grow with parallelism"; the sweep gives the curve. (b) sweep B and N jointly — too many
+configs / muddles the parallelism question; one representative N keeps it clean (can rerun other N if he
+wants). (c) auto-double-until-OOM with no list — fine, but an explicit ascending list is more legible and
+reproducible; I'll size it from the 8 GB ceiling.
+Expected outcome: at fixed N, both methods get faster in frames/s as batch rises until the GPU saturates
+(compute-bound), then per-step steps/s falls ~linearly with batch. Two regimes for the speedup ratio: at
+small batch cached's per-step win persists (it skips re-encoding the window); as batch grows and both
+become compute-bound on the same per-step FLOPs the steps/s ratio may COMPRESS toward ~1 (cached's saving
+is re-doing window attention, which is a shrinking fraction of total compute at high B) — so "more speedup
+with more parallelism" may be FALSE for the steps/s ratio. BUT cached's decisive win shows up as a higher
+max batch (lower memory) → higher peak frames/s overall. I expect the honest headline to be "cached wins
+by fitting more parallelism (memory), not by a widening per-step ratio" — I'll report whichever the data
+shows.
+Would change my mind: (1) cached's speedup ratio actually GROWS with batch → its per-step saving is not
+a fixed fraction; report the regime. (2) cached does NOT fit a meaningfully larger batch than windowed →
+the EXP-015 memory gap doesn't translate to batch headroom (e.g. cache grows with B too); investigate
+where the memory goes. (3) OOM is non-deterministic / fragments unpredictably → fix with empty_cache +
+reset between configs, widen spacing, report the fragile boundary honestly rather than a crisp max.
+Spawns: EXP-016 (perf, local), present-then-stop per §5.

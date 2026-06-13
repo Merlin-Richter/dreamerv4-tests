@@ -617,3 +617,74 @@ profiler proxy for time-waiting-on-memory; exact HBM-stall % would need Nsight C
 2. Anything to read differently — e.g. the ~40% memory-bound split, or the windowed reserved-memory
    blowup (allocator churn) worth a deeper look?
 Urgency: blocking per §5 — not starting follow-ups until you weigh in. Nothing in flight; 4070 idle.
+
+### ESC-011 RESOLVED (Merlin, 2026-06-13)
+Tool accepted; took the offered next cut. Steering (verbatim-in-substance): "run the perf again but with
+a significantly higher batch-size. I want to see if we get more speedup as we do more parallelism — try
+to be close to the GPU memory limit for each approach and compare their steps/s." → A batch-limit
+parallelism sweep: push batch toward each method's OWN memory ceiling (cached uses less memory → fits a
+larger batch) at a fixed context window, and measure whether the cached-vs-windowed speedup grows with
+parallelism. → D-023 / EXP-016 (local 4070), present-then-stop per §5.
+Applied to: DECISIONS.md D-023, EXPERIMENTS.md (EXP-016), BOARD.md, ORIENT.md.
+
+## ESC-012 | 2026-06-13 | OPEN — present EXP-016 (batch-limit parallelism sweep) — present-then-stop
+Context: the batch cut you asked for (ESC-011) — fixed N=32, push batch toward each method's OWN VRAM
+ceiling on the 8 GB 4070, cached (`generate_streaming`) vs windowed (`generate_windowed`), does the
+speedup grow with parallelism. NOTE on the runs you saw cancelled: the original tool ran 4 rollout passes
+per config and measured from a near-empty window, so it was far too slow, and at batch ≥1024 it crossed
+8 GB into WDDM system-RAM fallback (ms→minutes — the 10-min "stuck on windowed 2048"). Both fixed (see
+"timing fix" below); this read is from the clean bounded run.
+
+### The result (decisive read)
+**Yes — more parallelism gives MORE speedup, not less, because only the cached path scales; the uncached
+path is throughput-flat.** At N=32 the cached/windowed steps/s ratio rises MONOTONICALLY with batch:
+**5.85× (B=32) → 10.2× (64) → 13.3× (128) → 13.5× (256) → 14.0× (512).** Cached end-to-end throughput
+climbs 731→1427 frames/s as batch goes 32→512; windowed is **flat at ~105–126 frames/s for every batch**
+— it is saturated on re-encoding the full 31-frame window each step, so extra parallelism buys it nothing.
+Mechanism: windowed's wasted per-step recompute scales with batch while cached does O(1) work/step, so the
+gap widens as you parallelize.
+**On "close to the memory limit for each approach":** at N=32 the asymmetry FLIPS vs EXP-015's N=64 result.
+Here cached uses MORE memory per batch (it holds a persistent K/V cache for 31 frames × all layers/heads),
+so cached hits its VRAM ceiling SOONER — cached maxes at **B=512 (4232 MB, 52% VRAM)**, windowed reaches
+**B=1024 (6716 MB, 82%)**. So windowed fits 2× the batch — but it doesn't matter: cached at B=512 (1427
+frames/s) still delivers **13.5× the end-to-end throughput** of windowed at B=1024 (105 frames/s). Whether
+cached or windowed fits the bigger batch is N-dependent (windowed's transient ballooned at N=64; cached's
+cache dominates at N=32).
+Two of my D-023 predictions were wrong, both surfaced: I expected the ratio to COMPRESS toward 1 at high
+batch (it GROWS) and expected cached to fit a BIGGER batch (it fits a smaller one at N=32). Surprise: mild,
+favorable — the cache looks even better than predicted on speed.
+
+### The honest caveat (measurement stability)
+Absolute steps/s drifts ~30% run-to-run on this laptop GPU (thermal/clock throttling across back-to-back
+sweeps — an earlier identical run read cached B=512 at 2090 vs 1427 frames/s here). The cached-vs-windowed
+RATIO and the qualitative shapes (cached scales, windowed flat) are stable, because the two methods are
+timed back-to-back under the same thermal state. Read the speedup ratio + the shapes as the result, not the
+absolute frames/s. Memory numbers are stable.
+
+### Access points
+- **Plot (open first):** `experiments/EXP-016/perf_batch.png` — L: frames/s vs batch (cached scales,
+  windowed flat); M: steps/s vs batch with the green speedup line 5.9×→14×; R: peak reserved MB vs batch
+  with the 8 GB GPU line + each method's ceiling.
+- Numbers: `experiments/EXP-016/results.json`. Full reconciliation: `experiments/EXP-016/NOTES.md`.
+- Rerun: `venv/Scripts/python.exe -u experiments/EXP-015/perf_rollout.py --batch-sweep --sweep-window N
+  --batches ... --budget 2 --outdir experiments/EXP-016`.
+
+### The timing fix you asked for (so the next run isn't slow)
+Root cause was twofold: (a) 4 rollout passes/config + measuring from a near-empty window (long run needed
+to reach steady state, exploding at big batch); (b) launching configs past 8 GB → WDDM sysmem-fallback
+thrash (the 10-min hang). Fixes: measure from a PRE-FILLED window (context = N−1) so every step is
+steady-state → a short budget-capped pass suffices (warmup 4 + calibrate 3 + 8–64 measured steps, peak
+memory captured in the same pass — no separate memory pass); and a **predictive VRAM guard** that
+extrapolates reserved-MB and STOPS escalating a method before the next batch would cross 0.92×VRAM (so a
+thrashing config is never launched). Also: `-u` + writing straight to file (no `tail` pipe) so progress
+streams live. A clean full sweep now runs in a few minutes and never hangs.
+
+### The question for you
+1. Does this answer it — speedup grows with parallelism (→14× at B=512) because cached scales and windowed
+   is throughput-flat; and at each method's own VRAM ceiling cached wins 13.5× end-to-end despite fitting
+   half the batch at N=32?
+2. Want another cut? Natural follow-ups: the same batch sweep at a DIFFERENT N (e.g. N=64, where the
+   memory asymmetry flips and cached may fit the bigger batch), or a quick 2–3× repeat at one batch to pin
+   the ±30% thermal variance with error bars. I lean: not needed unless you want the N=64 contrast — the
+   parallelism question is answered.
+Urgency: blocking per §5 — not starting any follow-up until you weigh in. Nothing in flight; 4070 idle.
