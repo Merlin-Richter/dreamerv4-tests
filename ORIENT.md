@@ -1,38 +1,47 @@
 # ORIENT.md
 
-Rewritten: 2026-06-13 ~07:00 (ESC-006 resolved → redirected; EXP-011 diagnostic launching)
+Rewritten: 2026-06-13 ~08:00 (EXP-011 done & reconciled; ESC-007 open — present-then-stop)
 
 ## What we are doing and why
-- **H1, H2 — supported.** Frozen probe 5503e75; T-004 H3 bar = color ΔRGB < ~63 at
-  n_occ ∈ {12,16,24}.
-- **H3 — FF7 v1 supports it for COLOR (EXP-010).** Both arms move the post-window color
-  cliff off chance, clearing the bar at n_occ 12 & 16; k=3 > k=1; no degradation tripwires.
-- **NEW redirection (Merlin, ESC-006):** position is at chance even in OPEN rollout — the
-  base model never learned to track motion (predates FF7; my_dynamics & EXP-009 same). So
-  "can a memory method retain position/momentum?" is UNPROVEN until the base model can do
-  position in the clear. **Diagnose before fixing.** → D-015 / EXP-011.
+- **H1, H2 — supported.** Frozen probe 5503e75; T-004 H3 bar = color ΔRGB < ~63 at n_occ {12,16,24}.
+- **H3 — FF7 v1 supports COLOR (EXP-010).** Position was the open worry → diagnosed in EXP-011.
+- **EXP-011 reframes the position worry:**
+  1. Position is fully encoded in the tokenizer latents (linear probe R²=0.96) → deficit is in
+     the dynamics D, NOT the encoder C (D-015 tripwire did not fire).
+  2. my_dynamics is a weak motion model — 1-step teacher-forced 4.5px, WORSE than copy-last 3.2px
+     (≈ failure (a)). The old baseline is undertrained at motion.
+  3. FF7 tracks motion WELL: 1-step ~1.0px, open-loop to 14.8px@h12 (k3) before chaos → failure
+     (b), not inability. EXP-010's "position at chance" was a reveal-frame snapshot in the
+     saturated regime; horizon-resolved, FF7 clearly tracks position.
+  → Occluded position-at-chance = dead-reckoning a bouncing ball through occlusion (chaotic),
+    a measurement issue, NOT a base-capability wall. Position-memory is NOT doomed.
 
 ## In flight
-**EXP-011 — no-training position-deficit diagnostic** (D-015, local 4070, building inline).
-Goal: (i) confirm/quantify deficit, (ii) LOCALIZE tokenizer C vs dynamics D (linear-probe
-latents→xy), (iii) disambiguate (a) "never learned motion" vs (b) "learned motion, open-loop
-chaotic desync from GT trajectory". Components: GT ball kinematics (states vx,vy — zero
-inference); copy-last & chance position baselines vs model OPEN-loop pos_err vs horizon;
-closed-loop/teacher-forced 1-step pos_err along trajectory; linear probe of frozen tokenizer
-latents → (x,y); qualitative rollout look. Artifacts → experiments/EXP-011/.
+**NOTHING running. 4070 idle. present-then-stop gate (ESC-007) — awaiting Merlin's verdict.**
+Per §5 the §3 prep allowance does NOT apply: do not start a baseline retrain, metric change, or
+any FF7 variant until he answers.
+
+## Open methodological issue (raised in ESC-007)
+EXP-009 baseline (my_dynamics) and EXP-010 (FF7, fresh 100-ep) are **NOT training-matched**.
+Can't attribute FF7's better dynamics to the loss vs just more training. Color-memory conclusion
+survives (sliding-window cliff is architectural), but H3 wants a **budget-matched vanilla
+baseline**; my_dynamics likely retired. This is the first overnight/cluster-worthy run candidate.
 
 ## NEXT ACTION
-Build + run EXP-011 (no training → no present-then-stop gate is *required* mid-build, but the
-RESULT is a §5 present-then-stop: reconcile in EXP-011/NOTES.md, build a view, decisive read on
-(a) vs (b) and C-vs-D, ESC-007, stop for Merlin). My priors (D-015): lean (b) chaos + position
-decodable from latents (deficit, if any, in D) — but the tripwire is: if position is NOT
-decodable from tokenizer latents, the bottleneck is C and that reframes all H3 position work.
+Wait for ESC-007 verdict. His three questions: (1) agree with the reframing? (2) train a
+budget-matched vanilla baseline (my rec: yes — needed regardless)? (3) position path —
+closed-loop/distributional metric vs color-only-and-move-on vs FF7 position variant (my lean:
+baseline first, then closed-loop position metric, then judge position). On his answer: write the
+next decision, then act.
+
+## Access points for his review (ESC-007)
+- `experiments/EXP-011/headline.png` (open-loop pos_err vs horizon; killer numbers in title)
+- `experiments/EXP-011/results.json`; full reconciliation `experiments/EXP-011/NOTES.md`
 
 ## Current worries
-1. **Open-loop GT-matched position is metric-ambiguous** — could read chance under (a) OR (b).
-   The closed-loop + linear-probe components exist precisely to break that ambiguity; make sure
-   they actually do before declaring a verdict.
-2. **Don't overfit the diagnostic to my prior.** I predicted (b); run the copy-last comparison
-   honestly — if the model only matches copy-last, that's (a) and it overturns the FF7 framing.
-3. Reuse the frozen probe's detector/env exactly (detect_ball, make_probe_episode, states) so
-   numbers are comparable to EXP-009/010 — do NOT introduce a second detector.
+1. The FF7-loss-vs-more-training confound is real and blocks a clean H3 attribution until a
+   budget-matched vanilla baseline exists.
+2. Don't over-claim FF7 "solved motion" — it's better than my_dynamics, but open-loop still
+   decays to chance by h~16; the win is 1-step + medium-horizon tracking.
+3. Position-memory through occlusion still genuinely unproven (chaos makes the open-loop metric
+   uninformative) — needs a metric that measures memory, not trajectory chaos.

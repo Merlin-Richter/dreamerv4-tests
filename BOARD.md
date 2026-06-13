@@ -3,21 +3,21 @@
 Updated: 2026-06-12 (FF7 go-ahead received; T-009 build in progress)
 
 ## In progress
-- **EXP-011 — position-deficit diagnostic** (D-015, no training, local 4070). Confirm/localize
-  (tokenizer C vs dynamics D)/disambiguate ((a) no motion learned vs (b) open-loop chaos) the
-  general position-tracking deficit Merlin flagged at ESC-006, BEFORE any architecture/retrain.
+*(none — 4070 idle; awaiting Merlin's ESC-007 verdict on EXP-011)*
 
 ## Awaiting review
-- **EXP-010 — FF7 v1 screening DONE & reconciled** (both arms, 2026-06-13). Supports H3
-  (color-only): clears T-004 bar at n_occ 12&16, misses 24; k3>k1; no tripwires. Position
-  at chance. → ESC-006 RESOLVED (Merlin redirected to the position-deficit root cause).
+- **EXP-011 — position-deficit diagnostic DONE & reconciled** (2026-06-13). Reframes the worry:
+  position encoded in latents (C fine, R²=0.96); my_dynamics weak at motion (a); FF7 tracks
+  motion well (b, ~1px 1-step). Occluded pos-at-chance = dead-reckoning chaos. CONFOUND: FF7
+  vs my_dynamics not training-matched. → ESC-007 (open). No next decision until verdict.
 
-## Backlog
-- **(post-EXP-011) Position deficit fix OR metric change** — lever picked by EXP-011 results:
-  (a)→ base-dynamics fix (temporal-attention density/placement, training, motion loss);
-  (b)→ open-loop GT-matched position is the wrong metric, switch to closed-loop/distributional.
-- **(deferred) FF7 follow-ups from EXP-010:** replicate k=3 at a 2nd seed; position/motion-
-  carrying FF7 variant; n_occ-24 near-miss. Gated behind the position-deficit resolution.
+## Backlog (proposed in ESC-007, gated on Merlin)
+- **Budget-matched vanilla baseline retrain** (same 100 ep/data as FF7) — retire my_dynamics,
+  attribute the dynamics gain, re-anchor H2/H3. First overnight/cluster-worthy run candidate.
+- **Closed-loop / distributional position metric** — measure position *memory*, not open-loop
+  trajectory chaos (the current open-loop GT-matched metric conflates them).
+- **(deferred) FF7 follow-ups from EXP-010:** replicate k=3 2nd seed; position/motion FF7
+  variant; n_occ-24 near-miss.
 
 ## Done (recent)
 - **T-009 — FF7 v1 built** (2026-06-12, commit ec45dc1): all 3 acceptance criteria pass

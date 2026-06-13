@@ -282,3 +282,68 @@ position open" pending EXP-011.
 Applied to: DECISIONS.md D-015 (EXP-011 no-training diagnostic: confirm/localize/disambiguate
 the position deficit before any architecture change or retrain), GOAL.md (H3 note + position-
 tracking-blocker), ORIENT.md (rewritten), BOARD.md (EXP-011 in progress).
+
+## ESC-007 | 2026-06-13 | OPEN — present EXP-011 (position-deficit diagnostic) — present-then-stop
+Context: EXP-011 (D-015, no training) ran to answer your ESC-006 redirect — did the model never
+learn motion (a), or learn it and desync in open loop (b), and does the deficit live in the
+tokenizer C or the dynamics D. This is a §5 present-then-stop; it is also high-surprise +
+raises a methodological issue, so flagging hard.
+
+### The result (decisive read)
+Your worry was right about *one* model and reframed for the rest. Three findings:
+1. **The tokenizer is fine — position is fully encoded in the latents.** A linear probe reads
+   ball (x,y) off the frozen tokenizer latents at R²=0.96 (median 2.7px). So the deficit is in
+   the dynamics model D, not the encoder C. (This was my D-015 tripwire; it did NOT fire — the
+   info reaches D, so registers/FF7 on D can in principle carry position.)
+2. **my_dynamics is genuinely a weak motion model — failure (a).** With *perfect* GT context,
+   its 1-step position prediction is 4.5px, WORSE than just freezing the ball (3.2px). It never
+   learned good motion. (Consistent with EXP-009's own ceiling 5.6px — no bug; the "1.1px" I'd
+   cited before was the detector on GT frames, not the model.) So the "position at chance" partly
+   traces to the **baseline being undertrained/weak**, exactly as you suspected the model "can't
+   even do it in general."
+3. **But motion IS learnable here, and the FF7 checkpoints already track it well — failure (b),
+   not (a).** FF7 1-step is ~1.0px (4.5× better than my_dynamics, 3× better than freezing).
+   Open-loop, ff7_k3 tracks the moving ball to 4.6px@h4, 10px@h8, 14.8px@h12, only saturating
+   near chance by h≈16+ — gradual open-loop compounding, i.e. chaos, not inability to model
+   motion. **EXP-010's "position at chance" was misleading:** it measured position only at the
+   reveal frame, which for the drift control sits at horizon = n_occ, so the n_occ 12/16/24
+   points were always already in the saturated regime. The horizon-resolved curve shows FF7
+   does track position; the snapshot hid it.
+
+**What this means for the H3 position question:** it is NOT doomed by a base-capability wall.
+Position is in the latents; a trained model tracks motion 1-step to ~1px and open-loop for ~12
+steps. The reason occluded position hits chance is that **dead-reckoning a bouncing ball through
+occlusion with zero feedback is chaotic** — one bounce-timing error desyncs the exact GT
+trajectory. Color (static) survives occlusion; exact position (chaotic) can't be expected to
+under an open-loop GT-matched metric. That's a *measurement* problem (we'd need a closed-loop or
+distributional position metric), not proof the memory approach fails on position.
+
+### The catch I have to flag (methodological)
+I cannot tell from this diagnostic whether FF7's far-better dynamics come from the **FF7 loss**
+or simply from the FF7 runs being **trained 100 epochs while my_dynamics (old baseline) was
+trained less/differently**. Provenance of my_dynamics is older/approximate. Consequence:
+**EXP-009 (H2 baseline = my_dynamics) and EXP-010 (FF7, fresh 100-ep) are not training-matched.**
+The color-memory conclusion still holds (the sliding-window cliff is architectural — a better-
+trained vanilla model still can't see past its window), but a clean H3 comparison wants a
+budget-matched vanilla baseline, and my_dynamics should probably be retired as the baseline.
+
+### Access points (low-friction view)
+- **Headline chart:** `experiments/EXP-011/headline.png` — open-loop pos_err vs horizon for all
+  3 models + copy-last + chance; title carries the two killer numbers (1-step 4.5 vs 1.0px,
+  latent probe R²=0.96).
+- Numbers: `experiments/EXP-011/results.json`. Full reconciliation: `experiments/EXP-011/NOTES.md`.
+
+### The question for you
+(1) Do you agree with the reframing — base model *can* track motion (FF7 ~1px 1-step, ~12 steps
+open-loop); occluded position-at-chance is dead-reckoning chaos + a weak old baseline, not a wall?
+(2) The methodological fork — my recommendation: **train a budget-matched vanilla baseline (same
+100 ep / data as FF7) to (i) retire my_dynamics, (ii) cleanly attribute the dynamics improvement,
+and (iii) re-anchor H2/H3 comparisons.** This is the first cluster-worthy / overnight-worthy run;
+alternatively keep screening locally. Agree?
+(3) For the H3 *position* question specifically: do you want to (a) switch the position metric to
+closed-loop / distributional (measure memory, not chaos), (b) treat color-only as the H3 result
+and move on, or (c) design an FF7 variant aimed at position before deciding? My lean: (2) first
+(we need a clean baseline regardless), then a closed-loop position metric, then judge position.
+
+Urgency: blocking — per §5 I am not starting the next decision (baseline retrain, metric change,
+or any variant) until you weigh in. Nothing is in flight; the 4070 is idle.
