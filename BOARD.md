@@ -6,11 +6,16 @@ Updated: 2026-06-13 (ESC-009/010 RESOLVED → building D-020 cross-frame KV cach
 - **T-013 — memory-token architecture + FF9 v2 (BUILDING)** (H3 architectural baseline; D-024). ESC-013
   resolved: Merlin picked P1-as-baseline with his FF9 v2 fix (variable-horizon j∈{1..k}, path frames τ=0 /
   no GT leak, last frame sampled-τ, loss on last frame only, un-ramped). Plan `tasks/T-013-plan.md` updated.
-  Build: (1) additive MEMORY token type (registers→scratch; `n_memory=0`≡today) → (2) `_ff9_loss` v2 +
-  train flag → (3) `generate_full_state_memory` + smokes + memory-sufficiency probe → (4) train seed0 →
-  EXP-017 present-then-stop. Measure: PRIMARY within-window memory sufficiency + no base-dyn regression;
-  POSITIONING frozen-probe color vs FF7/vanilla_s0 (expect ≈FF7). Verifier finding (2) accepted: cross-window
-  relay (option A) is the NEXT step on top of this baseline.
+  Build progress:
+  - ✅ (1) additive MEMORY token type + (2) `_ff9_loss` v2 (random j, τ=0 path, loss on 1..j, un-ramped) in
+    dynamics_model.py. Gates: test_ff9_smoke **7/7** (incl. n_memory=0 byte-identity, grad→blocks+memory_tokens,
+    injection changes prediction); FF7 5/5, KV 5/5, stream 9/9 — **no regression**. (commit 7f4e4a3)
+  - ⏳ (3) `train_dynamics_model.py --ff9` flag + knobs (ff9_k, lambda_ff9, ff9_ramp).
+  - ⏳ (4) `generate_full_state_memory` + dispatch (memory-carry rollout, analog of generate_memory) for
+    frozen-probe eval; memory-sufficiency probe (L(mem)≪L(no-mem)).
+  - ⏳ (5) train seed0 (100ep bs32, committed config.yaml+run.sh) → EXP-017 present-then-stop.
+  Measure: PRIMARY within-window memory sufficiency + no base-dyn regression; POSITIONING frozen-probe color
+  vs FF7/vanilla_s0 (expect ≈FF7). Verifier finding (2) accepted: cross-window relay (option A) is NEXT.
 
 ## Done (2026-06-13)
 - **EXP-016 batch sweep — ACCEPTED** (ESC-012, "strong results"). Closes the KV-cache efficiency

@@ -38,9 +38,11 @@ could cheat from); **last frame t+j at sampled τ** (training target; low-τ_j f
 last frame only, un-ramped.** Distinct MEMORY token type (registers→scratch); withhold-via-τ=0 (no
 `absent_latent` token). Mechanism: within a window frame t+j attends DIRECTLY to frame t's memory → trains
 "memory = sufficient full-state object," NOT the cross-window relay (that's option A, layered on next).
-Build steps (tasks/T-013-plan.md §7): (1) additive arch (`n_memory`, smoke `n_memory=0`≡today); (2)
-`_ff9_loss` v2 + train flag/knobs; (3) `generate_full_state_memory` + smokes + memory-sufficiency probe;
-(4) train 100ep bs32 seed0 → EXP-017 present-then-stop. Measure: PRIMARY within-window memory sufficiency
+Build progress: ✅ architecture (memory tokens) + `_ff9_loss` v2 done, all gates green (FF9 7/7, FF7 5/5,
+KV 5/5, stream 9/9; commit 7f4e4a3). **Remaining before the training run:** (3) `train_dynamics_model.py
+--ff9` flag + knobs (ff9_k, lambda_ff9, ff9_ramp); (4) `generate_full_state_memory` + dispatch (memory-carry
+rollout for frozen-probe eval) + memory-sufficiency probe; (5) train seed0 100ep bs32, committed
+config.yaml+run.sh → EXP-017 present-then-stop. Measure: PRIMARY within-window memory sufficiency
 (L(mem)≪L(no-mem)) + no base-dynamics regression; POSITIONING frozen-probe color vs FF7/vanilla_s0 (expect
 ≈FF7). Tripwires (D-024): mem not load-bearing / base regression / color worse than FF7 → halt.
 
