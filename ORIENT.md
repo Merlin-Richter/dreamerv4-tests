@@ -30,17 +30,17 @@ purpose is efficient continuous rollouts, NOT training prep)
 EXP-016 ACCEPTED (ESC-012, "strong results"). Merlin directed: clean up + propose next direction.
 
 ## NEXT ACTION
-**Process the critical-claim-verifier verdict on the FF9 design note, then escalate for build go-ahead.**
-Merlin chose **option B — memory-token split + FF9 memory-only sufficiency** (over the sequential-relay
-option A), COLOR-first measurement. Design note written: `tasks/T-013-plan.md` (distinct MEMORY token type;
-registers revert to scratch; FF9 = memory ALONE, current latent WITHHELD, must predict next k states →
-full-state object; mirrors the proven FF7 plumbing with withhold-instead-of-overwrite). **Verifier audit
-RUNNING** (background, agent a77…; tests the crux: does FF9 actually FORCE memory to store hidden state, or
-is it satisfiable by a denoiser shortcut that ignores memory — same risk class as FF7). On its verdict:
-revise the plan if flawed → **record D-024** → **escalate (ESC-013) for build go-ahead** (like ESC-005 for
-FF7) → build on 4070 → EXP vs FF7 (EXP-010) + vanilla_s0 (EXP-012) on frozen probe 5503e75, n_occ
-{12,16,24,32,48}. **Do NOT start the build before D-024 + Merlin's go-ahead.** Per §4, read the verifier
-report before recording the decision.
+**Await Merlin's ESC-013 path decision (P1/P2/P3) on the FF9 method.** Merlin chose option B (memory-token
++ FF9), color-first. Design note `tasks/T-013-plan.md` written + **critical-claim-verifier audited (V-T013):
+verdict REFUTED-as-specified.** Two findings: (1) loss shortcut — FF9 inherited FF7's τ~Uniform + `0.9τ+0.1`
+ramp, so the loss is mostly solvable by local self-denoising; memory non-load-bearing except in the
+down-weighted low-τ tail. **Fixed** in the plan (clamp τ low / invert ramp / supervise frame 1 at τ≈0). (2)
+STRATEGIC: even fixed, FF9 v1's single-hop TBPTT-1 credit trains read+1-hop-write but not
+preserve-across-N-hops → predicted to reproduce FF7 (color yes, depth/position no). So **A (sequential relay)
+and B (full-state objective) are COMPLEMENTARY, not alternatives.** → ESC-013 escalated with 3 paths;
+recommend **P1** (build FF9-v1-with-low-τ-fix as a color-first diagnostic: win = depth gain; informative null
+= green-light P3 = A+B combined). **Do NOT record D-024 or build until Merlin picks P1/P2/P3** — the verdict
+bears on the A/B framing he set (§7).
 
 ## Recently done
 - **T-012 / D-020 — cross-frame sliding-window KV eviction cache — DONE + verified.** `stream_rollout_

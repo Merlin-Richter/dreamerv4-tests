@@ -12,6 +12,35 @@ own causal channel through time), spatial attention = full within-frame mixing.
 
 ---
 
+## 0. VERIFIER VERDICT (V-T013, 2026-06-13) — the spec below is REVISED to fold it in
+
+`critical-claim-verifier` tested "FF9 forces the memory tokens to encode the full hidden state; no
+trivial shortcut." **Verdict: REFUTED as originally specified.** Two findings, both load-bearing:
+
+1. **Loss shortcut (fixable).** FF9 (copying `_ff7_loss`) gives successor frames t+1..t+k their OWN real
+   latents noised at τ ~ Uniform(0,K_max), loss ramp-weighted `w=0.9τ+0.1`. The dominant, ramp-favored
+   (high-τ) part is solvable by locally denoising each successor's own latent — memory non-load-bearing
+   there. Memory only bites in the low-τ tail the ramp down-weights. Empirical probe
+   (`experiments/verify-T013/probe_memory_loadbearing.py`): max memory benefit ~61% of self-denoise loss
+   but concentrated at τ≈0.1 (+0.177) and ≈0 at τ≈0.9 (+0.002). → withholding the latent does NOT *force*
+   full-state memory under the inherited ramp; it only permits it. **FIX (folded into §3 below): on FF9
+   successor frames clamp τ low / flatten-or-invert the FF9 ramp; strongest — supervise frame 1 at τ≈0
+   (pure noise) so the entire target must come from `mem_t` through the causal channel.**
+2. **Single-hop credit limit (NOT fixable within v1 — strategic).** Even with the τ fix, FF9 v1's TBPTT-1
+   gradient trains read + 1-hop write but NOT preserve-across-N-hops. Predicted outcome: reproduces FF7's
+   split — static COLOR survives (a constant accumulates from even weak low-τ pressure) but dynamic
+   POSITION and beyond-window retention *depth* do not improve over FF7. Depth/position need the
+   sequential register-relay (option A, parked). → **FF9 v1 alone is a DIAGNOSTIC, not an expected win on
+   depth; the objective (B) and the credit-assignment (A) fixes are COMPLEMENTARY, not alternatives.**
+   This is escalated (ESC-013) because it bears on the A-vs-B choice.
+
+Confirmed correct by the verifier (no change): Q#5 no main-loss corruption (fresh gather tensors; only
+`regs`/`mem` carry intended grad); the `absent_latent` placeholder is a fair per-instance constant; Q#4
+env is deterministic given the action sequence (`occluded_bouncing.py`), so the point-prediction loss is
+well-posed. Full report folded; EXPERIMENTS.md row `V-T013`.
+
+---
+
 ## 1. Why (the scientific motivation, from IDEAS.md + EXP-010/013)
 
 FF7 (registers as carrier, single-timestep-sufficiency) carries static **color** beyond the window
@@ -60,11 +89,15 @@ Same combined-step structure as FF7 (main windowed diffusion loss unchanged; FF9
   - **frame 0 (t):** latent slots = a learned **`absent_latent` placeholder** (latent WITHHELD — the key
     difference from FF7, which puts the real latent there); `memory_in[:,0] = mem_t` (injected, the only
     carrier); registers = learned scratch; shortcut at `tau_ctx`.
-  - **frames 1..k (t+1..t+k):** real latents noised at sampled tau, finest d; `memory_in[:,1:]` = learned
-    init (the in-pass memory relay forwards mem_t through the k hops, exactly as FF7's k≥2 relays the
-    register).
-  - **target/loss:** flow loss on the latent outputs of frames 1..k vs real z1 (ramp-weighted), same as
-    `_ff7_loss` :478-480. Frame 0's latent output is ignored (it was a placeholder).
+  - **frames 1..k (t+1..t+k):** real latents noised at **LOW τ** (V-T013 fix — NOT the inherited
+    Uniform(0,K_max)); `memory_in[:,1:]` = learned init (the in-pass memory relay forwards mem_t through
+    the k hops, exactly as FF7's k≥2 relays the register). **τ schedule (fix):** frame 1 at τ≈0 (pure
+    noise → its entire target must come from `mem_t` through the causal channel); frames 2..k at τ ∈
+    [0, ~0.2]. Equivalently/additionally flatten or invert the FF9-term ramp so gradient lives where
+    memory is the only signal source. (Make this a config knob `ff9_tau_max` to ablate.)
+  - **target/loss:** flow loss on the latent outputs of frames 1..k vs real z1, **un-ramped or
+    inverse-ramped** for the FF9 term (V-T013), unlike `_ff7_loss` :478-480's `0.9τ+0.1`. Frame 0's latent
+    output is ignored (it was a placeholder).
 - Backprop path: through the injected `mem_t` into the windowed pass that wrote it → trains the **write**
   side; k≥2 trains the in-pass memory→memory **relay** (one hop of gradient, TBPTT-1-like). Deep
   preserve-across-N-hops is the *sequential relay* extension (parked; option A) — NOT in FF9 v1.
@@ -88,8 +121,12 @@ applies unchanged — memory tokens are just more per-frame tokens in the window
   occlusion **n_occ ∈ {24, 32, 48}** — extended past EXP-010's {12,16,24} because FF7 only *just* misses at
   24; the question is whether full-state memory holds color where FF7's drift breaks down. Baselines on the
   identical probe: vanilla_s0 (EXP-012, at chance beyond window) and FF7 k=3 (EXP-010, decays to ~65 by 24).
-  **FF9 "works" (v1):** color ΔRGB stays < bar at n_occ where FF7 has crossed it (≥24), i.e. flatter deep
-  decay than FF7.
+  **FF9 v1 outcomes (reframed per V-T013 — v1 is a DIAGNOSTIC, not an expected depth win):**
+  - *Win:* color ΔRGB flatter than FF7 at n_occ ≥ 24 → full-state objective + low-τ fix buys depth even
+    single-hop (plausible since color is static and accumulates).
+  - *Informative null:* color ≈ FF7 → empirically confirms the single-hop credit limit is the blocker →
+    green-light combining the objective (B) with the sequential relay (A). Negative results first-class (§8).
+  - *Regression:* worse than FF7 → the τ-clamp/withhold hurt base dynamics; investigate.
 - **Secondary (caveated):** position via the EXP-013 metric — reported, NOT a gate (metric of uncertain
   strength, ESC-009). If FF9's full-state objective moves position at all, that's the interesting bonus.
 - **No-regression tripwire:** base 1-step teacher-forced dynamics + ceiling/drift controls must be

@@ -697,3 +697,54 @@ requested (N=64 contrast / error bars not asked for). Directed: **clean up + pro
 → The KV-cache rollout substrate (T-008 → T-012 → EXP-015/016) is now complete and characterized; this
 closes the efficiency subobjective. Next = the H3-position method it was built for (see ORIENT / the
 proposal). Applied to: ORIENT.md, BOARD.md, ESCALATIONS (header markers tidied).
+
+## ESC-013 | 2026-06-13 | OPEN — FF9 design audited (REFUTED + fixed); A/B reframed before build
+Context: you chose option B (memory-token split + FF9 memory-only sufficiency), color-first. I wrote the
+design note (`tasks/T-013-plan.md`) and — per §4 (novel objective + arch change) — ran it past the
+`critical-claim-verifier` BEFORE recording a build decision. The verdict changes the strategic picture, so
+I'm stopping to check with you rather than rubber-stamping a build.
+
+### Verifier verdict (V-T013): REFUTED as specified — but with a clean fix + a strategic catch
+1. **Loss shortcut (fixable, fix folded into the plan).** FF9 copied FF7's successor setup: successor
+   frames carry their OWN real latents noised at τ~Uniform, loss ramp-weighted `0.9τ+0.1`. So the dominant
+   ramp-favored (high-τ) part is solvable by locally denoising each successor — **memory is non-load-bearing
+   except in the low-τ tail the ramp down-weights.** Empirical probe: memory's max benefit ~61% of the loss
+   but concentrated at τ≈0.1 (+0.177) and ≈0 at τ≈0.9 (+0.002). Withholding the latent does NOT *force*
+   full-state memory under the inherited ramp. **Fix:** clamp τ LOW on FF9 successors / flatten-invert the
+   FF9 ramp; strongest — supervise frame 1 at τ≈0 (pure noise) so the whole target must come from memory.
+   (Done in the revised §3.)
+2. **Single-hop credit limit (NOT fixable in v1 — the strategic catch).** Even with the τ fix, FF9 v1's
+   TBPTT-1 gradient trains read + 1-hop write but NOT preserve-across-N-hops. Prediction: **FF9 v1 reproduces
+   FF7's split** — static COLOR survives, dynamic POSITION and beyond-window *depth* do not improve over FF7.
+   Depth/position need the **sequential relay = option A**, the one you deprioritized. So the verifier says
+   **A and B are COMPLEMENTARY, not alternatives:** B fixes *what* memory should encode (full state, via the
+   objective + τ fix); A fixes *how* memory learns to preserve across hops (credit assignment). Neither alone
+   is predicted to deliver depth/position.
+Confirmed sound: no main-loss corruption, the absent-latent placeholder is fair, env deterministic (loss
+well-posed). Artifacts: `experiments/verify-T013/`, EXPERIMENTS row V-T013.
+
+### Where this leaves us — 3 coherent paths (I recommend P1)
+- **P1 (recommended): build FF9 v1 WITH the low-τ fix and run it color-first** (single seed, 100 ep,
+  n_occ {12,16,24,32,48}, vs FF7 + vanilla_s0). Cheapest informative step that tests YOUR chosen direction
+  (B) with the verifier's fix. Framed as a diagnostic: a *win* (flatter color than FF7) means full-state +
+  low-τ buys depth single-hop; an *informative null* (≈FF7) empirically confirms the credit limit is the
+  blocker → clean green-light for P3. Either way the decision advances. ~one overnight run on the 4070.
+- **P2: isolate the low-τ fix on the EXISTING FF7 first** (tiny change, no new architecture) — does
+  stronger low-τ successor pressure alone improve FF7's color depth? Cheapest possible, separates the
+  loss-fix from the memory-token change — but doesn't test the full-state-memory idea you actually want.
+- **P3: go straight to FF9-objective + sequential relay (A+B combined)** — the verifier implies this is what
+  depth/position actually need. Biggest build (sequential relay training with the KV cache in the loop),
+  highest risk/reward; skips the isolation step so a failure is harder to localize.
+
+**My recommendation: P1.** It's the minimal step that honours your B choice + the verifier's fix, and its
+result (win or informative null) is exactly what decides whether we must escalate to P3 (A+B). The strongest
+counter: the verifier's analysis already *predicts* P1≈FF7 on depth, so P1 may spend an overnight run
+confirming an analytic prediction — if you find that argument decisive, jump to P3. I judge the empirical
+check cheap insurance (and color *might* improve single-hop since it's static), but it's your call since it
+touches the A/B framing you set.
+
+### The question for you
+Which path — P1 (recommended), P2, or P3 — and do you accept the low-τ fix as folded in? On your answer I'll
+record D-024 and either build (P1/P2) or write the A+B relay design for a second verifier pass (P3).
+Urgency: blocking per §4 (read verdict before deciding) + §7 (verdict bears on the A/B choice you set).
+Nothing in flight; 4070 idle. I will NOT record D-024 or start building until you weigh in.

@@ -3,11 +3,12 @@
 Updated: 2026-06-13 (ESC-009/010 RESOLVED → building D-020 cross-frame KV cache / T-012)
 
 ## In progress
-- **T-013 — FF9 memory-only sufficiency + distinct MEMORY tokens** (H3 position/color method; Merlin chose
-  option B over sequential-relay, 2026-06-13). Design note `tasks/T-013-plan.md` written + code-grounded.
-  **critical-claim-verifier audit RUNNING** (agent a77…, background) — testing whether FF9 actually forces
-  memory to store hidden state vs a denoiser shortcut. NEXT on verdict: revise → D-024 → ESC-013 build
-  go-ahead → build on 4070 → EXP vs FF7/vanilla_s0 on frozen probe, COLOR-first (n_occ {12,16,24,32,48}).
+- **T-013 — FF9 memory-only sufficiency + distinct MEMORY tokens** (H3 method; Merlin chose option B).
+  Design note `tasks/T-013-plan.md` written + code-grounded. **Verifier audited (V-T013): REFUTED as
+  specified** — (1) loss shortcut (memory non-load-bearing under FF7's τ~Uniform+ramp) → FIXED in plan
+  (low-τ successors); (2) single-hop credit limit → FF9 v1 predicted to reproduce FF7 (color, not depth);
+  A+B are complementary. **Blocked on Merlin ESC-013** (path P1 build-FF9-v1-with-fix [recommended] / P2
+  isolate-low-τ-on-FF7 / P3 go-straight-to-A+B). NEXT on his pick: D-024 → build or P3 relay design.
 
 ## Done (2026-06-13)
 - **EXP-016 batch sweep — ACCEPTED** (ESC-012, "strong results"). Closes the KV-cache efficiency
