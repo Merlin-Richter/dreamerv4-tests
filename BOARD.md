@@ -3,16 +3,21 @@
 Updated: 2026-06-12 (FF7 go-ahead received; T-009 build in progress)
 
 ## In progress
-*(none — 4070 idle; awaiting Merlin's ESC-006 verdict on EXP-010)*
+- **EXP-011 — position-deficit diagnostic** (D-015, no training, local 4070). Confirm/localize
+  (tokenizer C vs dynamics D)/disambiguate ((a) no motion learned vs (b) open-loop chaos) the
+  general position-tracking deficit Merlin flagged at ESC-006, BEFORE any architecture/retrain.
 
 ## Awaiting review
 - **EXP-010 — FF7 v1 screening DONE & reconciled** (both arms, 2026-06-13). Supports H3
   (color-only): clears T-004 bar at n_occ 12&16, misses 24; k3>k1; no tripwires. Position
-  at chance. Present-then-stop → ESC-006 (open). No next decision until verdict.
+  at chance. → ESC-006 RESOLVED (Merlin redirected to the position-deficit root cause).
 
 ## Backlog
-*(empty — next items spawn from the EXP-010 verdict; my rec in ESC-006: replicate k=3 +
-  design a position/motion-carrying FF7 variant)*
+- **(post-EXP-011) Position deficit fix OR metric change** — lever picked by EXP-011 results:
+  (a)→ base-dynamics fix (temporal-attention density/placement, training, motion loss);
+  (b)→ open-loop GT-matched position is the wrong metric, switch to closed-loop/distributional.
+- **(deferred) FF7 follow-ups from EXP-010:** replicate k=3 at a 2nd seed; position/motion-
+  carrying FF7 variant; n_occ-24 near-miss. Gated behind the position-deficit resolution.
 
 ## Done (recent)
 - **T-009 — FF7 v1 built** (2026-06-12, commit ec45dc1): all 3 acceptance criteria pass

@@ -344,3 +344,49 @@ its own decision). (4) Recall at reveal frames whose color evidence is OUTSIDE t
 clip stuck at chance while in-clip ones are fine - expected, not a failure (color is
 unknowable there); flagging so it is not misread as relay failure.
 Spawns: T-009 (build), EXP-010 (smoke + k=1 + k=3 screening, local 4070).
+
+## D-015 | 2026-06-13
+Context: EXP-010 (ESC-006) showed FF7 v1 supports H3 for hidden COLOR but position is at
+chance — including in the matched-horizon DRIFT control (open rollout, curtain UP). Merlin's
+read: the position deficit is GENERAL, not memory-specific or FF7-induced (it is in
+my_dynamics and EXP-009 too, even curtain-down). Implication: whether ANY memory approach can
+retain position/momentum is untestable while the base model cannot track motion in the clear.
+He floated candidate causes (ball moves little per step; too few / too-late temporal-mixing
+layers — "s,s,s,t" → maybe "s,t,s,s,t…"; never learned the concept of a movable object; or
+just needs more training) but is explicitly unsure and asked to understand it before acting.
+Greenlit a diagnostic ("yes go").
+Decision: Run EXP-011 — a NO-TRAINING diagnostic on existing checkpoints (my_dynamics.pt +
+the FF7 arms) + the frozen tokenizer, to (i) confirm/quantify the deficit, (ii) LOCALIZE it
+to the tokenizer C vs the dynamics D, and (iii) distinguish failure (a) "never learned motion"
+from (b) "learned motion, open-loop rollout chaotically desyncs from the specific GT trajectory"
+— before any architecture change or longer training. Components:
+  1. GT ball kinematics — per-step displacement and speed read directly from states[:, vx,vy]
+     (zero inference). Answers "ball moves little?" and calibrates the copy-last baseline.
+  2. Position baselines vs horizon: copy-last-observed-position and chance, vs the model's
+     OPEN-loop pos_err. Key test: does the model beat freezing the ball in place?
+  3. Closed-loop / teacher-forced 1-step pos_err along the whole trajectory (incl. across
+     bounces) vs open-loop multi-step. Good closed-loop + bad open-loop ⇒ (b); bad closed-loop
+     ⇒ (a).
+  4. Linear probe of FROZEN tokenizer latents → ball (x,y). Decodable ⇒ info is present, deficit
+     is in D's propagation; not decodable ⇒ tokenizer C bottlenecks position and no D-side fix
+     (incl. FF7) can carry it. Localizes the fix.
+  5. Qualitative: eyeball a few open rollouts — plausible-but-desynced motion vs frozen/teleport/blur.
+Alternatives rejected: (a) jump straight to the s/t temporal-attention rearrangement — a guess
+that needs a retrain and presumes the fix lives in a layer pattern we have not even localized
+to C vs D; (b) just train longer — Merlin himself unsure, and we have no evidence it is an
+undertraining problem; (c) only swap the probe's position metric (e.g. closed-loop) — premature
+before we know (a) vs (b). Diagnostic is hours, local, no training; it picks the lever.
+Expected outcome (predictions): I expect the ball to be slow (radius 10 in 64px, bouncing) so
+copy-last is a strong baseline; I expect the model's 1-step prediction to BEAT copy-last (the
+ceiling 1-step pos_err 1.1px is very tight) and closed-loop to stay good while open-loop
+diverges — i.e. lean (b), chaotic open-loop divergence, meaning open-loop GT-matched position
+is simply the wrong yardstick and the color memory result stands. I expect position to be
+linearly decodable from the tokenizer latents (deficit, if any, in D not C).
+Would change my mind: (1) position NOT linearly decodable from frozen tokenizer latents ⇒ the
+bottleneck is the TOKENIZER; H3 position-memory work must target C, and FF7-on-D can never
+carry position — a major reframing. (2) model 1-step pos_err ≈ copy-last AND closed-loop also
+poor ⇒ failure (a), the model genuinely did not learn motion; fixing base dynamics (training/
+architecture) becomes the gating task before more H3 method work. (3) ball is genuinely fast
+yet model still ≈ copy-last ⇒ strong (a) signal.
+Spawns: EXP-011 (local 4070, no training). Built inline (single-threaded local analysis I am
+blocked on; consistent with the EXP-008 inline precedent — no worker delegation benefit here).

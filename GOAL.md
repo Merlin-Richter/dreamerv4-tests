@@ -104,8 +104,18 @@ Hard constraints (Merlin, non-negotiable): **no privileged data to the model, ev
 obs + reward + env-generated data); **must generalize across environments**. Eval instrumentation
 may read sim hidden state to *score* (measurement ≠ model input).
 
-Status: **open — H3 entered, first method (FF7) designed & code-grounded, not yet built.**
-Prereqs cleared: probe frozen (T-002, 5503e75), H2 baseline measured (EXP-009). Evidence: —
+Status: **open — first method (FF7 v1) supports H3 for hidden COLOR; position open & BLOCKED.**
+Prereqs cleared: probe frozen (T-002, 5503e75), H2 baseline measured (EXP-009).
+Evidence: **EXP-010** (FF7 v1, D-014) — both arms move the post-window color cliff off the
+chance floor, clearing the T-004 bar (color ΔRGB < ~63) at n_occ 12 & 16 (k=3 > k=1; no base-
+dynamics-degradation tripwires). This supports H3 for **color**.
+**Position-tracking blocker (Merlin, 2026-06-13, ESC-006):** the model does not track ball
+*position/motion* even in an OPEN rollout (matched-horizon drift control → chance), and this
+predates FF7 (my_dynamics, EXP-009 same). So whether any memory method can retain
+position/momentum is **unproven** — the base model can't do position in the clear. Diagnosing
+this (EXP-011, D-015, no training) before further H3 method work on position. H3 color claim
+stands; H3 position claim is gated on the base-dynamics motion deficit.
 Note: reconstruction/next-frame loss alone never decides a memory claim — any method
-must be judged on the frozen probe, ≥2 seeds, against the H2 baseline (T-004 bar) under
-identical provenance discipline.
+must be judged on the frozen probe, against the H2 baseline (T-004 bar) under identical
+provenance discipline (≥2 seeds on promising results; single-seed screening allowed — Merlin
+relaxed the standing 2-seed order 2026-06-12).

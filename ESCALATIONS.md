@@ -265,3 +265,20 @@ method-iterate first.
 
 Urgency: blocking — per §5 I am not starting the next decision, seeds, or any FF7 variant
 until you weigh in. Nothing is in flight; the 4070 is idle.
+
+### ESC-006 RESOLVED (Merlin, 2026-06-13)
+Steering (verbatim-in-substance): The important point is that **even in an OPEN rollout the
+position is as bad as chance — the model did not learn to track movement in general.** Whether
+this memory approach can or cannot memorize position/momentum is therefore **unproven**, because
+the model can't do position even in the clear. Cause unknown — maybe the ball moves only a
+little per step (but even so the model should predict it); maybe not enough temporal attention
+or it comes too late (e.g. instead of "s,s,s,t,s,s,s,t" try "s,t,s,s,t,s,s,t,s"); maybe it never
+learned the concept of a movable object; maybe just more training — "maybe, maybe not." The
+previous experiments have the same issue, my_dynamics too, even with curtains down. **"We might
+want to fix that first."** Greenlit the diagnostic-first plan: "yes go."
+He did NOT give a clean verdict on the H3 color-only result itself (Q1/Q2) — the redirection to
+the movement-tracking root cause supersedes it for now; H3 status stays "supported (color-only),
+position open" pending EXP-011.
+Applied to: DECISIONS.md D-015 (EXP-011 no-training diagnostic: confirm/localize/disambiguate
+the position deficit before any architecture change or retrain), GOAL.md (H3 note + position-
+tracking-blocker), ORIENT.md (rewritten), BOARD.md (EXP-011 in progress).
