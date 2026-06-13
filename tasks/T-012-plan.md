@@ -1,8 +1,9 @@
 # T-012 — Cross-frame sliding-window KV eviction cache (D-020)
 
-**Goal:** a persistent KV cache for autoregressive sliding-window rollouts of the dynamics model D,
-as the efficient + correct substrate the eventual register-relay rollout-training method will unroll on.
-Easily verifiable (Merlin-directed). Infra, not an experiment — the correctness tests are the artifact.
+**Goal:** a persistent KV cache for autoregressive sliding-window rollouts of the dynamics model D, so
+we can run **efficient open-ended / continuous rollouts** — O(1) attention per step instead of
+re-encoding the window each frame. Easily verifiable (Merlin-directed). Infra, not an experiment — the
+correctness tests are the artifact. (Purpose is rollout efficiency only; no training/gradient framing.)
 
 ## Context (code-grounded, dynamics_model.py)
 - `generate()` (:518): uncached sliding-window rollout. Per generated frame: window = last
@@ -34,14 +35,9 @@ phase. This is exactly what the absolute-RoPE foundation (T-008) was for.
 
 **The one semantic deviation from `generate()`:** each frame's context-noise is drawn ONCE at commit and
 reused while the frame sits in the window, vs `generate()`'s fresh redraw every step. Documented,
-defensible (a frame's committed representation is fixed once generated) and the natural structure for
-rollout training (context = fixed/detached). So: NOT bit-identical to `generate()`; IS bit-identical to a
-full windowed recompute over the same frozen-noised frames, and to a frozen-noise reference rollout.
-
-**Autograd note:** built `@torch.no_grad()` for inference now. The relay-training method will need grad
-through the current step with the cache detached between steps (stop-grad TBPTT-1). The concat in
-`Attention.forward` (cached K/V + new K/V) is already grad-compatible when the cache is detached; flagged
-so that method can lift the no_grad and detach-on-commit without redesign.
+defensible (a frame's committed representation is fixed once generated). So: NOT bit-identical to
+`generate()`; IS bit-identical to `generate_windowed` (the uncached twin) and to a full windowed
+recompute over the same frozen-noised frames. Inference-only (`@torch.no_grad()`).
 
 ## Verification (`src/D_dynamics_model/test_stream_cache.py`) — forward-level is the real gate
 1. **Eviction equivalence, NO RNG (primary gate):** stream the model frame-by-frame through the

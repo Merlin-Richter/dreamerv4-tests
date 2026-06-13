@@ -79,17 +79,18 @@ Raw Video Frames (B, T, H, W, 3) [uint8]
   and long rollouts exceed the cos/sin table — see `HOWTO/rope_kv_cache_caveat.md`. Training/default
   forward (`positions=None`) is unchanged.
 - `generate_streaming()` + `stream_rollout_init`/`stream_rollout_step` (T-012/D-020): **cross-frame
-  sliding-window KV eviction cache** — the rollout-training substrate. Persists each finalized
-  frame's K/V across rollout steps and evicts the oldest time-column when the window (N−1)
-  overflows; since cached K/V are pre-rotated at absolute positions, eviction is a pure slice (no
-  re-rotation). One deliberate semantic deviation from `generate()`: each frame's context-noise is
-  drawn **once** at commit instead of redrawn every step (a frame's committed representation is
-  fixed once generated — the natural structure for rollout training). So NOT bit-identical to
-  `generate()`, but bit-identical to `generate_windowed` (the **uncached twin**, below), and the
-  residual deviation from `generate()` is within its own seed-to-seed noise on a trained model
-  (smaller, in fact). FF7 register-memory path is window-1 already → dispatched to `generate_memory`
-  unchanged. Built `@torch.no_grad()` (inference); the relay rollout-training method will lift
-  no_grad + detach the cache between steps (stop-grad TBPTT-1).
+  sliding-window KV eviction cache** for **efficient open-ended / continuous rollouts**. Persists
+  each finalized frame's K/V across rollout steps and evicts the oldest time-column when the window
+  (N−1) overflows; since cached K/V are pre-rotated at absolute positions, eviction is a pure slice
+  (no re-rotation). So an arbitrarily long rollout costs O(1) attention per step instead of
+  re-encoding the whole window — the init/step primitives drive open-ended generation (e.g.
+  interactive play, long video). One deliberate semantic deviation from `generate()`: each frame's
+  context-noise is drawn **once** at commit instead of redrawn every step (a frame's committed
+  representation is fixed once generated). So NOT bit-identical to `generate()`, but bit-identical to
+  `generate_windowed` (the **uncached twin**, below), and the residual deviation from `generate()` is
+  within its own seed-to-seed noise on a trained model (smaller, in fact). Inference-only
+  (`@torch.no_grad()`). FF7 register-memory path is window-1 already → dispatched to `generate_memory`
+  unchanged.
 - `generate_windowed()` (T-012): the **uncached twin** of `generate_streaming` — same frozen
   per-frame context-noise semantics by full windowed recompute (no persistent cache), independent
   stepping logic. Both take `noise_seed`: a deterministic per-frame noise source keyed on the

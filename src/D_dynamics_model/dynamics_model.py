@@ -767,17 +767,19 @@ class DynamicsModel(nn.Module):
     @torch.no_grad()
     def stream_rollout_init(self, context: torch.Tensor, action_idx: torch.Tensor = None,
                             K: int = None, noise_seed: int = None) -> dict:
-        """Seed a cross-frame sliding-window cached rollout (D-020). Unlike generate_cached (which
-        rebuilds the cache every frame), this PERSISTS finalized frames' K/V across rollout steps
-        and evicts the oldest when the window (N-1) overflows — the efficient + correct substrate
-        for rollout training. Prefill: commit the context frames' K/V ONCE, held at context_signal.
+        """Seed a cross-frame sliding-window cached rollout (D-020) for efficient open-ended /
+        continuous generation. Unlike generate_cached (which rebuilds the cache every frame), this
+        PERSISTS finalized frames' K/V across rollout steps and evicts the oldest when the window
+        (N-1) overflows — so an arbitrarily long rollout costs O(1) attention per step instead of
+        re-encoding the whole window. Prefill: commit the context frames' K/V ONCE at context_signal.
 
         context:    (B, T_ctx, L, D) clean latents. action_idx: (B, T_ctx) ids for them, or None.
         Returns an opaque state dict for stream_rollout_step. NOTE on semantics: each frame's
         context-noise is drawn ONCE at commit (not redrawn every step like generate()) — a
         documented, defensible deviation (a committed frame's representation is fixed once
-        generated; the natural structure for rollout training). So NOT bit-identical to generate()
-        at the rollout level; bit-identical to a full windowed recompute at the forward level.
+        generated). So NOT bit-identical to generate() at the rollout level; bit-identical to
+        generate_windowed (the uncached twin) at the rollout level and to a full windowed recompute
+        at the forward level.
         """
         K = K or self.config.inference_steps
         B, T_ctx, L, D = context.shape
@@ -861,8 +863,9 @@ class DynamicsModel(nn.Module):
     def generate_streaming(self, context: torch.Tensor, n_generate: int, K: int = None,
                            action_idx: torch.Tensor = None, noise_seed: int = None) -> torch.Tensor:
         """Cross-frame sliding-window CACHED rollout (D-020): a thin loop over
-        stream_rollout_init/step, the rollout-training substrate. Same signature/return as
-        generate(); persists finalized frames' K/V across steps (no per-frame cache rebuild).
+        stream_rollout_init/step for efficient open-ended / continuous generation. Same
+        signature/return as generate(); persists finalized frames' K/V across steps (no per-frame
+        cache rebuild), so a long rollout is O(1) attention per step.
         Frozen per-frame context-noise (see stream_rollout_init) => NOT bit-identical to generate()
         but bit-identical to generate_windowed (the uncached twin) under the same ``noise_seed``
         (test_stream_cache.py — that comparison isolates the cache). ``noise_seed`` makes the rollout
