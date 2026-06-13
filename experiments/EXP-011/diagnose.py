@@ -39,7 +39,10 @@ from probe_env import make_probe_episode  # noqa: E402
 
 HERE = pathlib.Path(__file__).resolve().parent
 TOKENIZER = _ROOT / "trained_autoencoder.pt"
+# Order matters for the comparison: budget-matched vanilla baseline (EXP-012) first when present,
+# then the old my_dynamics, then the FF7 arms. Missing checkpoints are skipped at runtime.
 MODELS = {
+    "vanilla_s0 (EXP-012)": _ROOT / "experiments" / "EXP-012" / "vanilla_s0.pt",
     "my_dynamics": _ROOT / "my_dynamics.pt",
     "ff7_k1": _ROOT / "experiments" / "EXP-010" / "k1" / "ff7_k1_s0.pt",
     "ff7_k3": _ROOT / "experiments" / "EXP-010" / "k3" / "ff7_k3_s0.pt",
@@ -177,6 +180,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--episodes", type=int, default=32)
     ap.add_argument("--horizon", type=int, default=24)
+    ap.add_argument("--out", type=pathlib.Path, default=HERE / "results.json",
+                    help="results path; the EXP-012 rerun passes experiments/EXP-012/diagnostic.json")
     args = ap.parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     H = args.horizon
@@ -219,8 +224,9 @@ def main():
     print("\n[4] linear probe frozen tokenizer latents -> (x,y):",
           json.dumps(out["latent_position_probe"], indent=0))
 
-    (HERE / "results.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
-    print(f"\nwrote {HERE/'results.json'}")
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(out, indent=2), encoding="utf-8")
+    print(f"\nwrote {args.out}")
 
 
 if __name__ == "__main__":
