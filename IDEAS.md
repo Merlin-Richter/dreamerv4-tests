@@ -259,3 +259,36 @@ recurrence is **window-granular**: cost ≈ (relay depth in windows)+1 forwards 
   when the handoff is deep or frame-granular. Not on the gradient path; on the production path.
 - The slide-by-m trick (above) is the same insight from the other side: produce m memory sets per
   parallel forward to claw parallelism back.
+
+---
+
+## Memory handling — the three operations + "memory is an activation" (Merlin, 2026-06-14)
+
+A complete memory training must include all THREE operations; FF9 v2 (built) has only 1 & 2:
+1. **write memory ← latents** — HAVE. The main windowed pass writes memory_t from real latents.
+2. **read memory → latents** — HAVE. FF9 v2 reads injected memory to predict the next 1..j frames.
+3. **write memory ← memory** — MISSING. memory_t written from the PREVIOUS (relayed) memory + frame_t.
+   = the relay WRITE-side = parked **option A** = V-T013 finding (2) "preserve-across-N-hops". FF9 v2
+   never trains it: the context frames that write memory carry UNIFORM learned-init memory (no info to
+   read). So including op-3 is **A+B converging** — which V-T013 predicted is needed for depth.
+
+**What memory IS now: an ACTIVATION** — the final-layer hidden state of the memory-token positions
+(`forward` reads `x[:,:,mem_start:...]` at the last block). NOT a denoising variable: no signal level /
+noise, not x-predicted, no GT target (memory is a model-internal recurrent quantity with no label —
+Merlin's produce-vs-generate asymmetry). The relay is an **output-activation → next-frame-layer-0-input**
+recurrence (FF7 `memory_rollout_init/step`; FF9's `generate_full_state_memory`, not yet built).
+
+**Why activation is correct AND enables op-3 training:** memory has no GT to denoise toward → denoising is
+ill-defined; as an activation it is PRODUCED by one forward per frame (teacher-forced latents → no K
+substeps), cacheable (T-012). So Merlin's op-3 recipe is cheap: run the (mostly no-grad, cached)
+production rollout ~200 steps to fill the window with REAL relayed memory, then a gradient-carrying step
+writes memory_t from that context + applies the FF9 loss; gradient **bounded to the window** (no
+out-of-window BPTT). This is the sequential relay realized on the memory carrier.
+
+**Design risk to verify:** relaying a FINAL-layer activation into LAYER-0 input over ~200 hops may drift /
+explode (representational mismatch / exposure bias). Op-3 training is partly meant to cure it, but
+stability (norm / detach-on-overflow / a relay projection) needs care → design note + verifier before build.
+
+**Status:** op-3 = A+B combined. Pending: (i) sequencing decision (run ops-1&2 FF9 baseline first as a
+cheap checkpoint, or fold op-3 in before any training run); (ii) op-3 design note → critical-claim-verifier
+→ D-025 → build (with the cached production rollout). FF9 v2 baseline (ops 1&2) is built + smoke-green.
