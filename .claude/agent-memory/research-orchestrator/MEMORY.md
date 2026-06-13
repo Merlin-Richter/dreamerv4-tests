@@ -5,3 +5,4 @@
 - [No privileged data constraint](project_no_privileged_data.md) — H3: model never gets privileged hidden state; methods must generalize across envs; eval-only access is OK
 - [Ground ML claims in code](feedback_ground_claims_in_code.md) — verify architecture/gradient claims against the module (cite file:line) before asserting; don't reason from priors
 - [Sequence subobjectives, keep the end-goal visible](feedback_sequence_subobjectives.md) — finish one subobjective in isolation before the next, but don't scrub the big-picture goal when narrowing scope
+- [Use idle overnight GPU](feedback_overnight_gpu.md) — when wrapping up late, launch a relevant low-risk overnight run (even a known-imperfect method); don't rush a bug-prone build
