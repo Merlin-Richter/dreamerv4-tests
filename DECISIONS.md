@@ -779,3 +779,39 @@ equivalence test passes bit-for-bit; FF7/vanilla paths unchanged.
 Would change my mind: refactored generate_full_state_memory output differs from the pre-refactor output
 on a fixed seed (then the primitive extraction broke RNG order/semantics — revert and inline instead).
 Spawns: T-015 (viewer FF9 support + model primitive refactor + equivalence test). No experiment.
+
+## D-026 | 2026-06-14
+Context: Merlin redirected focus (his words, this session): "the next thing we actually need to worry
+about is predicting ball movement even without curtains." My check of the existing record (EXP-011/012/
+013/014) established three regimes on curtain-up (no-occlusion) episodes (ball ~3.2px/step; copy-last=3.2px;
+chance~23px): (1) tokenizer ENCODES position fine — linear probe R²=0.96/2.7px (EXP-011); (2) SINGLE-STEP
+teacher-forced: vanilla 4.5-4.7px (WORSE than copy-last → barely models motion) vs FF7/FF9-aux-loss models
+~1.0px (3× copy-last; the aux loss doubles as a 1-step dynamics regularizer, EXP-014); (3) MULTI-STEP
+open-loop: even the best (~1px 1-step) model drifts to chance by ~h12-16 WITH visual feedback (EXP-011),
+~1 step blind (EXP-013). So: representation good; single-step good only with aux loss; multi-step
+trajectory propagation poor for ALL. The drift signature (fresh ~1px/step compounding to 14.8px@h12, EXP-011
+ff7_k3) points to AUTOREGRESSIVE ERROR COMPOUNDING / exposure bias as the dominant remaining deficit — model
+trains on near-clean true context, rolls out on its own slightly-wrong predictions. NOT yet method-decided.
+Operating mode (Merlin, this session): work autonomously for several hours on motion prediction, "dont block
+yourself" (=do NOT halt-and-wait for his review at each experiment gate this session), "dont break anything"
+(keep all gates green, additive/config-gated changes only, frozen tokenizer/probe untouched, work on branch
+feat/motion-prediction). "You can use the idea agent for inspiration" → method-architect spawned for an
+independent mechanistic diagnosis + ranked proposals (writing tasks/T-016-architect-proposal.md).
+Decision: (a) Dataset = occluded.npy (n_actions=2), matched to the existing baseline set + the calibrated
+probe (OccludedBouncingEnv); measure motion at curtain-up (k=0). (b) Added safe `--max-episodes` train flag
+(default=all) for fast subset A/B. (c) Run a budget-matched CONTROL baseline now (vanilla, short budget on a
+subset) — method-agnostic, needed regardless of the chosen method → EXP-018. (d) Build a reusable curtain-up
+motion eval harness (reusing EXP-011 diagnose.py fns: TF-1step, open-loop curve, copy-last/chance). The METHOD
+choice is deferred to D-027 once the architect returns + I verify the design (critical-claim-verifier for any
+novel objective). Cap 3 experiments per method decision.
+Alternatives rejected: train on bouncing.npy (purer motion but DIFFERENT generator than the probe's
+OccludedBouncingEnv → OOD for the calibrated instrument + incomparable to baselines); duplicate 1GB subset
+npy files (—max-episodes flag is cleaner/safer); start a method immediately (no confirmed diagnosis/design).
+Expected outcome: a short-budget vanilla baseline reproducing the known motion weakness (1-step > copy-last,
+open-loop drift) at reduced absolute quality, serving as the A/B control; architect returns a compounding-
+targeted proposal (rollout/scheduled-sampling/multi-step or context-distribution-matching family).
+Would change my mind: if the architect's diagnosis credibly REFUTES compounding (e.g. shows velocity is
+never represented in D's state even teacher-forced multi-step) → re-aim the method at representation, not
+rollout. If the control baseline does NOT reproduce the motion weakness at short budget → the subset/budget
+is too small to show anything; increase before trusting any A/B.
+Spawns: EXP-018 (control baseline), method-architect (T-016), then D-027 (method) + EXP-019.. (treatment).

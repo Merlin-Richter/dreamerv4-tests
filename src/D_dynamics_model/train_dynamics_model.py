@@ -282,6 +282,10 @@ def main():
                         help="Number of distinct MEMORY tokens when --ff9 > 0 (default 4).")
     parser.add_argument("--seed", type=int, default=0,
                         help="Seed for torch/numpy/random (model init, tau/noise sampling).")
+    parser.add_argument("--max-episodes", type=int, default=None,
+                        help="Cap the number of TRAINING episodes (subset, for fast iteration). "
+                             "Default: all. Val split is unaffected. Subset is the first "
+                             "--max-episodes of the fixed seed-0 train permutation (reproducible).")
     wlog.add_args(parser)
     args = parser.parse_args()
 
@@ -328,6 +332,9 @@ def main():
     g = torch.Generator().manual_seed(0)
     perm = torch.randperm(n, generator=g)
     train_idx, val_idx = perm[n_val:].numpy(), perm[:n_val].numpy()
+    if args.max_episodes is not None:
+        train_idx = train_idx[:args.max_episodes]
+        print(f"[--max-episodes] capping training to {len(train_idx)} episodes (val unchanged).")
 
     # Build dynamics config; tokenizer-tied dims come from the tokenizer checkpoint.
     base = DynamicsModelConfig()
