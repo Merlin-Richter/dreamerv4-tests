@@ -26,11 +26,10 @@ purpose is efficient continuous rollouts, NOT training prep)
   deliberately out of scope for this step.)
 
 ## In flight
-**EXP-017 (FF9 v2 memory-token baseline) TRAINING overnight on the 4070** (launched 2026-06-14 late-night
-per Merlin's request; bg task bt57zuxt8 → `experiments/EXP-017/train.log`). occluded, 100ep bs32 lr3e-4
-seed0, n_memory=4 ff9_k=3, --fresh. ~3.5min/epoch → ~6-7h → done by morning; ckpt `ff9v2_s0.pt` saved
-EVERY epoch (usable at any stop). Healthy at launch (stepping ~1.5 it/s, B=32 peak 4.5/8GB, loss dropping).
-TRAIN ONLY — eval deferred (needs generate_full_state_memory). No cluster (scripts/ deferred).
+**Nothing running. EXP-017 (FF9 v2 baseline) TRAINING COMPLETE** — 100 epochs in 4h18m, stable, ckpt
+`experiments/EXP-017/ff9v2_s0.pt`. **Healthy result:** base dynamics NOT regressed (diffusion 0.00158 vs
+vanilla val ~0.0066, poss. FF9-sharpened à la FF7); within-window memory sufficiency learned (ff9 term
+0.85→0.046, ~18× → memory is load-bearing). 4070 now idle. No cluster (scripts/ deferred).
 
 ## NEXT ACTION
 **BUILD T-013: memory-token architecture + FF9 v2 loss on the 4070 (D-024).** ESC-013 RESOLVED — Merlin
@@ -53,13 +52,13 @@ its latents) + FF9 loss on it, backward (≤1 window, NO out-of-window BPTT), de
 steps, batched heavily, small/variable N; reuses the T-012 streaming cache for the detached context. Plus
 FF9 v2 → **50/50 GT split** (strict-τ=0 vs noised-GT path). Two modes A(parallel FF9 v2)/B(relay), alternate.
 
-## NEXT ACTION (tomorrow's cold-start)
-**1. Process EXP-017 when training finishes** (check `experiments/EXP-017/train.log` for final train/val +
-diffusion/ff9 split; ckpt `ff9v2_s0.pt`). Then: build `generate_full_state_memory` (memory-carry inference,
-analog of generate_memory) + dispatch on `use_full_state_memory` + smokes → build the memory-sufficiency
-probe (PRIMARY: L(mem)≪L(no-mem) within window) → frozen-probe color n_occ {12,16,24,32,48} vs vanilla_s0
-(EXP-012) + ff7_k3 (EXP-010); expect ≈FF7. Reconcile per D-024 tripwires → present-then-stop. See
-`experiments/EXP-017/NOTES.md` TODO.
+## NEXT ACTION
+**1. Build the EXP-017 eval (training done, signals healthy — see above).** `generate_full_state_memory`
+(memory-carry inference, analog of generate_memory; reuse memory_rollout_init/step machinery on the MEMORY
+slot) + dispatch on `use_full_state_memory` + smokes → memory-sufficiency readout (explicit L(mem)≪L(no-mem),
+ablate injected memory) → frozen-probe color n_occ {12,16,24,32,48} vs vanilla_s0 (EXP-012) + ff7_k3
+(EXP-010); expect ≈FF7. Reconcile per D-024 tripwires → present-then-stop. (Substantial careful build — do
+fresh, not rushed; it's the standard inference path, lower-risk than the relay.) See EXP-017/NOTES.md TODO.
 **2. ESC-014 (relay gradient design) STILL OPEN — Merlin's call** before the op-3/Mode-B build: P-a tbptt-k
 sweep [rec] / P-c dynamic-state probe / P-b train-to-depth detach. Guardrails (V-T014): deep-hop gate (not
 within-window loss), carry norm/proj, detach committed K/V, strict-FF9-fraction knob.

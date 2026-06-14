@@ -34,6 +34,16 @@ and is the needed foundation, so it's the high-value low-risk overnight choice. 
 5. ESC-014 (relay gradient design: tbptt-k sweep / dynamic-state probe / train-to-depth) still OPEN —
    Merlin's call before the op-3/Mode-B build.
 
-## Reconciliation
+## Reconciliation (training complete; eval still pending)
 Expected (D-024): clean training; memory-sufficiency within window; no base-dynamics regression;
-frozen-probe color ≈ FF7. Observed: <fill tomorrow from train.log + eval>.
+frozen-probe color ≈ FF7.
+Observed (training): **completed all 100 epochs** in 4h18m (~155s/epoch), stable. Final total
+train 0.0587 / val 0.0767 (total = diffusion + ff9; NOT comparable to vanilla's diffusion-only 0.0066).
+**Loss split on the trained ckpt** (avg over 5×B32 batches of occluded; NOT a clean val split — mixes
+train eps, so diffusion is optimistic): **diffusion 0.00158** (vanilla_s0 val ref ~0.0066 → base dynamics
+healthy, NOT regressed; possibly FF9-sharpened à la FF7/EXP-014) | **ff9 0.046** (down from ~0.85 at init,
+~18× → within-window memory IS load-bearing: memory-only prediction far beats chance).
+Surprise: mild-favorable (diffusion low; memory sufficiency clearly learned). No tripwire fired so far.
+Still TODO for the real verdict: (a) clean val-split diffusion vs vanilla; (b) explicit L(mem)≪L(no-mem)
+gap (ablate injected memory); (c) generate_full_state_memory → frozen-probe color n_occ {12,16,24,32,48}
+vs vanilla_s0 + ff7_k3. → present-then-stop after (c).
