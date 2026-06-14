@@ -19,19 +19,24 @@ building C1. Branch feat/motion-prediction.)
   time-axis multi-step prediction loss (sibling of `_ff9_loss`; τ=0 successor target predicted from
   the model's OWN detached self-generated context; TBPTT-1). Directly trains compounding-robustness.
 
-## In flight (2 background jobs)
-1. **EXP-018 canonical artifact run** (brvtvbec1): full P1+lightP2, 32 eps → diagnosis.json + .png.
-2. **critical-claim-verifier on C1** (T-017): scrutinizing the design before I implement. **MUST
-   read its verdict before coding C1** (§4).
-GPU otherwise idle. No cluster (scripts/ deferred).
+## Done since: EXP-018 diagnosis + C1 built & verified
+- C1 implemented (D-027): config-gated `multistep_h` loss `_multistep_loss` in dynamics_model.py +
+  train flags --multistep/--lambda-multistep/--multistep-warmup. Verified V-T017-C1 (identity-when-off
+  proven, detach safe, mechanism=DAgger). Smokes 6/6; FF9/FF7/KV/stream gates all green. Committed.
+
+## In flight (1 background job)
+- **EXP-019 vanilla CONTROL training** (job b0j8a4uiw): occluded 250-ep subset, 40 ep, bs32, seed0
+  → experiments/EXP-019/vanilla_ctrl_s0.pt + train.log. ~19 min. code @ a07fdee.
+- A/B eval harness ready: experiments/EXP-020/ab_eval.py (open-loop + TF curves + displacement
+  collapse monitor on curtain-up episodes).
 
 ## NEXT ACTIONS (autonomous, no waiting on Merlin)
-1. Read C1 verdict (T-017-C1-verdict.md) → implement C1 in dynamics_model.py (revise per verdict),
-   add smoke tests incl. multistep_h=0 identity guard; keep FF7/FF9/KV/stream gates green.
-2. Launch budget-matched A/B on occluded subset (--max-episodes): vanilla CONTROL vs C1 treatment,
-   same subset/seed/epochs. Eval curtain-up open-loop with probe_multistep tooling.
-3. Reconcile + build views + write up; record EXP-019/020. Iterate (C2 scheduled-sampling if late
-   horizons still drift). Do NOT start op-3/ESC-014 work.
+1. When CONTROL done → launch **EXP-020 C1 treatment** (same budget + --multistep 4 --lambda-multistep
+   1.0 --multistep-warmup 10) → experiments/EXP-020/c1_h4_s0.pt.
+2. When both done → `python experiments/EXP-020/ab_eval.py` → compare open-loop curves + val/diffusion
+   (tripwire: C1 val_diffusion not materially > control's) + per-j multistep monitor (prior-emission).
+3. Reconcile (EXP-019/020), build view, write up. Iterate: if open-loop unchanged → re-diagnose;
+   if late horizons still drift → C2 scheduled-sampling. Do NOT start op-3/ESC-014 work.
 
 ## Open escalation (parked this session)
 - **ESC-014 (OPEN):** op-3 relay gradient design (DYNAMIC-state occluded memory). Parked — Merlin
