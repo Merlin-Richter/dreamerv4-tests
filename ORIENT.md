@@ -27,8 +27,10 @@ building C1. Branch feat/motion-prediction.)
 ## In flight (1 background job)
 - **EXP-019 vanilla CONTROL — DONE.** final val/diffusion **0.0082** (40 ep/250 eps; ref 100-ep
   vanilla_s0 0.0066). Checkpoint experiments/EXP-019/vanilla_ctrl_s0.pt. = A/B tripwire anchor.
-- **EXP-020 C1 treatment training** (job by72rr4jw): same budget + --multistep 4 --lambda 1.0
-  --warmup 10 → experiments/EXP-020/c1_h4_s0.pt + train.log. ~45 min. code @ a07fdee.
+- **EXP-020 C1 treatment training: CANCELLED by Merlin (2026-06-14), mid-run.** Process killed; no
+  checkpoint finalized (partial train.log only). To resume: re-run the EXP-020 command (same budget +
+  --multistep 4 --lambda-multistep 1.0 --multistep-warmup 10 → experiments/EXP-020/c1_h4_s0.pt), then
+  ab_eval.py. C1 code + control (EXP-019) are committed and intact; nothing broken.
 - A/B eval harness ready: experiments/EXP-020/ab_eval.py (open-loop + TF curves + displacement
   collapse monitor on curtain-up episodes). Run it on BOTH ckpts when C1 done.
 
