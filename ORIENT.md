@@ -25,10 +25,12 @@ building C1. Branch feat/motion-prediction.)
   proven, detach safe, mechanism=DAgger). Smokes 6/6; FF9/FF7/KV/stream gates all green. Committed.
 
 ## In flight (1 background job)
-- **EXP-019 vanilla CONTROL training** (job b0j8a4uiw): occluded 250-ep subset, 40 ep, bs32, seed0
-  → experiments/EXP-019/vanilla_ctrl_s0.pt + train.log. ~19 min. code @ a07fdee.
+- **EXP-019 vanilla CONTROL — DONE.** final val/diffusion **0.0082** (40 ep/250 eps; ref 100-ep
+  vanilla_s0 0.0066). Checkpoint experiments/EXP-019/vanilla_ctrl_s0.pt. = A/B tripwire anchor.
+- **EXP-020 C1 treatment training** (job by72rr4jw): same budget + --multistep 4 --lambda 1.0
+  --warmup 10 → experiments/EXP-020/c1_h4_s0.pt + train.log. ~45 min. code @ a07fdee.
 - A/B eval harness ready: experiments/EXP-020/ab_eval.py (open-loop + TF curves + displacement
-  collapse monitor on curtain-up episodes).
+  collapse monitor on curtain-up episodes). Run it on BOTH ckpts when C1 done.
 
 ## NEXT ACTIONS (autonomous, no waiting on Merlin)
 1. When CONTROL done → launch **EXP-020 C1 treatment** (same budget + --multistep 4 --lambda-multistep
