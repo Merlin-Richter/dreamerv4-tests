@@ -128,6 +128,42 @@ def test_ff9_path_is_pure_noise_no_gt_leak():
     assert all(x > 0 for x in g), g  # memory always receives signal
 
 
+def test_generate_full_state_memory_shape_and_dispatch():
+    """generate() must dispatch to generate_full_state_memory when use_full_state_memory, and the
+    rollout must return (B, n_generate, L, d)."""
+    torch.manual_seed(0)
+    cfg = _tiny_cfg(n_memory=4, use_full_state_memory=True, ff9_k=3)
+    model = DynamicsModel(cfg).eval()
+    B, P, n_gen = 2, 4, 6
+    ctx = torch.randn(B, P, cfg.n_latents, cfg.bottleneck_dim)
+    actions = torch.randint(0, cfg.n_actions, (B, P + n_gen))
+    with torch.no_grad():
+        g_direct = model.generate_full_state_memory(ctx, n_gen, action_idx=actions)
+        g_dispatch = model.generate(ctx, n_gen, action_idx=actions)
+    assert g_direct.shape == (B, n_gen, cfg.n_latents, cfg.bottleneck_dim), g_direct.shape
+    assert g_dispatch.shape == g_direct.shape
+    assert torch.isfinite(g_dispatch).all()
+
+
+def test_full_state_memory_carries_prefix_beyond_window():
+    """The written memory snapshot must transmit prefix content PAST the N-frame latent window:
+    two different prefixes must yield different far-future frames (the carrier is doing its job).
+    The source latent is pure noise (A1), so any beyond-window dependence is via mem_carry alone."""
+    torch.manual_seed(0)
+    cfg = _tiny_cfg(n_memory=4, use_full_state_memory=True, ff9_k=3)
+    model = DynamicsModel(cfg).eval()
+    B, P = 2, 4
+    max_ctx = cfg.max_temporal_length - 1
+    n_gen = max_ctx + 5                                   # generate well past the window
+    actions = torch.randint(0, cfg.n_actions, (B, P + n_gen))
+    ctx_a = torch.randn(B, P, cfg.n_latents, cfg.bottleneck_dim)
+    ctx_b = ctx_a + 7.0                                   # a clearly different "scene"
+    torch.manual_seed(1); ga = model.generate_full_state_memory(ctx_a, n_gen, action_idx=actions)
+    torch.manual_seed(1); gb = model.generate_full_state_memory(ctx_b, n_gen, action_idx=actions)
+    far = ga[:, -1] - gb[:, -1]                           # last frame is far beyond the window
+    assert far.abs().mean() > 1e-4, "beyond-window frame does not depend on the prefix (memory inert)"
+
+
 if __name__ == "__main__":
     fns = [v for n, v in sorted(globals().items()) if n.startswith("test_")]
     for fn in fns:

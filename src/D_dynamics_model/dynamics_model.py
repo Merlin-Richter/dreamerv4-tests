@@ -632,6 +632,8 @@ class DynamicsModel(nn.Module):
         """
         if getattr(self.config, "use_register_memory", False):
             return self.generate_memory(context, n_generate, K, action_idx)
+        if getattr(self.config, "use_full_state_memory", False):
+            return self.generate_full_state_memory(context, n_generate, K, action_idx)
         K = K or self.config.inference_steps
         max_ctx = self.config.max_temporal_length - 1
         T_ctx = context.shape[1]
@@ -716,6 +718,8 @@ class DynamicsModel(nn.Module):
         register-memory path is already window-1 (no cache benefit) and is dispatched unchanged."""
         if getattr(self.config, "use_register_memory", False):
             return self.generate_memory(context, n_generate, K, action_idx)
+        if getattr(self.config, "use_full_state_memory", False):
+            return self.generate_full_state_memory(context, n_generate, K, action_idx)
         K = K or self.config.inference_steps
         max_ctx = self.config.max_temporal_length - 1
         T_ctx = context.shape[1]
@@ -832,6 +836,80 @@ class DynamicsModel(nn.Module):
             new_id = action_idx[:, P + i] if action_idx is not None else None
             z, state = self.memory_rollout_step(state, new_id, K)
             generated.append(z)
+        return torch.concat(generated, dim=1)
+
+    @torch.no_grad()
+    def generate_full_state_memory(self, context: torch.Tensor, n_generate: int, K: int = None,
+                                   action_idx: torch.Tensor = None,
+                                   source_tau_idx: int = 0) -> torch.Tensor:
+        """FF9 v2 full-state-memory rollout (D-024). Beyond-window inference that carries a single
+        memory snapshot, matching the FF9 v2 READ op exactly (verdict V-T013-eval = A1+B1):
+
+          * WRITE ONCE: run the observed prefix window (held near-clean at context_signal) through the
+            model with ``return_memory=True``; take the LAST frame's memory tokens as a static
+            ``mem_carry`` — the model is trained to write a full-state object from a window of real
+            latents (the FF9 v2 main pass; see ``_ff9_loss``).
+          * PER STEP: a 2-frame window ``[source | new]`` with ``mem_carry`` injected at the SOURCE
+            frame (so the new frame reads it through the position-wise temporal memory channel),
+            learned-init memory at the new frame; the source latent at signal ``source_tau_idx``
+            (default 0 = pure noise, **A1**, matching training — the scene comes ONLY from memory); the
+            new frame denoised over K shortcut steps. ``mem_carry`` is NEVER updated (static carry,
+            **B1**; re-extracting it is the untrained memory->memory relay (op-3) and drifts past the
+            trained horizon — see V-T013-eval / V-T014).
+
+        Carries STATIC hidden state (e.g. ball color) indefinitely past the N-frame window; precise
+        dynamic position is NOT tracked (the snapshot is frozen) — that is the sequential relay's job
+        (op-3, T-014). ``source_tau_idx``: 0 = A1 (FF9-faithful, the dispatch default); pass
+        ``tau_ctx_idx`` for the A2 shape-matched-to-FF7 secondary. Same signature/return as generate().
+        """
+        assert self.n_memory > 0, "generate_full_state_memory requires n_memory > 0"
+        K = K or self.config.inference_steps
+        B, T_ctx, L, Dd = context.shape
+        device = context.device
+        d_idx_val = (K).bit_length() - 1
+        tau_ctx_idx = min(round(self.config.context_signal * self.K_max), self.K_max - 1)
+        max_ctx = self.config.max_temporal_length - 1
+
+        # --- WRITE mem_carry ONCE from the observed prefix window (near-clean) ---
+        win = context[:, -max_ctx:]
+        w = win.shape[1]
+        act_win = None
+        if action_idx is not None and self.n_actions > 0:
+            act_win = self.action_features(action_idx[:, T_ctx - w:T_ctx])
+        tau_col = torch.full((B, w), tau_ctx_idx, device=device, dtype=torch.long)
+        d_col = torch.full((B, w), d_idx_val, device=device, dtype=torch.long)
+        _, mem = self(self._noise_to_ctx(win), tau_col, d_col, act_win, return_memory=True)
+        mem_carry = mem[:, -1:]                                    # (B, 1, M, E) frozen snapshot
+
+        # memory injected at the source frame; learned-init at the new frame.
+        mem_in = torch.concat((mem_carry, self.memory_tokens.expand(B, 1, -1, -1)), dim=1)  # (B,2,M,E)
+        d2 = torch.full((B, 2), d_idx_val, device=device, dtype=torch.long)
+        prev_id = action_idx[:, T_ctx - 1:T_ctx] if action_idx is not None else None
+        s_val = float(self._tau_value(torch.tensor(source_tau_idx, device=device))) if source_tau_idx > 0 else 0.0
+
+        generated = []
+        for i in range(n_generate):
+            act2, new_id = None, None
+            if action_idx is not None and self.n_actions > 0:
+                new_id = action_idx[:, T_ctx + i:T_ctx + i + 1]
+                act2 = self.action_features(torch.concat((prev_id, new_id), dim=1))
+            # source frame at signal source_tau_idx (default 0 => pure noise, A1); new frame denoised.
+            src = torch.randn((B, 1, L, Dd), device=device)
+            if source_tau_idx > 0:                                 # A2: near-clean prev frame + noise
+                prev_lat = generated[-1] if generated else context[:, -1:]
+                src = (1 - s_val) * src + s_val * prev_lat
+            tau2 = torch.zeros((B, 2), device=device, dtype=torch.long)
+            tau2[:, 0] = source_tau_idx
+            z = torch.randn((B, 1, L, Dd), device=device)
+            for kstep in range(K):
+                tau = kstep / K
+                tau2[:, -1] = round(tau * self.K_max)
+                z_hat1 = self(torch.concat((src, z), dim=1), tau2, d2, act2, memory_in=mem_in)[:, -1:]
+                v = (z_hat1 - z) / (1 - tau)
+                z = z + v * (1.0 / K)
+            generated.append(z)
+            if new_id is not None:
+                prev_id = new_id
         return torch.concat(generated, dim=1)
 
     # ----------------------------------------- cross-frame sliding-window KV cache (D-020, T-012)
@@ -978,6 +1056,8 @@ class DynamicsModel(nn.Module):
         already and is dispatched to generate_memory unchanged."""
         if getattr(self.config, "use_register_memory", False):
             return self.generate_memory(context, n_generate, K, action_idx)
+        if getattr(self.config, "use_full_state_memory", False):
+            return self.generate_full_state_memory(context, n_generate, K, action_idx)
         P = context.shape[1]
         ctx_ids = action_idx[:, :P] if action_idx is not None else None
         state = self.stream_rollout_init(context, ctx_ids, K, noise_seed=noise_seed)
@@ -1000,6 +1080,8 @@ class DynamicsModel(nn.Module):
         bookkeeping. ``noise_seed=None`` still freezes each frame's context-noise (drawn once)."""
         if getattr(self.config, "use_register_memory", False):
             return self.generate_memory(context, n_generate, K, action_idx)
+        if getattr(self.config, "use_full_state_memory", False):
+            return self.generate_full_state_memory(context, n_generate, K, action_idx)
         K = K or self.config.inference_steps
         B, T_ctx, L, D = context.shape
         device = context.device
