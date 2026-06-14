@@ -85,6 +85,13 @@ class DynamicsModelConfig():
     ff9_ramp: bool = False          # FF9 term ramp-weighting. Default OFF (un-ramped) so the
                                     # memory-bearing low-tau samples are not down-weighted (V-T013).
 
+    # C1 multi-step motion loss (D-027). Time-axis DAgger/scheduled-sampling term: roll the model h
+    # self-steps from a short real seed and supervise each predicted successor against GT, with the
+    # context built from the model's OWN DETACHED predictions (TBPTT-1). Fixes autoregressive
+    # compounding (EXP-018). multistep_h=0 => byte-identical to a pre-D-027 model (no extra loss, no
+    # new params, inference/probe/FF7/FF9 untouched). Loss-only; verified V-T017-C1.
+    multistep_h: int = 0            # provenance: C1 lookahead depth used in training (0 = off).
+
 
 class Attention(nn.Module):
     """Block-causal attention. Space layers attend fully within a frame; temporal layers
@@ -398,6 +405,7 @@ class DynamicsModel(nn.Module):
     # ------------------------------------------------------------------ loss
     def loss(self, z1: torch.Tensor, action_idx: torch.Tensor = None, ff7_k: int = 0,
              lambda_ff7: float = 1.0, ff9_k: int = 0, lambda_ff9: float = 1.0,
+             multistep_h: int = 0, lambda_multistep: float = 1.0,
              return_parts: bool = False) -> torch.Tensor:
         """Shortcut forcing loss over a clip of clean representations.
 
@@ -473,6 +481,14 @@ class DynamicsModel(nn.Module):
             ff9 = self._ff9_loss(z1, mem, actions, ff9_k)
             total = total + lambda_ff9 * ff9
             parts["ff9"] = ff9.detach()
+        # C1 (D-027): time-axis multi-step DAgger loss. MUST be last so all its RNG draws come after
+        # the existing ones -> multistep_h=0 is byte-identical (V-T017-C1 C-D).
+        if multistep_h > 0:
+            ms, per_j = self._multistep_loss(z1, actions, multistep_h)
+            total = total + lambda_multistep * ms
+            parts["multistep"] = ms.detach()
+            for j, v in enumerate(per_j, start=1):     # per-horizon, for the prior-emission monitor
+                parts[f"ms_h{j}"] = v
         if return_parts:
             return total, parts
         return total
@@ -583,6 +599,56 @@ class DynamicsModel(nn.Module):
         if self.config.ff9_ramp:
             flow = ((1 - self.config.ramp_min) * tau[:, 1:, 0, 0] + self.config.ramp_min) * flow
         return (flow * mask).sum() / mask.sum().clamp(min=1)
+
+    def _multistep_loss(self, z1: torch.Tensor, actions: torch.Tensor, h: int):
+        """C1 (D-027): time-axis multi-step DAgger / scheduled-sampling loss.
+
+        For each anchor, seed a short REAL context (~the eval prefix length; >=2 frames so velocity is
+        inferable), then roll the model h self-steps: each step predicts the TRUE successor z1[t+j]
+        from a pure-noise (tau=0) target slot, GIVEN the model's OWN DETACHED self-generated context
+        held near-clean at context_signal. The detach makes it TBPTT-1: the step-j gradient is
+        bit-identical to teacher-forcing the map at the state the rollout actually visited (verified
+        V-T017-C1 C-C(ii)), so this supervises the off-trajectory states open-loop visits and corrects
+        autoregressive compounding (EXP-018). NB: the mechanism is on-policy distribution correction
+        (DAgger), NOT a contraction map (V-T017-C1 C-A) — it helps iff the deficit is off-manifold
+        ACCURACY, which EXP-018 shows is the ff7/ff9 case. Returns (mean_loss, per_horizon detached).
+        """
+        B, T, L, D = z1.shape
+        device = z1.device
+        maxctx = self.config.max_temporal_length - 1
+        seed = min(maxctx, 3)                       # real seed frames/anchor (>=2 velocity; ~eval P=3)
+        assert seed >= 2 and seed + h <= T, \
+            f"clip length {T} too short for multistep_h={h} (need seed({seed})+h<=T)"
+        n_a = T - seed - h + 1
+        a = torch.arange(n_a, device=device)
+        win_idx = a[:, None] + torch.arange(seed + h, device=device)[None, :]   # (n_a, seed+h)
+        seq = z1[:, win_idx].reshape(B * n_a, seed + h, L, D)                   # (Bn, seed+h, L, D)
+        Bn = seq.shape[0]
+        act_seq = None
+        if actions is not None:
+            act_seq = actions[:, win_idx].reshape(Bn, seed + h, self.n_action_tokens, actions.shape[-1])
+        tau_ctx_idx = min(round(self.config.context_signal * self.K_max), self.K_max - 1)
+        d_fine = self.n_d - 1
+
+        ctx = [seq[:, i:i + 1] for i in range(seed)]   # detached context buffer (real clean seed)
+        per_j = []
+        for jj in range(h):
+            tgt_pos = seed + jj
+            win = torch.cat(ctx[-maxctx:], dim=1)      # (Bn, w, L, D), all detached (TBPTT-1)
+            w = win.shape[1]
+            z_ctx = self._noise_to_ctx(win)            # hold context near-clean at context_signal
+            tgt = torch.randn(Bn, 1, L, D, device=device)            # pure-noise target slot (tau=0)
+            inp = torch.cat((z_ctx, tgt), dim=1)       # (Bn, w+1, L, D)
+            tau_idx = torch.zeros(Bn, w + 1, dtype=torch.long, device=device)
+            tau_idx[:, :w] = tau_ctx_idx
+            d_idx = torch.full((Bn, w + 1), d_fine, dtype=torch.long, device=device)
+            act_in = act_seq[:, tgt_pos - w:tgt_pos + 1] if act_seq is not None else None
+            z_hat = self(inp, tau_idx, d_idx, act_in)[:, -1:]        # x-prediction of frame tgt_pos
+            gt = seq[:, tgt_pos:tgt_pos + 1]
+            per_j.append(((z_hat - gt) ** 2).mean())
+            ctx.append(z_hat.detach())                 # detach + append -> next step reads self-output
+        losses = torch.stack(per_j)                    # (h,)
+        return losses.mean(), losses.detach()
 
     # ------------------------------------------------------------------ rollout
     @torch.no_grad()

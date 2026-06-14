@@ -815,3 +815,37 @@ never represented in D's state even teacher-forced multi-step) → re-aim the me
 rollout. If the control baseline does NOT reproduce the motion weakness at short budget → the subset/budget
 is too small to show anything; increase before trusting any A/B.
 Spawns: EXP-018 (control baseline), method-architect (T-016), then D-027 (method) + EXP-019.. (treatment).
+
+## D-027 | 2026-06-14
+Context: EXP-018 confirmed the multi-step motion deficit = autoregressive error compounding/exposure
+bias (teacher-forced pos_err FLAT in horizon for all models; open-loop compounds to chance; τ-sweep
+flat → C0 ruled out). method-architect (T-016) ranked C1 (time-axis multi-step prediction loss) #1.
+critical-claim-verifier (T-017 verdict, V-T017-C1) audited the C1 design: C-A TRUE-UNDER-CONDITIONS
+(mechanism is DAgger/on-policy distribution-correction, NOT a "contraction map" — an anchored-GT loss
+recovers the data's true (possibly expanding) gain; helps iff the deficit is off-manifold ACCURACY,
+which EXP-018 shows is exactly the ff7/ff9 case); C-C(ii) the TBPTT-1 detach worry REFUTED (detached
+step gradient is bit-identical to teacher-forcing the map at the model's own visited state — safe here
+because every step has a GT anchor, unlike the T-014 relay which had none); C-D identity-when-off
+PROVEN conditional on copying the ff9 guard pattern; C-B one open degenerate mode (prior-emission under
+unlearnable drifted context — time-axis analog of the V-T013 shortcut).
+Decision: implement C1 = config-gated `multistep_h` (0=identity) loss `_multistep_loss`, additive on
+top of the existing diffusion loss, loss-only (no new params, inference/probe/FF7/FF9 untouched). Per
+anchor: seed a short real context (~eval prefix length, ≥2 frames for velocity) @ context_signal, then
+roll h self-steps — each step predicts the true successor z1[t+j] from a pure-noise (τ=0) target slot
+given the model's OWN DETACHED self-generated context (TBPTT-1), finest-d flow loss. Reframe rationale
+as DAgger/distribution-correction (per verifier). Mandatory gates: λ_multistep RAMP (warmup) + clean
+val/diffusion ≤ 0.003 tripwire. Monitor: per-j multistep loss logged; context-vs-prior gap check in
+eval (prior-emission detector). Then A/B on occluded subset: vanilla CONTROL vs C1, same subset/seed/
+epochs, eval curtain-up open-loop + TF + val/diffusion.
+Alternatives rejected: C0 (no τ-cliff, ruled out by EXP-018 P2); C2 scheduled-sampling fine-tune
+(heavier inner-rollout loop; architect says stage AFTER C1 if late horizons still drift); C3 velocity
+head (probe R²0.96 says velocity already decodable — likely solves a non-problem).
+Expected outcome: C1's open-loop pos_err curve drops BELOW the budget-matched vanilla control
+(especially mid-horizons h4–h12), WITHOUT clean val/diffusion regressing past ~0.003 and WITHOUT TF
+(per-step map) regressing.
+Would change my mind (tripwires): (1) open-loop unchanged vs control despite the multistep term
+converging → deficit not off-manifold-accuracy (maybe intrinsic high-gain) → C1 insufficient, consider
+C2 / re-diagnose. (2) val/diffusion regresses past ~0.003 → single-frame/multi-step capacity tension
+dominates → back off λ / Pareto. (3) per-j multistep loss flattens to a context-independent floor at
+large j (prior-emission) → mask/down-weight those j, reduce h.
+Spawns: T-018 (C1 implementation + smokes), EXP-019 (vanilla control), EXP-020 (C1 treatment).

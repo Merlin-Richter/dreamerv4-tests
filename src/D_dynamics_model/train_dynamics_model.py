@@ -280,6 +280,16 @@ def main():
                         help="Weight of the FF9 loss term in the total (default 1.0).")
     parser.add_argument("--n-memory", type=int, default=4,
                         help="Number of distinct MEMORY tokens when --ff9 > 0 (default 4).")
+    parser.add_argument("--multistep", type=int, default=0, metavar="H",
+                        help="C1 multi-step motion loss (D-027): add the time-axis DAgger term with "
+                             "self-rollout depth H (4 sensible; 0=off). Loss-only — does NOT change "
+                             "inference or add params. Fixes autoregressive compounding (EXP-018).")
+    parser.add_argument("--lambda-multistep", type=float, default=1.0,
+                        help="Peak weight of the C1 multi-step term (default 1.0).")
+    parser.add_argument("--multistep-warmup", type=int, default=0, metavar="EPOCHS",
+                        help="Linearly ramp lambda_multistep from 0 to its peak over the first EPOCHS "
+                             "epochs (mandatory mitigation for single-frame/multi-step capacity "
+                             "tension, V-T017-C1). 0 = no ramp (full weight from epoch 0).")
     parser.add_argument("--seed", type=int, default=0,
                         help="Seed for torch/numpy/random (model init, tau/noise sampling).")
     parser.add_argument("--max-episodes", type=int, default=None,
@@ -355,6 +365,7 @@ def main():
         n_memory=(args.n_memory if args.ff9 > 0 else 0),
         use_full_state_memory=args.ff9 > 0,
         ff9_k=args.ff9,
+        multistep_h=args.multistep,
     )
 
     train_ds = ChunkClipDataset(raw, train_idx, chunk_len, start_offset=0, actions=actions)
@@ -376,6 +387,8 @@ def main():
             cfg.n_memory = args.n_memory
             cfg.use_full_state_memory = True
             cfg.ff9_k = args.ff9
+        if args.multistep > 0:  # resuming into C1 training: record the lookahead (loss-only)
+            cfg.multistep_h = args.multistep
         model = DynamicsModel(cfg).to(device)
         result = model.load_state_dict(payload["model_state_dict"], strict=False)
         if result.missing_keys:
@@ -395,6 +408,10 @@ def main():
 
     epoch_bar = tqdm(range(args.epochs), desc="Epochs", position=0, mininterval=1.0)
     for epoch in epoch_bar:
+        # C1 lambda ramp (V-T017-C1): 0 -> peak over --multistep-warmup epochs.
+        lam_ms = args.lambda_multistep
+        if args.multistep > 0 and args.multistep_warmup > 0:
+            lam_ms = args.lambda_multistep * min(1.0, (epoch + 1) / args.multistep_warmup)
         train_off = random.randint(0, chunk_len)
         train_ds.set_start_offset(train_off)
         if len(train_ds) == 0:
@@ -414,6 +431,7 @@ def main():
                 z1 = encode_frames(tokenizer, batch_x)  # frozen, no grad
                 loss, parts = model.loss(z1, batch_a, ff7_k=args.ff7, lambda_ff7=args.lambda_ff7,
                                          ff9_k=args.ff9, lambda_ff9=args.lambda_ff9,
+                                         multistep_h=args.multistep, lambda_multistep=lam_ms,
                                          return_parts=True)
             opt.zero_grad()
             loss.backward()

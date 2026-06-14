@@ -1,8 +1,19 @@
 # T-017 — C1 design: time-axis multi-step motion-prediction loss
 
-Status: DRAFT for independent verification (critical-claim-verifier) before implementation.
+Status: VERIFIED + IMPLEMENTED (D-027). Verdict: `tasks/T-017-C1-verdict.md` (V-T017-C1).
 Origin: D-026 session; method-architect proposal C1 (tasks/T-016-architect-proposal.md).
 Scope: improve multi-step ball-motion propagation, curtain-up (no occlusion). Frozen tokenizer.
+
+> **MECHANISM REFRAMED PER VERIFIER (read this first):** the rationale below in places says C1
+> "pushes toward a contraction map" — that is **mechanistically wrong** (V-T017-C1 C-A). An
+> anchored-GT loss recovers the data's TRUE local gain (possibly expanding), it does not manufacture
+> a contraction. The actual, sound mechanism is **on-policy distribution correction (DAgger /
+> scheduled sampling)**: it makes the per-step map ACCURATE on the off-trajectory states the rollout
+> visits. It therefore helps to the extent the deficit is off-manifold ACCURACY (EXP-018 shows this
+> IS the ff7/ff9 case) and will NOT help if the deficit is intrinsic high-gain dynamics. The detach
+> (TBPTT-1) is SAFE here (unlike the T-014 relay) precisely because every step has a GT anchor.
+> Mandatory gates: λ-ramp warmup + clean-val/diffusion regression tripwire. Open degenerate mode to
+> monitor: prior-emission under unlearnable drifted context (per-horizon loss flattening at large j).
 
 ## Diagnosis this targets (from T-016, confirmed by reading `dynamics_model.py:399-478`)
 `DynamicsModel.loss()` contains NO time-axis successor term: every frame is independently
