@@ -1,70 +1,52 @@
 # ORIENT.md
 
-Rewritten: 2026-06-14 (ESC-015 RESOLVED by Merlin; FF9 v2 baseline accepted. Viewer FF9 support done
-(D-025/T-015). Next frontier = op-3 dynamic-state relay, blocked on ESC-014.)
+Rewritten: 2026-06-14 (AUTONOMOUS motion-prediction session, D-026. EXP-018 diagnosis DONE →
+building C1. Branch feat/motion-prediction.)
 
 ## What we are doing and why
-- **H1, H2 — supported.** Frozen probe 5503e75; H2 anchored on budget-matched `vanilla_s0`.
-- **H3 — memory-token line. STATIC hidden state (color) now SOLVED cleanly; DYNAMIC (position) still open.**
-  - FF7 (registers, single-timestep loss): carries static color beyond window but decays; loss is also a
-    1-step dynamics regularizer (EXP-010/012/014).
-  - **FF9 v2 (distinct MEMORY tokens + leak-free memory-only sufficiency loss), EXP-017 — JUST EVALUATED:**
-    perfectly retains static COLOR FLAT at ceiling through n_occ=48 (6× the window), strictly beating FF7
-    (decays) and vanilla (cliff). The chosen architectural baseline over-delivered on static state.
-  - **Position/motion is NOT retained by ANY method yet** (posErr ~chance through occlusion) — the frozen
-    snapshot can't integrate motion. That is op-3 / the sequential relay's job (T-014, ESC-014).
-- **Big-picture plan (Merlin):** experiment with architectures + objectives to find persistent memory;
-  keep what sticks. Memory-token line is now validated for static state; dynamic state is the next frontier.
+- **Operating mode (Merlin, this session):** work autonomously for several hours on MOTION
+  PREDICTION, "dont block yourself" (= do NOT halt-and-wait at experiment gates this session),
+  "dont break anything" (additive/config-gated changes only, all gates green, frozen tokenizer/
+  probe untouched, branch `feat/motion-prediction`). Use the idea agent for inspiration. He's away.
+- **The problem (his redirect):** predict ball MOTION/position over multiple steps, even WITHOUT
+  occlusion. Prior check (EXP-011/12/13/14): tokenizer encodes position fine (R²0.96); vanilla can't
+  even predict 1 step (4.5px > copy-last); FF7/FF9 aux loss → good 1-step (~1px); but NO model holds
+  a trajectory past ~8-12 in-context steps.
+- **EXP-018 diagnosis (DONE, decisive):** teacher-forced pos_err is FLAT in horizon for ALL models
+  (ff7/ff9 ~1px h1→h24); open-loop compounds to chance. ⇒ the deficit is **autoregressive error
+  COMPOUNDING / exposure bias**, not a depth-degrading map. τ-sweep flat ⇒ C0 ruled out.
+- **Method (method-architect T-016 + verifier T-017):** **C1** = config-gated, identity-when-off
+  time-axis multi-step prediction loss (sibling of `_ff9_loss`; τ=0 successor target predicted from
+  the model's OWN detached self-generated context; TBPTT-1). Directly trains compounding-robustness.
 
-## In flight
-**Nothing running. 4070 idle.** EXP-017 fully done (train + eval), accepted by Merlin (ESC-015 resolved).
-Viewer FF9 support shipped (D-025/T-015). No cluster (scripts/ deferred).
+## In flight (2 background jobs)
+1. **EXP-018 canonical artifact run** (brvtvbec1): full P1+lightP2, 32 eps → diagnosis.json + .png.
+2. **critical-claim-verifier on C1** (T-017): scrutinizing the design before I implement. **MUST
+   read its verdict before coding C1** (§4).
+GPU otherwise idle. No cluster (scripts/ deferred).
 
-## NEXT ACTION
-**ESC-015 resolved.** The natural next step is the op-3 sequential relay (DYNAMIC-state memory), but its
-gradient design is **ESC-014, still OPEN** (verifier V-T014 REFUTED pure detached carry). Do NOT start the
-Mode B relay build until Merlin calls the ESC-014 design (P-a tbptt-k sweep [lean] / P-c dynamic-state probe
-/ P-b train-to-depth). Await his ESC-014 verdict or further direction.
+## NEXT ACTIONS (autonomous, no waiting on Merlin)
+1. Read C1 verdict (T-017-C1-verdict.md) → implement C1 in dynamics_model.py (revise per verdict),
+   add smoke tests incl. multistep_h=0 identity guard; keep FF7/FF9/KV/stream gates green.
+2. Launch budget-matched A/B on occluded subset (--max-episodes): vanilla CONTROL vs C1 treatment,
+   same subset/seed/epochs. Eval curtain-up open-loop with probe_multistep tooling.
+3. Reconcile + build views + write up; record EXP-019/020. Iterate (C2 scheduled-sampling if late
+   horizons still drift). Do NOT start op-3/ESC-014 work.
 
-EXP-017 decisive read (full detail in ESC-015 + experiments/EXP-017/NOTES.md):
-- Beyond-window color ΔRGB FLAT 12–14 across n_occ 2→48 (ceiling ~13, chance ~105, T-004 bar 63);
-  occluded ≈ drift (occlusion adds 0 color loss). FF7 17→85; vanilla cliff→chance@8.
-- PRIMARY memory sufficiency: L(mem) 0.018–0.033 vs L(no-mem) 0.27 (88–93% gap, captures motion).
-- No regression: val diffusion 0.00172 vs vanilla 0.0066 (~3.8× sharper).
-- Position NOT retained (the honest caveat) → needs op-3.
-- Inference design (`generate_full_state_memory` A1+B1) settled by critical-claim-verifier first (V-T013-eval).
-- All 3 D-024 tripwires clear; HIGH favorable surprise (D-024 predicted ≈FF7; got strictly better).
-- Views: experiments/EXP-017/{headline_color.png, memory_sufficiency.png, sheet_ff9.png}. Code @ 0f02f18.
-
-## Open escalation for Merlin
-- **ESC-014 (OPEN, the one gate left):** the op-3 relay gradient design (the dynamic-state method). Verifier V-T014
-  REFUTED pure detached carry (drifts past trained depth). Options P-a (tbptt-k sweep) [lean] / P-c
-  (dynamic-state probe) / P-b (train-to-depth detach). My lean P-a+P-c before the Mode B build. This is
-  the natural next step once ESC-015 is acknowledged — it is what carries DYNAMIC state.
+## Open escalation (parked this session)
+- **ESC-014 (OPEN):** op-3 relay gradient design (DYNAMIC-state occluded memory). Parked — Merlin
+  redirected to motion. Resume after this session / on his return.
 
 ## Recently done
-- **Viewer FF9 support (D-025/T-015) — DONE 2026-06-14.** play_dynamics_checkpoint.py now dispatches FF9 v2
-  checkpoints (use_full_state_memory & n_memory>0) to the full-state-memory rollout — added model primitives
-  full_state_rollout_init/step (generate_full_state_memory refactored into a thin loop over them, bit-for-bit
-  per a new equivalence smoke), FF9 WRITEs from a deeper prefix (up to max_T-1). FF9 smokes 10/10 (+1 new),
-  FF7/KV/stream gates green, headless end-to-end on ff9v2_s0.pt OK (20 occluded steps past the window).
-- **EXP-017 eval (D-024) — DONE 2026-06-14.** generate_full_state_memory (A1+B1, verifier-vetted) +
-  dispatch in all 4 generate entry points; FF9 smokes 9/9 (+2 new) + FF7/KV/stream gates green. Primary
-  readouts (eval_primary.py) + frozen color sweep (frozen_color.py, frozen instrument reused unmodified,
-  grid extended past 24) + views. Reproduces vanilla/ff7 at overlapping n_occ (harness validated).
-- T-012/D-020 cross-frame KV eviction cache (the rollout substrate); EXP-015/016 perf (efficiency
-  subobjective closed, ESC-011/012). EXP-013 position metric (built, uncertain strength, not a gate).
-
-## Open threads / parked
-- **op-3 / sequential relay (dynamic-state memory)** — the H3 position frontier; blocked on ESC-014.
-- EXP-013 position metric: built, uncertain strength, parked (ESC-009). Revisit if a position method needs it.
-- 2nd FF9 seed to firm the flat-color claim (optional, on promise — Merlin relaxed the 2-seed order).
-- Tokenizer-C KV cache (optional, BOARD).
+- **EXP-018 motion diagnosis — DONE 2026-06-14.** Compounding confirmed; C0 ruled out. Tooling:
+  experiments/EXP-018/{probe_multistep.py, make_views.py, NOTES.md}. method-architect proposal
+  (tasks/T-016-architect-proposal.md), C1 design (tasks/T-017-C1-design.md). Added safe
+  --max-episodes train flag.
+- Viewer FF9 support (D-025/T-015); EXP-017 FF9 v2 accepted (ESC-015 resolved).
 
 ## Current worries
-1. **FF9's flat color is partly the static-snapshot inference (B1) matching a static attribute** — it
-   cannot drift, so color is trivially perfect. This is fair (each model uses its faithful inference) and
-   genuinely strong for static state, but it is NOT evidence the approach carries DYNAMIC state. Position
-   confirms it doesn't yet. Framed honestly in ESC-015; the real test is op-3 on position.
-2. Single seed. The result is large and clean (flat at ceiling, occluded≈drift) so seed-fragility is
-   unlikely, but a 2nd seed would firm it if Merlin wants it before building on top.
+1. C1 cost (~2.3× vanilla/batch) on the 4070 — using a 250-ep subset + ≤30 ep for the A/B. Absolute
+   numbers will be below the 100-ep references; the A/B DELTA (same budget) is the signal.
+2. Off-manifold drift of self-generated latents over h steps could cap any motion loss (verifier +
+   a decode-validity check should flag it). Watch clean val/diffusion for single-frame regression.
+3. Single seed, short budget — a positive delta will need a confirmation run before any strong claim.
