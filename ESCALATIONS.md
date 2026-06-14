@@ -822,3 +822,65 @@ so FF9 v2 trains "memory = sufficient attendable full-state object," NOT the cro
 why it's a baseline, with option A (sequential relay) layered on next.
 Applied to: DECISIONS.md D-024, tasks/T-013-plan.md (FF9 v2 loss + baseline framing), IDEAS.md (FF9 v2),
 ORIENT.md, BOARD.md. → build T-013 on the 4070.
+
+## ESC-015 | 2026-06-14 | OPEN — present EXP-017 (FF9 v2 memory-token baseline, full eval) — present-then-stop
+Context: EXP-017 (D-024) is the FF9 v2 memory-token ARCHITECTURAL BASELINE you chose (ESC-013): a distinct
+MEMORY token type + the leak-free FF9 v2 objective (path frames τ=0, memory injected, loss on the target),
+trained 100 ep on occluded at the EXP-010/012 budget. Training finished overnight; this is the full eval.
+Per §4 I settled the (genuinely hard) beyond-window inference design with `critical-claim-verifier` BEFORE
+building it — verdict SUPPORTED for **A1+B1** (write a full-state memory snapshot ONCE from the prefix,
+inject it static at a τ=0 source frame each step; the re-extract relay B2 is the untrained op-3 and drifts;
+near-clean source A2 gave identical recall). EXPERIMENTS rows EXP-017 + V-T013-eval. §5 present-then-stop.
+
+### The result (decisive read)
+**FF9 v2 is a clean baseline that OVER-DELIVERED: it retains static hidden COLOR PERFECTLY and FLAT through
+arbitrary occlusion — strictly better than FF7, not the ≈FF7 we predicted.** Three findings:
+1. **Beyond-window color: flat at ceiling to n_occ=48 (6× the window).** color ΔRGB stays 12–14 (ceiling
+   ~13, chance ~105, T-004 bar 63) at EVERY n_occ from 2 to 48, and occluded ≈ matched-horizon drift at
+   every point (12.2 vs 12.3 @48 → occlusion adds ZERO color loss). FF7 k3 decays 17→85 (crosses the bar
+   ~n_occ 22); vanilla cliffs to chance at the window edge (n_occ 8). FF9 dominates both everywhere past
+   the window. **Why flatter than FF7:** A1+B1 carries a written-once snapshot that CANNOT drift, so a
+   static attribute is held forever; FF7 re-extracts its register each step (one-hop relay) and drifts.
+   Each model uses its own faithful inference, so the comparison is fair.
+2. **Within-window memory sufficiency (PRIMARY) — strongly load-bearing.** With the whole path at τ=0
+   (memory is the ONLY carrier), memory-only prediction of t+j: L(mem) 0.018/0.025/0.033 vs L(no-mem)
+   0.27 (j=1/2/3), chance 0.41, copy-last 0.38/0.63/0.69 → closes 88–93% of the gap, ~20× below chance,
+   and ≪ copy-last (copy-last climbs to 0.69 as the ball moves while L(mem) stays ~0.03) → memory captures
+   MOTION within the window, it is not a static frame copy.
+3. **No base-dynamics regression — improved.** Clean held-out val diffusion 0.00172 vs vanilla_s0 ~0.0066
+   (~3.8× sharper) — the same dynamics-regularizer effect FF7 showed (EXP-014).
+
+**The honest caveat (the half it does NOT solve):** dynamic POSITION is not retained — posErr ~20–30px at
+all n_occ for FF9, the same as vanilla and FF7; latent-MSE stays near chance (position-dominated, the
+T-004 confound). The frozen snapshot cannot integrate motion. So FF9 v2 perfectly carries STATIC hidden
+state; carrying DYNAMIC state needs the memory to UPDATE across steps — exactly op-3 / the sequential
+relay (T-014, ESC-014), which this working write+read substrate now de-risks and motivates.
+
+All three D-024 tripwires checked and clear (memory load-bearing ✓; no regression ✓; color not worse than
+FF7 — it's better ✓). No HALT condition; the surprise is favorable.
+
+### Access points (low-friction view)
+- **Headline (open first):** `experiments/EXP-017/headline_color.png` — color recall vs n_occ, 3 models +
+  ceiling/chance/T-004-bar; FF9 flat line vs FF7 decay vs vanilla cliff, obvious at a glance.
+- **Primary readout:** `experiments/EXP-017/memory_sufficiency.png` — L(mem) vs L(no-mem) vs copy-last/chance.
+- **Qualitative:** `experiments/EXP-017/sheet_ff9.png` — GT(top)/prediction(bottom); the predicted reveal
+  ball matches GT COLOR at every n_occ incl. 48 (position off — color held, position not).
+- Numbers: `experiments/EXP-017/frozen_color.json`, `primary.json`. Full reconciliation: `NOTES.md`.
+  Inference-design audit: `tasks/T-013-eval-inference.md` + `experiments/verify-T013-eval/` (V-T013-eval).
+
+### The question for you
+1. Agree with the read — FF9 v2 cleanly + perfectly retains static hidden COLOR beyond the window (flat at
+   ceiling to n_occ=48), strictly beating FF7's drifting relay and vanilla's cliff; the mechanism is a
+   non-drifting written-once full-state snapshot; position (dynamic) is unsolved and needs op-3?
+2. Is this enough to call the **memory-token architecture baseline a success** and the H3 memory line
+   validated for static state (color)? (It exceeded the "≈FF7" bar you set in D-024.)
+3. Direction — my recommendation: this is the green light for the dynamic-state extension. The blocker is
+   **ESC-014** (still OPEN): the op-3 relay gradient design — P-a (cheap tbptt-k sweep to find min BPTT
+   depth that extrapolates) [my lean] / P-c (dynamic-state probe) / P-b (train-to-depth detach). I lean
+   **P-a + P-c together** (one short probe session: cheapest k AND whether a relay can carry dynamic state
+   at all) BEFORE the Mode B build. Your call on ESC-014 unblocks the relay; or redirect (e.g. a 2nd FF9
+   seed to firm the flat-color claim first; or fold FF9 v2 into the writeup and pause).
+
+Urgency: blocking per §5 — I am not starting the relay build, ESC-014 probes, or any follow-up until you
+weigh in. Nothing is in flight; the 4070 is idle. Code committed (FF9 eval @ 0f02f18); gates green
+(FF9 9/9, FF7 5/5, KV 5/5, stream 9/9).

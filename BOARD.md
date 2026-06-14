@@ -2,24 +2,20 @@
 
 Updated: 2026-06-13 (ESC-009/010 RESOLVED → building D-020 cross-frame KV cache / T-012)
 
-## In progress
-- **EXP-017 — FF9 v2 memory-token baseline — TRAINING overnight** (D-024; launched 2026-06-14 late-night per
-  Merlin's overnight-run ask). occluded, 100ep bs32 lr3e-4 seed0, n_memory=4 ff9_k=3, --fresh. bg bt57zuxt8 →
-  `experiments/EXP-017/train.log`; ckpt `ff9v2_s0.pt` every epoch; ~6-7h. TRAIN ONLY (eval deferred — needs
-  generate_full_state_memory). Tomorrow: build that + memory-sufficiency probe + frozen-probe color vs
-  vanilla_s0/ff7_k3 → present-then-stop. (Chose FF9 v2 over the relay tonight: relay = bug-prone rushed build
-  per V-T014; FF9 v2 is the safe, needed foundation.)
-- **T-013 — memory-token architecture + FF9 v2 (BUILT; TRAINING as EXP-017)** (H3 architectural baseline; D-024). ESC-013
-  resolved: Merlin picked P1-as-baseline with his FF9 v2 fix (variable-horizon j∈{1..k}, path frames τ=0 /
-  no GT leak, last frame sampled-τ, loss on last frame only, un-ramped). Plan `tasks/T-013-plan.md` updated.
-  Build progress:
-  - ✅ (1) additive MEMORY token type + (2) `_ff9_loss` v2 (random j, τ=0 path, loss on 1..j, un-ramped) in
-    dynamics_model.py. Gates: test_ff9_smoke **7/7** (incl. n_memory=0 byte-identity, grad→blocks+memory_tokens,
-    injection changes prediction); FF7 5/5, KV 5/5, stream 9/9 — **no regression**. (commit 7f4e4a3)
-  - ⏳ (3) `train_dynamics_model.py --ff9` flag + knobs (ff9_k, lambda_ff9, ff9_ramp).
-  - ⏳ (4) `generate_full_state_memory` + dispatch (memory-carry rollout, analog of generate_memory) for
-    frozen-probe eval; memory-sufficiency probe (L(mem)≪L(no-mem)).
-  - ⏳ (5) train seed0 → EXP-017 (the ops-1&2 baseline; sequencing vs going straight to A+B still open w/ Merlin).
+## Awaiting review
+- **EXP-017 — FF9 v2 memory-token baseline (full eval) DONE → ESC-015 (open).** D-024. **HIGH favorable
+  surprise:** FF9 v2 retains static hidden COLOR FLAT at ceiling (ΔRGB 12–14) through n_occ=48 (6× window) —
+  strictly beats FF7 (decays 17→85) and vanilla (cliff→chance@8); D-024 predicted ≈FF7. PRIMARY memory
+  sufficiency L(mem) 0.018–0.033 vs L(no-mem) 0.27 (88–93% gap, captures motion). No regression (val
+  diffusion 0.00172 vs vanilla 0.0066). Position NOT retained (needs op-3). Inference (generate_full_state_
+  memory A1+B1) verifier-vetted (V-T013-eval) before build. Code @ 0f02f18; gates green. Views:
+  experiments/EXP-017/{headline_color.png, memory_sufficiency.png, sheet_ff9.png}; NOTES.md; frozen_color.json.
+
+## Done (2026-06-14)
+- **T-013 — memory-token architecture + FF9 v2 — DONE** (H3 architectural baseline; D-024). Built (MEMORY
+  token type + `_ff9_loss` v2 + `train --ff9`), trained as EXP-017 (100ep overnight), evaluated
+  (`generate_full_state_memory` A1+B1 + dispatch in all 4 generate paths + smokes; primary readouts +
+  frozen color sweep + views). All gates green (FF9 9/9, FF7 5/5, KV 5/5, stream 9/9). → ESC-015.
 - **T-014 — FF9 relay training (operation 3 = write-memory-from-memory) + 50/50 split + mode alternation**
   (Merlin 2026-06-14; folds option A into the FF9 line = A+B). Design note `tasks/T-014-relay-plan.md` written.
   Mode B = detached-carry sliding-window relay (per-step grad forward + FF9 loss, detach+evict+slide, ~200
