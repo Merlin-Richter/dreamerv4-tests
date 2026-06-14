@@ -164,6 +164,31 @@ def test_full_state_memory_carries_prefix_beyond_window():
     assert far.abs().mean() > 1e-4, "beyond-window frame does not depend on the prefix (memory inert)"
 
 
+def test_full_state_rollout_primitives_match_generate():
+    """The interactive primitives (full_state_rollout_init/step) the viewer drives must reproduce
+    generate_full_state_memory bit-for-bit: same WRITE, same per-frame denoise. Guards against the
+    viewer path drifting from the evaluated closed-loop inference (D-025). Checked for A1 (default,
+    source_tau_idx=0) and A2 (source_tau_idx>0, which carries prev_lat across steps)."""
+    cfg = _tiny_cfg(n_memory=4, use_full_state_memory=True, ff9_k=3)
+    model = DynamicsModel(cfg).eval()
+    B, P, n_gen = 2, 4, 7
+    ctx = torch.randn(B, P, cfg.n_latents, cfg.bottleneck_dim)
+    actions = torch.randint(0, cfg.n_actions, (B, P + n_gen))
+    for src_tau in (0, 5):
+        torch.manual_seed(3)
+        g_ref = model.generate_full_state_memory(ctx, n_gen, action_idx=actions, source_tau_idx=src_tau)
+        torch.manual_seed(3)
+        state = model.full_state_rollout_init(ctx, actions[:, :P], source_tau_idx=src_tau)
+        outs = []
+        for i in range(n_gen):
+            # viewer drives per-step int actions (here per-batch tensor, the general form)
+            z, state = model.full_state_rollout_step(state, actions[:, P + i])
+            outs.append(z)
+        g_step = torch.concat(outs, dim=1)
+        assert torch.equal(g_ref, g_step), \
+            f"init/step path diverges from generate_full_state_memory (source_tau_idx={src_tau})"
+
+
 if __name__ == "__main__":
     fns = [v for n, v in sorted(globals().items()) if n.startswith("test_")]
     for fn in fns:

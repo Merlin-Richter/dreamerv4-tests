@@ -192,12 +192,20 @@ python src/C_multi_image_auto_encoder/train_autoencoder_bouncing.py \
 # Inspect dynamics rollout (interactive)
 python src/D_dynamics_model/train_dynamics_model.py --test-checkpoint
 python src/D_dynamics_model/play_dynamics_checkpoint.py  # Single-frame interactive
-# Auto-detects FF7 checkpoints (config.use_register_memory): drives the register-carry relay
-# (memory_rollout_init/step) so hidden state survives past the latent window. Vanilla
-# checkpoints use the sliding-window path. The on-screen "mode=" line shows which is active.
+# Auto-detects the checkpoint's inference mode (same dispatch order as generate()):
+#   FF7 (config.use_register_memory) -> register-carry relay (memory_rollout_init/step);
+#   FF9 v2 (config.use_full_state_memory & n_memory>0) -> full-state-memory rollout
+#     (full_state_rollout_init/step, A1+B1) — WRITEs a frozen snapshot from a deeper prefix
+#     (up to max_temporal_length-1 frames) then carries it, so static hidden state survives
+#     indefinitely past the latent window (the exact inference evaluated in EXP-017);
+#   otherwise the vanilla sliding-window path. The on-screen "mode=" line shows which is active.
 # To inspect an FF7 model on the occluded env:
 python src/D_dynamics_model/play_dynamics_checkpoint.py \
   --checkpoint experiments/EXP-010/k3/ff7_k3_s0.pt --tokenizer trained_autoencoder.pt \
+  --frames occluded.npy --actions occluded_actions.npy
+# To inspect the FF9 v2 model (EXP-017) on the occluded env:
+python src/D_dynamics_model/play_dynamics_checkpoint.py \
+  --checkpoint experiments/EXP-017/ff9v2_s0.pt --tokenizer trained_autoencoder.pt \
   --frames occluded.npy --actions occluded_actions.npy
 ```
 

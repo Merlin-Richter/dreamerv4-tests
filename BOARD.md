@@ -1,9 +1,18 @@
 # BOARD.md — task board
 
-Updated: 2026-06-13 (ESC-009/010 RESOLVED → building D-020 cross-frame KV cache / T-012)
+Updated: 2026-06-14 (ESC-015 RESOLVED; viewer FF9 support done T-015/D-025; one gate left = ESC-014)
 
-## Awaiting review
-- **EXP-017 — FF9 v2 memory-token baseline (full eval) DONE → ESC-015 (open).** D-024. **HIGH favorable
+## Done (2026-06-14, latest)
+- **T-015 — viewer FF9 v2 support + model primitive refactor (D-025) — DONE.** play_dynamics_checkpoint.py
+  now dispatches FF9 v2 checkpoints (use_full_state_memory & n_memory>0) to the full-state-memory rollout
+  (was silently falling through to vanilla). Added `full_state_rollout_init`/`full_state_rollout_step` to
+  DynamicsModel; `generate_full_state_memory` refactored into a thin loop over them (single source of truth,
+  bit-for-bit per new equivalence smoke). FF9 WRITEs from a deeper prefix (up to max_T-1). Gates: FF9 10/10
+  (+1), FF7 5/5, KV 5/5, stream 9/9; headless end-to-end on ff9v2_s0.pt OK. CLAUDE.md updated.
+
+## Resolved
+- **EXP-017 — FF9 v2 memory-token baseline (full eval) → ESC-015 RESOLVED (Merlin accepted, 2026-06-14).**
+  D-024. **HIGH favorable
   surprise:** FF9 v2 retains static hidden COLOR FLAT at ceiling (ΔRGB 12–14) through n_occ=48 (6× window) —
   strictly beats FF7 (decays 17→85) and vanilla (cliff→chance@8); D-024 predicted ≈FF7. PRIMARY memory
   sufficiency L(mem) 0.018–0.033 vs L(no-mem) 0.27 (88–93% gap, captures motion). No regression (val

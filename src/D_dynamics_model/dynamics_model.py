@@ -839,30 +839,20 @@ class DynamicsModel(nn.Module):
         return torch.concat(generated, dim=1)
 
     @torch.no_grad()
-    def generate_full_state_memory(self, context: torch.Tensor, n_generate: int, K: int = None,
-                                   action_idx: torch.Tensor = None,
-                                   source_tau_idx: int = 0) -> torch.Tensor:
-        """FF9 v2 full-state-memory rollout (D-024). Beyond-window inference that carries a single
-        memory snapshot, matching the FF9 v2 READ op exactly (verdict V-T013-eval = A1+B1):
+    def full_state_rollout_init(self, context: torch.Tensor, ctx_action_idx: torch.Tensor = None,
+                                K: int = None, source_tau_idx: int = 0) -> dict:
+        """Seed an FF9 v2 full-state-memory rollout (D-024). WRITE the memory snapshot ONCE from the
+        observed prefix window (held near-clean at context_signal): the LAST frame's memory tokens
+        become a static ``mem_carry`` (the model is trained to write a full-state object from a window
+        of real latents; see ``_ff9_loss``). The snapshot is then carried frozen — this is the
+        open-ended, stateful form of the closed loop in ``generate_full_state_memory`` (A1+B1,
+        V-T013-eval). It draws no rollout noise itself (only the WRITE's context-noise).
 
-          * WRITE ONCE: run the observed prefix window (held near-clean at context_signal) through the
-            model with ``return_memory=True``; take the LAST frame's memory tokens as a static
-            ``mem_carry`` — the model is trained to write a full-state object from a window of real
-            latents (the FF9 v2 main pass; see ``_ff9_loss``).
-          * PER STEP: a 2-frame window ``[source | new]`` with ``mem_carry`` injected at the SOURCE
-            frame (so the new frame reads it through the position-wise temporal memory channel),
-            learned-init memory at the new frame; the source latent at signal ``source_tau_idx``
-            (default 0 = pure noise, **A1**, matching training — the scene comes ONLY from memory); the
-            new frame denoised over K shortcut steps. ``mem_carry`` is NEVER updated (static carry,
-            **B1**; re-extracting it is the untrained memory->memory relay (op-3) and drifts past the
-            trained horizon — see V-T013-eval / V-T014).
-
-        Carries STATIC hidden state (e.g. ball color) indefinitely past the N-frame window; precise
-        dynamic position is NOT tracked (the snapshot is frozen) — that is the sequential relay's job
-        (op-3, T-014). ``source_tau_idx``: 0 = A1 (FF9-faithful, the dispatch default); pass
-        ``tau_ctx_idx`` for the A2 shape-matched-to-FF7 secondary. Same signature/return as generate().
+        context:        (B, T_ctx, L, D) clean latents (the observed prefix; up to max_ctx are used).
+        ctx_action_idx: (B, T_ctx) long action ids for the prefix frames, or None (unlabeled model).
+        Returns an opaque state dict for ``full_state_rollout_step``.
         """
-        assert self.n_memory > 0, "generate_full_state_memory requires n_memory > 0"
+        assert self.n_memory > 0, "full_state_rollout_init requires n_memory > 0"
         K = K or self.config.inference_steps
         B, T_ctx, L, Dd = context.shape
         device = context.device
@@ -874,8 +864,8 @@ class DynamicsModel(nn.Module):
         win = context[:, -max_ctx:]
         w = win.shape[1]
         act_win = None
-        if action_idx is not None and self.n_actions > 0:
-            act_win = self.action_features(action_idx[:, T_ctx - w:T_ctx])
+        if ctx_action_idx is not None and self.n_actions > 0:
+            act_win = self.action_features(ctx_action_idx[:, -w:])
         tau_col = torch.full((B, w), tau_ctx_idx, device=device, dtype=torch.long)
         d_col = torch.full((B, w), d_idx_val, device=device, dtype=torch.long)
         _, mem = self(self._noise_to_ctx(win), tau_col, d_col, act_win, return_memory=True)
@@ -883,33 +873,86 @@ class DynamicsModel(nn.Module):
 
         # memory injected at the source frame; learned-init at the new frame.
         mem_in = torch.concat((mem_carry, self.memory_tokens.expand(B, 1, -1, -1)), dim=1)  # (B,2,M,E)
-        d2 = torch.full((B, 2), d_idx_val, device=device, dtype=torch.long)
-        prev_id = action_idx[:, T_ctx - 1:T_ctx] if action_idx is not None else None
         s_val = float(self._tau_value(torch.tensor(source_tau_idx, device=device))) if source_tau_idx > 0 else 0.0
+        return {
+            "mem_in": mem_in, "K": K, "d_idx_val": d_idx_val,
+            "source_tau_idx": source_tau_idx, "s_val": s_val,
+            "prev_id": (ctx_action_idx[:, -1:] if ctx_action_idx is not None else None),
+            "prev_lat": context[:, -1:], "L": L, "Dd": Dd,
+        }
 
+    @torch.no_grad()
+    def full_state_rollout_step(self, state: dict, action_id=None, K: int = None):
+        """Advance an FF9 v2 full-state-memory rollout by one frame. A 2-frame window
+        ``[source | new]`` with the frozen ``mem_carry`` injected at the SOURCE frame (the new frame
+        reads it through the position-wise temporal memory channel) and learned-init memory at the new
+        frame; the source latent at signal ``source_tau_idx`` (default 0 = pure noise, **A1**, matching
+        training — the scene comes ONLY from memory), the new frame denoised over K shortcut steps.
+        ``mem_carry`` is NEVER updated (static carry, **B1**; re-extracting it is the untrained
+        memory->memory relay (op-3) and drifts past the trained horizon — see V-T013-eval / V-T014).
+
+        ``action_id`` is the action for the NEW frame: an int, a (B,) / (B,1) long tensor, or None.
+        Returns (z_new (B, 1, L, D), new_state)."""
+        K = K or state["K"]
+        mem_in = state["mem_in"]
+        B = mem_in.shape[0]
+        L, Dd = state["L"], state["Dd"]
+        device = mem_in.device
+        d_idx_val, source_tau_idx = state["d_idx_val"], state["source_tau_idx"]
+
+        act2, new_id = None, None
+        if self.n_actions > 0 and action_id is not None:
+            if torch.is_tensor(action_id):
+                new_id = action_id.reshape(B, 1).to(device=device, dtype=torch.long)
+            else:
+                new_id = torch.full((B, 1), int(action_id), device=device, dtype=torch.long)
+            prev_id = state["prev_id"]
+            prev_id = new_id if prev_id is None else prev_id.reshape(B, 1)
+            act2 = self.action_features(torch.concat((prev_id, new_id), dim=1))  # (B,2,n_act,E)
+
+        d2 = torch.full((B, 2), d_idx_val, device=device, dtype=torch.long)
+        # source frame at signal source_tau_idx (default 0 => pure noise, A1); new frame denoised.
+        src = torch.randn((B, 1, L, Dd), device=device)
+        if source_tau_idx > 0:                                     # A2: near-clean prev frame + noise
+            src = (1 - state["s_val"]) * src + state["s_val"] * state["prev_lat"]
+        tau2 = torch.zeros((B, 2), device=device, dtype=torch.long)
+        tau2[:, 0] = source_tau_idx
+        z = torch.randn((B, 1, L, Dd), device=device)
+        for kstep in range(K):
+            tau = kstep / K
+            tau2[:, -1] = round(tau * self.K_max)
+            z_hat1 = self(torch.concat((src, z), dim=1), tau2, d2, act2, memory_in=mem_in)[:, -1:]
+            v = (z_hat1 - z) / (1 - tau)
+            z = z + v * (1.0 / K)
+        new_state = {**state, "prev_lat": z,
+                     "prev_id": (new_id if new_id is not None else state["prev_id"])}
+        return z, new_state
+
+    @torch.no_grad()
+    def generate_full_state_memory(self, context: torch.Tensor, n_generate: int, K: int = None,
+                                   action_idx: torch.Tensor = None,
+                                   source_tau_idx: int = 0) -> torch.Tensor:
+        """FF9 v2 full-state-memory rollout (D-024). Beyond-window inference that carries a single
+        memory snapshot, matching the FF9 v2 READ op exactly (verdict V-T013-eval = A1+B1). WRITE the
+        snapshot once from the observed prefix, then carry it frozen and denoise each new frame from a
+        2-frame ``[source | new]`` window with the snapshot injected at the source — see
+        ``full_state_rollout_init`` / ``full_state_rollout_step`` for the per-op semantics.
+
+        Carries STATIC hidden state (e.g. ball color) indefinitely past the N-frame window; precise
+        dynamic position is NOT tracked (the snapshot is frozen) — that is the sequential relay's job
+        (op-3, T-014). ``source_tau_idx``: 0 = A1 (FF9-faithful, the dispatch default); pass
+        ``tau_ctx_idx`` for the A2 shape-matched-to-FF7 secondary. Same signature/return as generate().
+        Thin closed loop over full_state_rollout_init/step (the open-ended interactive form).
+        """
+        assert self.n_memory > 0, "generate_full_state_memory requires n_memory > 0"
+        P = context.shape[1]
+        ctx_ids = action_idx[:, :P] if action_idx is not None else None
+        state = self.full_state_rollout_init(context, ctx_ids, K, source_tau_idx)
         generated = []
         for i in range(n_generate):
-            act2, new_id = None, None
-            if action_idx is not None and self.n_actions > 0:
-                new_id = action_idx[:, T_ctx + i:T_ctx + i + 1]
-                act2 = self.action_features(torch.concat((prev_id, new_id), dim=1))
-            # source frame at signal source_tau_idx (default 0 => pure noise, A1); new frame denoised.
-            src = torch.randn((B, 1, L, Dd), device=device)
-            if source_tau_idx > 0:                                 # A2: near-clean prev frame + noise
-                prev_lat = generated[-1] if generated else context[:, -1:]
-                src = (1 - s_val) * src + s_val * prev_lat
-            tau2 = torch.zeros((B, 2), device=device, dtype=torch.long)
-            tau2[:, 0] = source_tau_idx
-            z = torch.randn((B, 1, L, Dd), device=device)
-            for kstep in range(K):
-                tau = kstep / K
-                tau2[:, -1] = round(tau * self.K_max)
-                z_hat1 = self(torch.concat((src, z), dim=1), tau2, d2, act2, memory_in=mem_in)[:, -1:]
-                v = (z_hat1 - z) / (1 - tau)
-                z = z + v * (1.0 / K)
+            new_id = action_idx[:, P + i] if action_idx is not None else None
+            z, state = self.full_state_rollout_step(state, new_id, K)
             generated.append(z)
-            if new_id is not None:
-                prev_id = new_id
         return torch.concat(generated, dim=1)
 
     # ----------------------------------------- cross-frame sliding-window KV cache (D-020, T-012)

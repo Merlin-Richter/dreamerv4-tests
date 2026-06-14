@@ -823,7 +823,13 @@ why it's a baseline, with option A (sequential relay) layered on next.
 Applied to: DECISIONS.md D-024, tasks/T-013-plan.md (FF9 v2 loss + baseline framing), IDEAS.md (FF9 v2),
 ORIENT.md, BOARD.md. → build T-013 on the 4070.
 
-## ESC-015 | 2026-06-14 | OPEN — present EXP-017 (FF9 v2 memory-token baseline, full eval) — present-then-stop
+## ESC-015 | 2026-06-14 | RESOLVED — present EXP-017 (FF9 v2 memory-token baseline, full eval) — present-then-stop
+RESOLUTION (Merlin, 2026-06-14): "great findings. Consider ESC-015 resolved." The EXP-017 decisive read is
+accepted — the FF9 v2 memory-token line is a validated architectural baseline for STATIC hidden state
+(color retained flat at ceiling past the window, strictly beating FF7/vanilla; position not retained → op-3).
+Same turn he asked to make the interactive viewer support the new memory rollouts → D-025/T-015 (done).
+Next frontier remains the op-3 sequential relay for DYNAMIC state (ESC-014, still open).
+
 Context: EXP-017 (D-024) is the FF9 v2 memory-token ARCHITECTURAL BASELINE you chose (ESC-013): a distinct
 MEMORY token type + the leak-free FF9 v2 objective (path frames τ=0, memory injected, loss on the target),
 trained 100 ep on occluded at the EXP-010/012 budget. Training finished overnight; this is the full eval.

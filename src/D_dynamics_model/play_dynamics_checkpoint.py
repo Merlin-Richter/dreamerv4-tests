@@ -14,7 +14,12 @@ register-memory checkpoint (config.use_register_memory=True) the viewer instead 
 param-free register-carry relay (memory_rollout_init/step): each frame carries the previous
 frame's register state forward, so hidden state survives past the latent window — without it,
 an FF7 model degrades to vanilla and hallucinates a random ball once the curtain outlasts the
-4-frame window. Rollouts continue indefinitely until reset.
+4-frame window. For an FF9 v2 full-state-memory checkpoint (config.use_full_state_memory=True,
+n_memory>0) the viewer drives the full-state-memory rollout (full_state_rollout_init/step,
+A1+B1, the exact inference evaluated in EXP-017): a memory snapshot is WRITTEN ONCE from the
+observed prefix window and then carried FROZEN, so static hidden state (e.g. ball color)
+survives indefinitely past the window (precise dynamic position is not tracked — the snapshot
+is frozen). Rollouts continue indefinitely until reset.
 
 Run from repo root:
     python src/D_dynamics_model/play_dynamics_checkpoint.py
@@ -124,8 +129,17 @@ class InteractiveRollout:
         self.n_eps = raw.shape[0]
         self.n_frames = raw.shape[1]
         self.scale = max(2, 512 // max(h, w))
-        # FF7 checkpoints need the register-carry relay; vanilla ones use the sliding window.
+        # Dispatch (mirrors generate(): register memory first, then full-state memory, else vanilla):
+        #   FF7 register-carry relay | FF9 v2 full-state-memory rollout | vanilla sliding window.
         self.use_memory = bool(getattr(model.config, "use_register_memory", False))
+        self.use_full_state = (
+            bool(getattr(model.config, "use_full_state_memory", False))
+            and getattr(model.config, "n_memory", 0) > 0
+            and not self.use_memory
+        )
+        # Frames fed to the FF9 WRITE: up to the dynamics window (max_temporal_length-1), not just
+        # ROLLOUT_CTX, so the carried snapshot matches the prefix the EXP-017 eval wrote from.
+        self.full_state_prefix = max(ROLLOUT_CTX, model.config.max_temporal_length - 1)
         self.mem_state: dict | None = None
 
         self.latents: torch.Tensor | None = None
@@ -168,6 +182,20 @@ class InteractiveRollout:
             ctx_ids = torch.tensor([self.actions], device=self.device, dtype=torch.long)
             self.mem_state = self.model.memory_rollout_init(
                 self.latents, ctx_ids, self.inference_steps)
+        # Seed the FF9 v2 full-state-memory rollout: WRITE the frozen snapshot ONCE from a deeper
+        # prefix (up to max_temporal_length-1 frames, not just ROLLOUT_CTX) so it matches the EXP-017
+        # eval's WRITE window. Subsequent steps carry that snapshot frozen.
+        elif self.use_full_state:
+            n_prefix = min(self.full_state_prefix, latents_full.shape[1])
+            init_ctx = latents_full[:, -n_prefix:].contiguous()
+            prefix_ids = None
+            if self.actions_raw is not None:
+                prefix_start = tok_start + tok_len - n_prefix
+                prefix_ids = torch.tensor(
+                    [[int(self.actions_raw[self.ep, prefix_start + t]) for t in range(n_prefix)]],
+                    device=self.device, dtype=torch.long)
+            self.mem_state = self.model.full_state_rollout_init(
+                init_ctx, prefix_ids, self.inference_steps)
 
         gt = clip[-1]
         self.current_bgr = tensor01_to_bgr(torch.from_numpy(gt))
@@ -181,6 +209,10 @@ class InteractiveRollout:
         if self.use_memory:
             # FF7 register-carry relay: one step, carrying register state across the window.
             nxt, self.mem_state = self.model.memory_rollout_step(
+                self.mem_state, action, self.inference_steps)
+        elif self.use_full_state:
+            # FF9 v2 full-state-memory: denoise the next frame reading the FROZEN snapshot.
+            nxt, self.mem_state = self.model.full_state_rollout_step(
                 self.mem_state, action, self.inference_steps)
         else:
             # Vanilla sliding-window: denoise the next frame from the last ROLLOUT_CTX latents.
@@ -210,7 +242,12 @@ class InteractiveRollout:
 
         frame_idx = self.frame_base + len(self.actions) - 1
         kind = "GT ctx" if self.current_is_gt else "generated"
-        mode = "FF7 register-carry" if self.use_memory else f"vanilla window={ROLLOUT_CTX}"
+        if self.use_memory:
+            mode = "FF7 register-carry"
+        elif self.use_full_state:
+            mode = "FF9 full-state-memory (frozen snapshot)"
+        else:
+            mode = f"vanilla window={ROLLOUT_CTX}"
         lines = [
             f"ep {self.ep}  frame {frame_idx}  ({kind})  action={last_action}",
             f"mode={mode}  tok_ctx={self.tokenizer_context}  "
@@ -297,11 +334,18 @@ def main() -> None:
     )
 
     use_memory = bool(getattr(cfg, "use_register_memory", False))
+    use_full_state = bool(getattr(cfg, "use_full_state_memory", False)) \
+        and getattr(cfg, "n_memory", 0) > 0 and not use_memory
+    if use_memory:
+        mode_str = "FF7 register-carry relay (memory_rollout_step)"
+    elif use_full_state:
+        mode_str = "FF9 v2 full-state-memory rollout (full_state_rollout_step; frozen snapshot, A1+B1)"
+    else:
+        mode_str = f"vanilla sliding window ({ROLLOUT_CTX} latents)"
     print("Interactive dynamics rollout")
-    print(f"  inference mode:            "
-          + ("FF7 register-carry relay (memory_rollout_step)" if use_memory
-             else f"vanilla sliding window ({ROLLOUT_CTX} latents)"))
-    print(f"  dynamics temporal context: {ROLLOUT_CTX} frames (vanilla seed / FF7 prefix)")
+    print(f"  inference mode:            {mode_str}")
+    print(f"  dynamics temporal context: {ROLLOUT_CTX} frames "
+          "(vanilla seed / FF7 prefix; FF9 writes from a deeper prefix)")
     print(f"  tokenizer encode length:   {max(ROLLOUT_CTX, tok_ctx)} frames on reset")
     print("  0 = curtain up   1 = curtain down   space/r = new context   q/Esc = quit")
 

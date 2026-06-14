@@ -755,3 +755,27 @@ base-dynamics regression vs vanilla_s0 → the τ=0 path or extra tokens hurt th
 color materially WORSE than FF7 → the memory-token swap degraded what FF7's registers achieved.
 Spawns: T-013 build (architecture + _ff9_loss + generate_full_state_memory + smokes), then EXP-017
 (training run, present-then-stop per §5).
+
+## D-025 | 2026-06-14
+Context: Merlin resolved ESC-015 (EXP-017 FF9 v2 accepted). He asked to check that the interactive
+viewer `src/D_dynamics_model/play_dynamics_checkpoint.py` supports the new memory rollouts and fix it
+if not. Inspection: the viewer dispatches ONLY on `use_register_memory` (FF7 register-carry). An FF9 v2
+checkpoint (EXP-017: use_full_state_memory=true, n_memory=4, use_register_memory=false) falls through to
+the vanilla sliding-window path — so it would render vanilla rollouts (hallucinated state past the
+4-frame window) and even mislabel the mode as `vanilla window=4`. That is NOT the FF9 inference we
+evaluated (generate_full_state_memory, A1+B1, V-T013-eval). FF9 also lacks interactive init/step
+primitives (FF7 has memory_rollout_init/step); generate_full_state_memory is a monolithic closed loop.
+Decision: (1) Add `full_state_rollout_init`/`full_state_rollout_step` to DynamicsModel mirroring the FF7
+primitives, and refactor `generate_full_state_memory` into a thin loop over them (single source of truth,
+matching the documented generate_memory<->memory_rollout pattern). (2) Dispatch the FF9 v2 case in the
+viewer to these primitives, seeding the WRITE from a deeper prefix (up to max_temporal_length-1=15 frames,
+not just ROLLOUT_CTX=4) so the snapshot matches the evaluated WRITE; update mode label + header.
+Alternatives rejected: inline the FF9 per-step math in the viewer (duplicates the eval inference -> can
+drift -> Merlin would see something other than what we evaluated); leave generate_full_state_memory
+monolithic and write standalone viewer-only primitives (same drift risk).
+Expected outcome: FF9 v2 checkpoint plays through the faithful full-state-memory inference (static color
+survives indefinitely past the window); existing FF9 smokes still pass; a new init/step<->generate
+equivalence test passes bit-for-bit; FF7/vanilla paths unchanged.
+Would change my mind: refactored generate_full_state_memory output differs from the pre-refactor output
+on a fixed seed (then the primitive extraction broke RNG order/semantics — revert and inline instead).
+Spawns: T-015 (viewer FF9 support + model primitive refactor + equivalence test). No experiment.

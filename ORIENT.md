@@ -1,6 +1,7 @@
 # ORIENT.md
 
-Rewritten: 2026-06-14 (EXP-017 FF9 v2 full eval DONE → ESC-015 present-then-stop, awaiting Merlin)
+Rewritten: 2026-06-14 (ESC-015 RESOLVED by Merlin; FF9 v2 baseline accepted. Viewer FF9 support done
+(D-025/T-015). Next frontier = op-3 dynamic-state relay, blocked on ESC-014.)
 
 ## What we are doing and why
 - **H1, H2 — supported.** Frozen probe 5503e75; H2 anchored on budget-matched `vanilla_s0`.
@@ -16,11 +17,14 @@ Rewritten: 2026-06-14 (EXP-017 FF9 v2 full eval DONE → ESC-015 present-then-st
   keep what sticks. Memory-token line is now validated for static state; dynamic state is the next frontier.
 
 ## In flight
-**Nothing running. 4070 idle.** EXP-017 fully done (train + eval). No cluster (scripts/ deferred).
+**Nothing running. 4070 idle.** EXP-017 fully done (train + eval), accepted by Merlin (ESC-015 resolved).
+Viewer FF9 support shipped (D-025/T-015). No cluster (scripts/ deferred).
 
 ## NEXT ACTION
-**WAIT for Merlin on ESC-015 (present-then-stop for EXP-017) — blocking per §5.** Do not start the relay
-build, ESC-014 probes, or any follow-up until he weighs in.
+**ESC-015 resolved.** The natural next step is the op-3 sequential relay (DYNAMIC-state memory), but its
+gradient design is **ESC-014, still OPEN** (verifier V-T014 REFUTED pure detached carry). Do NOT start the
+Mode B relay build until Merlin calls the ESC-014 design (P-a tbptt-k sweep [lean] / P-c dynamic-state probe
+/ P-b train-to-depth). Await his ESC-014 verdict or further direction.
 
 EXP-017 decisive read (full detail in ESC-015 + experiments/EXP-017/NOTES.md):
 - Beyond-window color ΔRGB FLAT 12–14 across n_occ 2→48 (ceiling ~13, chance ~105, T-004 bar 63);
@@ -32,15 +36,18 @@ EXP-017 decisive read (full detail in ESC-015 + experiments/EXP-017/NOTES.md):
 - All 3 D-024 tripwires clear; HIGH favorable surprise (D-024 predicted ≈FF7; got strictly better).
 - Views: experiments/EXP-017/{headline_color.png, memory_sufficiency.png, sheet_ff9.png}. Code @ 0f02f18.
 
-## TWO open escalations for Merlin
-- **ESC-015 (NEW, blocking):** the EXP-017 present-then-stop above. Q: agree with the read / call the
-  memory-token baseline a success / direction for the dynamic-state extension.
-- **ESC-014 (still OPEN):** the op-3 relay gradient design (the dynamic-state method). Verifier V-T014
+## Open escalation for Merlin
+- **ESC-014 (OPEN, the one gate left):** the op-3 relay gradient design (the dynamic-state method). Verifier V-T014
   REFUTED pure detached carry (drifts past trained depth). Options P-a (tbptt-k sweep) [lean] / P-c
   (dynamic-state probe) / P-b (train-to-depth detach). My lean P-a+P-c before the Mode B build. This is
   the natural next step once ESC-015 is acknowledged — it is what carries DYNAMIC state.
 
 ## Recently done
+- **Viewer FF9 support (D-025/T-015) — DONE 2026-06-14.** play_dynamics_checkpoint.py now dispatches FF9 v2
+  checkpoints (use_full_state_memory & n_memory>0) to the full-state-memory rollout — added model primitives
+  full_state_rollout_init/step (generate_full_state_memory refactored into a thin loop over them, bit-for-bit
+  per a new equivalence smoke), FF9 WRITEs from a deeper prefix (up to max_T-1). FF9 smokes 10/10 (+1 new),
+  FF7/KV/stream gates green, headless end-to-end on ff9v2_s0.pt OK (20 occluded steps past the window).
 - **EXP-017 eval (D-024) — DONE 2026-06-14.** generate_full_state_memory (A1+B1, verifier-vetted) +
   dispatch in all 4 generate entry points; FF9 smokes 9/9 (+2 new) + FF7/KV/stream gates green. Primary
   readouts (eval_primary.py) + frozen color sweep (frozen_color.py, frozen instrument reused unmodified,
