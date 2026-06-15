@@ -175,26 +175,26 @@ experiment is stricter still — even this prep is off-limits; see §5.)
 
 Workers are subagents with disposable context. Each gets:
 
-- An isolated **git worktree** (one task = one worktree = one branch). Never let two
-  workers share a worktree.
-- A **written task spec**, stored at `tasks/T-NNN.md`, containing: objective,
-  constraints, relevant file pointers (paths, not pasted bulk), **explicit acceptance
-  criteria** (commands that must pass, metrics that must be produced), and the path
-  where their report goes (`tasks/T-NNN-report.md`).
-- No cluster verbs. Workers implement and test locally; only you submit jobs.
 
-Acceptance criteria must be checkable by running something. "Code is clean" is not a
-criterion; "`pytest tests/test_probe.py` passes and `eval_suite.py --dry-run` produces
-schema-valid output" is.
 
-**Verification on completion:** read the diff (actually read it), run the acceptance
-commands yourself in the worktree, then merge. If a worker reports success but
-artifacts disagree, the report is wrong — bounce it back with the discrepancy or
-respawn with a sharper spec. Two failed bounces on the same task → stop, record in
-BOARD, consider whether the spec (i.e., your decision) is the problem.
+### Independent verification (difficult plans & architectures)
 
-Worker quality is downstream of spec quality. When a worker flails, your first
-suspect is the task spec you wrote.
+For **genuinely difficult** work — a tricky implementation plan, a new model
+architecture, or a novel learning objective where correctness or internal logic is
+hard to sanity-check from intuition alone — do not rely on your own judgment alone:
+
+1. **Write it down first.** Put the full plan or idea in a markdown file (e.g.
+   `tasks/T-NNN-plan.md`, a design note under `experiments/EXP-NNN/`, or `HOWTO/` if
+   it will stick).
+2. **Spawn `critical-claim-verifier`.** Point it at that file and frame a neutral,
+   falsifiable claim for it to test. Do not prime it with your confidence or
+   conclusions — you want an unbiased second opinion.
+3. **Act on the verdict.** Read its report before you record the decision in
+   `DECISIONS.md` or spawn implementation workers. Revise the plan if it finds flaws;
+   if UNDETERMINED, run the probes it recommends or escalate.
+
+Routine bugfixes and small, obvious changes do not need this. Use it when getting
+wrong would be costly and the reasoning is genuinely hard.
 
 ---
 
@@ -259,6 +259,8 @@ While waiting on his verdict, the §3 "information-free preparation" allowance d
 **not** apply: do not spawn the next decision, sharpen the next config, queue workers,
 or start analysis that presumes which way he'll call it. His look at the results is the
 gate. The branch is paused until he answers.
+
+Run python commands with the "-u" flag. When waiting on experiments you never do work that prosumes the outcome, but you can do independent work.
 
 ---
 
@@ -380,4 +382,4 @@ work. His words must outlive your context window.
 
 - You are the owner of the code which also makes you the maintainer.
 - You should always aim for the codebase to be clean, correct and maintainable. It's fully within your right to DESIDE to do major refactors, restructuring and renaming as your next step to improve long term success of your research and improve the foundation and postpone the next experiment.
-- Avoid CLAUDE.md containing false/outdated information.
+- Avoid CLAUDE.md containing false/outdated information. Update it if needed.

@@ -230,6 +230,12 @@ export WANDB_PROJECT=transformer
 
 ## Key Files & Responsibilities
 
+> See `REPO_MAP.md` for the full directory map (incl. the concept→location index and the staged
+> reorg plan T-019). Quick note on the two eval homes: `src/probe/` is the **FROZEN** probe spine
+> (revisit/position consistency, frozen @ 5503e75 — changes are logged decisions); `src/eval/` is the
+> **working** eval toolbox (e.g. `motion.py`: open-loop/teacher-forced/τ-sweep motion curves + A/B
+> helpers, extracted from experiments in D-028). Experiment scripts import these instead of re-pasting.
+
 ### Core Models
 
 | File | Role |
@@ -255,6 +261,9 @@ export WANDB_PROJECT=transformer
 | File | Purpose |
 |------|---------|
 | `src/data_generators/bouncing_objects.py` | Bouncing shape video generator |
+| `src/data_generators/occluded_bouncing.py` | Occluded (curtain) action-conditioned env generator |
+| `src/probe/` | FROZEN revisit/position-consistency probe spine (5503e75) |
+| `src/eval/motion.py` | Working motion-eval toolbox (curves + A/B helpers) |
 | `src/wlog.py` | Lightweight W&B logger (no-op unless --wandb) |
 
 ### Checkpoints (in repo root)
