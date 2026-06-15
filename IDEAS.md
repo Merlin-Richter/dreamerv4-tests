@@ -292,3 +292,50 @@ stability (norm / detach-on-overflow / a relay projection) needs care → design
 **Status:** op-3 = A+B combined. Pending: (i) sequencing decision (run ops-1&2 FF9 baseline first as a
 cheap checkpoint, or fold op-3 in before any training run); (ii) op-3 design note → critical-claim-verifier
 → D-025 → build (with the cached production rollout). FF9 v2 baseline (ops 1&2) is built + smoke-green.
+
+## Uncertainty-aware rollout: context_signal as a per-frame confidence channel (Merlin, 2026-06-16)
+
+**Origin.** Merlin asked how rollouts treat noise on self-generated frames. Code answer (D-028,
+dynamics_model.py): `generate()` -> `_denoise_next` stores each generated frame as a CLEAN
+100%-signal latent (the x-prediction, appended verbatim) and, on the next step, noises the WHOLE
+context window (real prefix + all self-generated frames, undifferentiated) to a single global
+`context_signal=0.9`. So there is **no provenance marker and no per-frame confidence channel** — a
+frame the model hallucinated is fed back at the exact same trust level as a real observation. This is
+the exposure-bias mechanism EXP-018 diagnosed, in concrete form.
+
+**The lever.** The model already conditions on a PER-FRAME signal level (`tau_col`), so we can vary
+trust per context frame with NO new params: feed observed frames near-clean (tau≈0.95–1.0) and
+self-generated frames at a LOWER signal s(j) that reflects their unreliability (optionally decaying
+with how many self-steps ago frame j was produced). This *tells* the model "this frame is my own
+guess, don't over-trust it" — which neither the rollout nor C1 currently does.
+
+**Why it's plausibly in-distribution (not a hack).** Training (shortcut-forcing main loss) noises
+every frame at an INDEPENDENT random tau, so the model has already seen context frames at the full
+tau range, including low signal. Feeding generated frames at lower tau at inference is therefore not
+OOD the way the untrained memory->memory relay (V-T014) was.
+
+**The tension / degenerate modes (why it might NOT help).**
+- Too-low signal throws away usable trajectory info (regresses toward the original 90%-noise inference
+  bug, EXP-008): a self-generated frame that is actually good shouldn't be half-erased.
+- Lowering context trust can push the model to IGNORE context and emit a context-independent prior
+  (the prior-emission collapse V-T013 / V-T017-C1 C-B warned about) -> MUST pair with the open-loop
+  displacement collapse monitor (src/eval/motion.open_loop_displacement).
+- So the hypothesis is a MILD reduction / schedule has a sweet spot, not "more noise = better."
+
+**Relationship to C1.** Coupled, not competing. C1 fixes the *distribution* half of exposure bias
+(trains on self-generated context); this fixes the *confidence-representation* half. If inference
+feeds generated frames at signal s, C1's self-rollout (`_multistep_loss`, currently `_noise_to_ctx`
+at `context_signal`) should train at the SAME s (or schedule) for consistency. Cleanest combined
+version: one tau schedule used by both C1 training and rollout inference.
+
+**CHEAP first probe (inference-only, NO retrain, existing checkpoints) — do this BEFORE building.**
+Sweep `context_signal` at INFERENCE and measure the OPEN-LOOP pos_err curve (the existing P2 τ-sweep
+is teacher-forced 1-step; this is the open-loop analog) on vanilla_s0 / ff7_k3 / the C1 checkpoint.
+`dyn.config.context_signal` is already runtime-overridable (tau_context_sweep does it). If varying
+inference trust measurably shifts the open-loop compounding curve, the lever has signal and a trained
+per-frame-confidence version is worth building; if the curve is flat in context_signal, the confidence
+channel is inert and we drop it. Discriminating, ~minutes of GPU, reuses src/eval/motion. (Extension:
+per-frame DECAY schedule s(j) vs flat s, both inference-only via a small generate() shim.)
+
+**Status:** idea + cheap probe specified; not a decision yet. Candidate as an EXP-020/EXP-021 follow-on
+once C1's base value is established (don't conflate two levers in one run).
