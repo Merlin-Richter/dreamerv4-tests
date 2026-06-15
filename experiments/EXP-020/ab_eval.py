@@ -18,59 +18,27 @@ import numpy as np
 import torch
 
 _ROOT = pathlib.Path(__file__).resolve().parents[2]
-for _p in (_ROOT / "src/probe", _ROOT / "src/C_multi_image_auto_encoder",
-           _ROOT / "src/D_dynamics_model", _ROOT / "experiments/EXP-018"):
+for _p in (_ROOT / "src", _ROOT / "src/probe", _ROOT / "src/C_multi_image_auto_encoder",
+           _ROOT / "src/D_dynamics_model"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from revisit_probe import load_models, _encode_window, _decode_frame, detect_ball  # noqa: E402
+# Shared motion-eval toolbox (src/eval/motion.py); was inline + probe_multistep pre-D-028 refactor.
+from eval.motion import (  # noqa: E402
+    open_loop_curve, teacher_forced_curve, open_loop_displacement, cross_chance_h, N, P,
+)
+from revisit_probe import load_models  # noqa: E402
 from probe_env import make_probe_episode  # noqa: E402
-import probe_multistep as pm  # noqa: E402
 
 HERE = pathlib.Path(__file__).resolve().parent
 TOK = _ROOT / "trained_autoencoder.pt"
-N, P = 8, 3
-
-
-@torch.no_grad()
-def open_loop_displacement(tok, dyn, episodes, device, K, H):
-    """Mean predicted ball inter-frame displacement in open loop (collapse monitor) vs the GT
-    displacement (~3.2px). Near 0 => copy-last collapse; near GT => real motion."""
-    pred_disp = {h: [] for h in range(2, H + 1)}
-    gt_disp = {h: [] for h in range(2, H + 1)}
-    for ep in episodes:
-        ctx = _encode_window(tok, ep.frames, 0, P, device)
-        act = torch.from_numpy(ep.actions.astype(np.int64)).unsqueeze(0).to(device)
-        full = torch.cat((ctx, dyn.generate(ctx, n_generate=H, K=K, action_idx=act)), dim=1)
-        prev = None
-        for h in range(1, H + 1):
-            t = P - 1 + h
-            found, x, y, _ = detect_ball(_decode_frame(tok, full[:, t]))
-            cur = np.array([x, y]) if found else None
-            if h >= 2 and prev is not None and cur is not None:
-                pred_disp[h].append(float(np.hypot(*(cur - prev))))
-                g = ep.states[t, :2] - ep.states[t - 1, :2]
-                gt_disp[h].append(float(np.hypot(*g)))
-            prev = cur
-    return {
-        "pred_disp_mean": float(np.mean([v for vs in pred_disp.values() for v in vs])),
-        "gt_disp_mean": float(np.mean([v for vs in gt_disp.values() for v in vs])),
-    }
-
-
-def cross_chance_h(curve: dict, chance=18.0):
-    """First horizon where open-loop error reaches `chance` (higher = better tracking)."""
-    for h in sorted(int(k) for k in curve):
-        if curve[h] >= chance:
-            return h
-    return max(int(k) for k in curve) + 1
 
 
 def eval_ckpt(name, path, episodes, device, H):
     tok, dyn, dcfg, _ = load_models(TOK, path, N, device)
     K = dcfg.inference_steps
-    ol = pm.open_loop_curve(tok, dyn, episodes, device, K, H)
-    tf = pm.teacher_forced_curve(tok, dyn, episodes, device, K, H)
+    ol = open_loop_curve(tok, dyn, episodes, device, K, H)
+    tf = teacher_forced_curve(tok, dyn, episodes, device, K, H)
     disp = open_loop_displacement(tok, dyn, episodes, device, K, H)
     return {"open_loop": ol, "teacher_forced": tf, "displacement": disp,
             "cross_chance_h": cross_chance_h(ol["model"])}
