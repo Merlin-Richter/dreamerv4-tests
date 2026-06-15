@@ -54,3 +54,20 @@ compounding and yields a strong per-step map even under-trained. NOT a strong cl
 Next: ESCALATE to Merlin (present-then-stop). Recommend (a) finish full 40-ep EXP-020 for clean
 same-budget delta, (b) sanity-check the control's chance-level TF (subset-size effect? EXP-019 training
 underperformance?) — quantify against EXP-012 vanilla_s0 (4.66px) on this probe before trusting magnitude.
+
+## Control sanity-check (D-028 #2) — the weak control is REAL, not an eval bug
+Ran ab_eval with --control=EXP-012/vanilla_s0.pt (FULL occluded data, 100ep) vs
+--c1=EXP-019/vanilla_ctrl_s0.pt (250-ep subset, the A/B control). 24 ep, H12. (Labels are just
+the two slots.) sanity_control.json / sanity_control.log:
+```
+            h1    h2    h4    h8    h12   crossChance  predDisp(gt)
+ vanilla_s0  TF  5.2   4.5   4.1   4.9   3.9        (full data)
+ EXP019ctrl  TF 21.1  16.8  19.5  14.1  20.5   h=1  (250-ep subset)
+```
+=> vanilla_s0 (full data) has the expected flat ~4.5px per-step map (harness validated AGAIN).
+The EXP-019 250-ep control is at CHANCE teacher-forced => the 250-episode subset cripples vanilla
+motion learning. So the EXP-020 A/B on the 250-ep subset is confounded: it conflates "C1 learns a
+per-step map AT ALL on tiny data" with "C1 fixes open-loop COMPOUNDING on a good per-step map"
+(the intended EXP-018 test). Clean compounding test needs a regime where the vanilla control HAS a
+good TF map. Cheapest such control already exists: vanilla_s0 (full data, ~4.5px TF). => candidate
+next decision after the full 250-ep run: a larger-data C1 run compared against vanilla_s0.
