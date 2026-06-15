@@ -61,7 +61,7 @@ def open_loop_displacement(tok, dyn, episodes, device, K, H):
 def cross_chance_h(curve: dict, chance=18.0):
     """First horizon where open-loop error reaches `chance` (higher = better tracking)."""
     for h in sorted(int(k) for k in curve):
-        if curve[str(h)] >= chance:
+        if curve[h] >= chance:
             return h
     return max(int(k) for k in curve) + 1
 
@@ -99,9 +99,9 @@ def main():
     print("\n            " + "  ".join(f"h{h:>2d}" for h in sel) + "   crossChance  predDisp(gt)")
     for name, m in out["models"].items():
         ol = m["open_loop"]["model"]; tf = m["teacher_forced"]["model"]; d = m["displacement"]
-        print(f"  {name:7s} OL " + "  ".join(f"{ol[str(h)]:4.1f}" for h in sel)
+        print(f"  {name:7s} OL " + "  ".join(f"{ol[h]:4.1f}" for h in sel)
               + f"     h={m['cross_chance_h']:<3d}   {d['pred_disp_mean']:.2f}({d['gt_disp_mean']:.2f})")
-        print(f"  {name:7s} TF " + "  ".join(f"{tf[str(h)]:4.1f}" for h in sel))
+        print(f"  {name:7s} TF " + "  ".join(f"{tf[h]:4.1f}" for h in sel))
     args.out.write_text(json.dumps(out, indent=2), encoding="utf-8")
     print(f"\nwrote {args.out}")
 

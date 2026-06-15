@@ -1,0 +1,8 @@
+
+            h 1  h 2  h 4  h 8  h12  h16  h24   crossChance  predDisp(gt)
+  control OL 23.1  21.5  22.9  20.5  19.7  20.1  20.1     h=1     7.10(3.18)
+  control TF 23.6  22.0  22.4  19.0  17.5  16.8  19.5
+  c1      OL  2.6   3.6   4.6   8.6  14.5  17.0  18.8     h=20    4.60(3.18)
+  c1      TF  2.6   2.1   2.2   2.3   2.6   2.2   2.0
+
+wrote C:\Users\richt\OneDrive\Desktop\Code\transformer\experiments\EXP-020\ab.json
