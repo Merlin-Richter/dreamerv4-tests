@@ -849,3 +849,41 @@ C2 / re-diagnose. (2) val/diffusion regresses past ~0.003 → single-frame/multi
 dominates → back off λ / Pareto. (3) per-j multistep loss flattens to a context-independent floor at
 large j (prior-emission) → mask/down-weight those j, reduce h.
 Spawns: T-018 (C1 implementation + smokes), EXP-019 (vanilla control), EXP-020 (C1 treatment).
+
+## D-028 | 2026-06-16
+Context: Preliminary EXP-020 readout (partial C1 ckpt, epoch 17/40) showed a strong DIRECTIONAL win
+for C1 over the vanilla control on curtain-up motion: teacher-forced per-step map FLAT+accurate (C1
+2.6px h1->h24 vs control ~23px at chance), open-loop resists compounding far longer (C1 crosses chance
+at h~20 vs control h=1), collapse monitor PASSES (C1 predDisp 4.6 vs gt 3.2 — coherent, not copy-last).
+Caveats: budget mismatch (C1 only 42% trained) + control's TF anomalously weak (23px vs EXP-012
+vanilla_s0 4.66px) — the 250-ep subset appears to cripple vanilla motion learning. Merlin's EXP-020
+cancel was incidental (needed the GPU), NOT a redirect. He then directed: work continuously+autonomously
+on the C1/motion idea overnight, NO escalation gates this session (just produce information), do not
+break anything, work within the folders, and use training downtime to (a) extract repeatedly-used
+code/evals out of experiments/ into a findable home and (b) clean up the repo (clear places for evals/
+environments/models/training/data/readouts).
+Decision:
+ (1) Launch the FULL 40-ep EXP-020 C1 run (identical command to the partial, --fresh) for the clean
+     same-budget A/B vs the EXP-019 control. Preserve the partial ckpt as c1_h4_s0.partial_ep17.pt;
+     add experiments/EXP-020/run.sh to fix the provenance gap (no recorded command).
+ (2) Quick control sanity-check: confirm EXP-012 vanilla_s0 (full-data) gets ~4.5px TF on THIS probe,
+     isolating the 250-ep subset (not an eval-harness bug) as the cause of the control's chance-level TF.
+ (3) Refactor during training downtime, SAFE + test-gated: create src/eval/ as the home for reusable,
+     NON-frozen eval/rollout/diagnostic code; move experiments/EXP-018/probe_multistep.py ->
+     src/eval/motion_probe.py and extract the reusable A/B harness (displacement monitor, cross-chance,
+     per-horizon curves) out of EXP-020/ab_eval.py; update the few importers. Repo hygiene: remove
+     scratch root test.py, stale src/__pycache__, stray dup src/autoencoder_bouncing.pt (after checking
+     unreferenced). Document structure in REPO_MAP.md + sync CLAUDE.md. LEAVE the frozen probe
+     (src/probe) and high-fanout core (dynamics_model.py / train_dynamics_model.py) IN PLACE; write a
+     ready-to-execute reorg PLAN for the deeper models/training/envs relocation for Merlin to approve
+     rather than executing a sweeping, hard-to-verify move while unsupervised.
+Alternatives rejected: big-bang reorg of all of src/ overnight (violates "don't break anything";
+asymmetric downside if a subtle import breaks while he sleeps); a larger-data A/B before the planned
+same-budget one (run the designed experiment first; a larger-data confirmatory run can follow if C1 holds).
+Expected outcome: full-budget C1 open-loop pos_err stays below the control across horizons with a
+coherent displacement monitor and clean val/diffusion <= ~0.003; every gate test (kv/stream/ff7/ff9/
+multistep) stays green through the refactor and probe/ab_eval reproduce prior numbers.
+Would change my mind: full-budget C1 fails to beat the control or shows prior-emission collapse
+(predDisp -> 0 / per-j floor) -> C1 insufficient, reconsider C2 scheduled-sampling or a larger-data
+regime. Any gate test red after a refactor step -> revert that step immediately before proceeding.
+Spawns: EXP-020 (full run), src/eval refactor, experiments/EXP-020/run.sh, REPO_MAP.md.
