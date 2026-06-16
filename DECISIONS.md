@@ -941,3 +941,22 @@ importers updated, no broken experiment scripts; cleaner tree that scales to man
 Would change my mind: byte-diff MISMATCH after a pure git-mv+import-edit (means a logic change crept
 in → STOP, revert, investigate); or a gate test going red that a one-line import fix doesn't resolve.
 Spawns: T-019 execution (no new EXP; this is infra). BOARD tracks per-phase.
+
+## D-031 | 2026-06-16
+Context: Executing D-030 P2 (move frozen spine into src/evals/). The ~12 historical experiment
+scripts import the spine via a non-uniform sys.path-bootstrap + bare-import pattern (two styles:
+`from probe_env` and `from probe.revisit_probe`). Rewiring all of them is per-file surgery,
+high blast radius, and not cheaply verifiable (probe is stochastic + needs GPU — only
+py_compile-checkable). Asked Merlin; he chose "Frozen to their commit."
+Decision: Treat experiments/EXP-NNN/ + verify-* scripts as IMMUTABLE provenance records pinned to
+the commit they ran at. P2/P3 rewire ONLY live code (src/ internals, gate tests, the new Eval
+interface). Historical experiment scripts are left pointing at old paths; to rerun one, check out
+its commit (whose src/ matches). NEW experiments use the new structure.
+Consequence: experiments/ will NOT import against new src/ at HEAD — this is BY POLICY, not breakage.
+Live-importer audit: the only live importers of the moved spine/eval are the spine's own internal
+cross-imports (gate tests + play_dynamics import the MODELS, not the probe), so P2's live rewire is
+just the moved modules' internals.
+Alternatives rejected: rewire all experiments (clean HEAD but large blast radius, subtle-break risk,
+not cheaply verifiable) — Merlin judged provenance-freeze cleaner and safer.
+Would change my mind: if a CURRENT/live tool (not a historical EXP) turns out to import the old
+probe paths, it must be rewired (not frozen).
