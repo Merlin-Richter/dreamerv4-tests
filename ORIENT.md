@@ -33,9 +33,14 @@ train_dynamics default tokenizer arg.
 
 ## IN FLIGHT — training (Merlin: "start a vanilla model smoke test, 10 epochs, on the new data")
 Vanilla DYNAMICS needs a frozen tokenizer; gridworld has none -> training a gridworld TOKENIZER
-first (hard prereq). **RUNNING:** tokenizer 10ep bs32 MSE fresh -> `checkpoints/gridworld/tokenizer.pt`
-(log `experiments/_gridworld_tok_smoke.log`). NEXT: verify reconstruction, then vanilla dynamics
-10ep smoke on gridworld latents -> present-then-stop.
+first (hard prereq). **RUNNING (harness bg):** tokenizer 10ep bs32 fresh on a **300-ep SMOKE SUBSET**
+(`gridworld_smoke.npy`) -> `checkpoints/gridworld/tokenizer.pt` (log `experiments/_gridworld_tok_smoke.log`).
+NEXT (on completion): verify reconstruction view -> vanilla dynamics 10ep smoke -> present.
+**MUST use `venv/Scripts/python.exe` for training** (bash default python is torch+cpu -> segfault;
+see HOWTO/use_venv_python_for_training.md).
+**COMPUTE FINDING:** 4070 ~9 s/it for this tokenizer (GPU-bound) -> full-data 10ep ≈ 25h; heavy
+training is a CLUSTER job (EXP-006 ran on galvani). Asked Merlin (ESC-016) whether the real gridworld
+pipeline goes to the cluster vs local-reduced. Eval design (D-033) also pending his sign-off (ESC-016).
 
 ## Current worries
 1. D-032 tripwire: discrete env might be TOO easy (model trivially memorizes 8x8 past the window) —
