@@ -71,3 +71,45 @@ per-step map AT ALL on tiny data" with "C1 fixes open-loop COMPOUNDING on a good
 (the intended EXP-018 test). Clean compounding test needs a regime where the vanilla control HAS a
 good TF map. Cheapest such control already exists: vanilla_s0 (full data, ~4.5px TF). => candidate
 next decision after the full 250-ep run: a larger-data C1 run compared against vanilla_s0.
+
+## FULL-BUDGET result (40 ep) — RECONCILIATION (§5)
+Final ckpt experiments/EXP-020/c1_h4_s0.pt (40 ep, val 0.00305). Provenance: run.sh (code @ a07fdee),
+occluded.npy 250-ep subset, --multistep 4 --lambda-multistep 1.0 --multistep-warmup 10, seed0.
+Eval: ab_eval 48 ep, H24, curtain-up. Artifacts: ab.json, headline.png, ab_eval_full.log.
+
+Expected (D-027): C1 open-loop pos_err BELOW the budget-matched vanilla control, esp h4-h12, WITHOUT
+clean val regressing past ~0.003 and WITHOUT TF regressing; displacement tracks GT (not 0).
+
+Observed (full 40 ep):
+```
+            h1    h2    h4    h8    h12   h16   h24   crossChance  predDisp(gt)
+ control OL 22.8  22.2  22.5  22.1  19.6  19.9  20.3     h=1       7.06 (3.18)
+ control TF 21.7  20.6  21.5  19.0  16.9  17.3  19.7
+ c1      OL  2.0   3.1   4.4   9.1  12.0  15.0  17.0     h=25      4.37 (3.18)
+ c1      TF  2.4   2.2   1.7   2.4   2.3   1.8   2.6
+```
+- C1 open-loop stays BELOW chance (18) across ALL 24 horizons (17.0@h24); crossChance h=25 = never
+  crosses in range. STRONGER than the partial ep17 (which crossed at h~20; full is lower at every h>=8:
+  h12 12.0 vs 14.5, h16 15.0 vs 17.0, h24 17.0 vs 18.8). More training -> better, as predicted.
+- C1 TF flat ~2px (1.7-2.6) vs control ~20px (at chance). C1 val 0.00305 < control 0.0082 (BETTER
+  denoiser on the same data; no regression).
+- Collapse monitor PASSES: C1 predDisp 4.37 (gt 3.18) coherent; control 7.06 = erratic over-movement.
+
+Surprise: mild-favorable. Full budget strengthened the win (vs the already-strong partial).
+
+Tripwires (D-027): (1) open-loop unchanged -> NOT triggered (C1 hugely better). (2) clean val > ~0.003
+-> reported val 0.00305 sits right AT the line, BUT (a) it is the combined train-objective val incl.
+the multistep term, not diffusion-only, and (b) it is far BELOW the control's 0.0082 -> this is an
+improvement, not a regression; tripwire intent (capacity tension hurting single-frame) is NOT met (TF
+is flat ~2px, far better than control). (3) prior-emission (predDisp->0 / per-j floor) -> NOT triggered.
+
+Hypothesis impact (H-motion): C1 SUPPORTED at full budget. The DAgger multistep loss yields a flat,
+accurate per-step map AND open-loop tracking that resists compounding (below chance through h24) where
+the budget-matched vanilla is at chance everywhere.
+
+STANDING CAVEAT (unchanged): the 250-ep control is a weak motion model (chance TF, sanity-check above),
+so this A/B conflates "C1 enables good motion learning on tiny data" with "C1 fixes open-loop
+COMPOUNDING on an already-good per-step map" (the intended EXP-018 test). The within-C1 evidence still
+shows a compounding fix (flat TF ~2px + gentle OL rise, small OL-vs-TF gap), but a clean attribution
+needs a regime where the vanilla CONTROL is competent. -> next: larger-data A/B (EXP-021, see ORIENT) +
+a 2nd seed for stability. Single seed, tiny data: positive but not yet a strong standalone claim.
