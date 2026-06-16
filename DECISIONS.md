@@ -919,3 +919,25 @@ version. (B) C1-full's open-loop compounds as fast as ff7_k3 despite a competent
 win was the tiny-data regularization effect, NOT a general compounding fix -> re-aim (C2 scheduled
 sampling / re-diagnose). C1-full TF fails to reach competence in the budget -> inconclusive, extend.
 Spawns: EXP-022 (context_signal probe), EXP-021 (C1 full-data overnight).
+
+## D-030 | 2026-06-16
+Context: T-019 repo reorg, rewritten 2026-06-16 + critical-claim-verifier pass (SOUND-WITH-FIXES,
+5 blocking fixes folded in). Merlin reviewed and chose **option B** ("Id say move it. Lets get
+this right this once") — physically relocate the FROZEN probe spine into src/evals/ rather than the
+lower-risk wrap-don't-move (option A). Greenlit the full high-fanout move.
+Decision: Execute the full T-019 reorg in 4 gated phases, clean end state (update all callers, no
+permanent shims): (P1) env/data split — src/envs/ (BaseEnv ABC + env classes) and src/data/
+(generators+loaders), viewers→src/interactive/; (P2) src/evals/ with base.py+registry+_shared, MOVE
+the frozen spine in (evals/revisit, evals/position_consistency) + motion/rollout_view; (P3)
+models/training/tests split (src/models, src/training, src/tests); (P4) docs (CLAUDE.md, REPO_MAP).
+Gates: all 5 dynamics gate tests stay green after each phase; the FROZEN-SPINE BYTE-DIFF gate
+(re-run revisit_probe on ff7_k3_s0.pt, diff results.json vs pre-move baseline) runs at the end of
+P1 (env dep moves) and again after P2 (spine moves). Per-module commits, each revertible.
+Alternatives rejected: option A (wrap-don't-move) — Merlin explicitly wants the spine physically in
+evals/, accepting the churn for a clean end state. Big-bang single commit — un-revertible, high blast
+radius. Leaving datasets/checkpoints move for a later low-value pass (kept at repo root).
+Expected outcome: identical frozen-probe numbers (byte-diff passes), all gate tests green, all 32
+importers updated, no broken experiment scripts; cleaner tree that scales to many envs/evals.
+Would change my mind: byte-diff MISMATCH after a pure git-mv+import-edit (means a logic change crept
+in → STOP, revert, investigate); or a gate test going red that a one-line import fix doesn't resolve.
+Spawns: T-019 execution (no new EXP; this is infra). BOARD tracks per-phase.
