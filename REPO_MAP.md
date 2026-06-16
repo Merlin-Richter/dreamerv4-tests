@@ -1,7 +1,8 @@
 # REPO_MAP — where things live
 
 Orientation map for the codebase. Pairs with `CLAUDE.md` (architecture/commands) and the protocol
-state files (`ORIENT/GOAL/DECISIONS/EXPERIMENTS/BOARD/ESCALATIONS`). Updated 2026-06-16 (D-028).
+state files (`ORIENT/GOAL/DECISIONS/EXPERIMENTS/BOARD/ESCALATIONS`). Updated 2026-06-16 (T-019 reorg,
+D-030/D-031).
 
 ## Top level
 | Path | What |
@@ -25,40 +26,51 @@ state files (`ORIENT/GOAL/DECISIONS/EXPERIMENTS/BOARD/ESCALATIONS`). Updated 202
 - Because datasets/checkpoints are gitignored, training scripts reference them by path; **do not relocate
   them without updating the `--frames/--actions/--tokenizer/--checkpoint` defaults + every caller.**
 
-## `src/` — current layout
+## `src/` — current layout (reorganized by concern, T-019 / D-030, 2026-06-16)
+Imports use packages off `src/` on `sys.path` (`from models.X import …`, `from evals.X import …`,
+`from envs.X import …`). A file under `src/<dir>/` bootstraps with `_SRC = parents[1]` (or `parents[2]`
+one level deeper) and inserts `_SRC`.
+
 | Path | Role | Notes |
 |------|------|-------|
-| `src/A_LM/` | Char-level LM (standalone, **not** in the video pipeline) | `model.py`, `train.py`, `inference.py` |
-| `src/B_single_image_auto_encoder/` | Single-frame AE (baseline) | `video_auto_encoder.py`, train script |
-| `src/C_multi_image_auto_encoder/` | **Temporal tokenizer** (the frozen `trained_autoencoder.pt`) | `video_auto_encoder.py`, train script |
-| `src/D_dynamics_model/` | **Dynamics model** (the active research code) | `dynamics_model.py`, `train_dynamics_model.py`, `play_dynamics_checkpoint.py`, `test_*.py` gate tests |
-| `src/data_generators/` | **Environments / data generation** | `bouncing_objects.py`, `occluded_bouncing.py`, `load_data.py` |
-| `src/probe/` | **FROZEN probe spine** (revisit/position consistency) | `revisit_probe.py`, `probe_env.py`, `position_consistency.py` — frozen @ 5503e75; changes are logged decisions (GOAL §8) |
-| `src/eval/` | **Working eval toolbox** (non-frozen) | `motion.py` — shared motion curves/A-B helpers extracted from experiments (D-028) |
-| `src/test/latent_explorer/` | Interactive tokenizer-latent browser UI | `run.py` |
+| `src/models/` | **Model architectures** | `dynamics_model.py` (active research), `tokenizer.py` (temporal tokenizer = the frozen `trained_autoencoder.pt`), `single_image_ae.py` (baseline), `lm.py` (standalone char-LM) |
+| `src/training/` | **Training scripts** | `train_dynamics.py`, `train_tokenizer.py`, `train_single_image_ae.py`, `train_lm.py` |
+| `src/envs/` | **Environments** (steppable sims behind `BaseEnv`) | `base.py` (the ABC), `occluded_bouncing.py` (`OccludedBouncingEnv`), `bouncing.py` (`BouncingEnv`) |
+| `src/datagen/` | **Dataset generation + inspection** (drives envs → `.npy`) | `generate_occluded.py`, `generate_bouncing.py`, `example_read.py`. (Named `datagen`, NOT `data/`, to dodge the `.gitignore` `data/` artifact rule.) |
+| `src/evals/` | **Evaluation toolbox** (common Eval interface) | `base.py` (Eval ABC + REGISTRY + `load()`), `probe_env.py` (FROZEN episode builder), `revisit/` (FROZEN spine `probe.py` @ 5503e75 + RevisitEval), `position_consistency/` (FROZEN `consistency.py`), `motion/` (working curves + MotionEval), `rollout_view/` (`ab_view.py`) |
+| `src/tests/` | **Gate tests** (the dynamics-model safety net) | `test_kv_cache/stream_cache/ff7_smoke/ff9_smoke/multistep_smoke.py` |
+| `src/interactive/` | **Interactive viewers** | `play_dynamics.py`, `latent_explorer/`, `lm_inference.py` |
 | `src/wlog.py` | Lightweight W&B logger (no-op unless `--wandb`) | |
 
-### Gate tests (the safety net for `src/D_dynamics_model`)
-`test_kv_cache.py`, `test_stream_cache.py`, `test_ff7_smoke.py`, `test_ff9_smoke.py`,
-`test_multistep_smoke.py` — run these (CPU OK) after any change to `dynamics_model.py`.
+**FROZEN spine** (revisit/position-consistency measurement logic): `src/evals/probe_env.py`,
+`src/evals/revisit/probe.py`, `src/evals/position_consistency/consistency.py` — frozen @ commit
+5503e75; any change is a logged decision (GOAL §8). The T-019 move kept them byte-identical except
+import/bootstrap lines (verified by old→new diff).
+
+### Gate tests
+`src/tests/test_{kv_cache,stream_cache,ff7_smoke,ff9_smoke,multistep_smoke}.py` — run (CPU OK) after
+any change to `models/dynamics_model.py`.
 
 ## `experiments/EXP-NNN/`
 Each holds: `config.txt`/`config.yaml`, `run.sh` (provenance — the exact command), `NOTES.md`
-(purpose + reconciliation), `results.json`, and readout artifacts (`*.png`, `*.html`). Experiment
-scripts should import shared logic from `src/eval/` and `src/probe/` rather than redefining it.
+(purpose + reconciliation), `results.json`, and readout artifacts (`*.png`, `*.html`). NEW experiment
+scripts import shared logic from `src/evals/` rather than redefining it. **Historical experiment
+scripts are FROZEN to the commit they ran at (D-031)** — they import old paths and are not rewired;
+to rerun one, `git checkout` its commit.
 
-## Concept → location quick index (what Merlin asked for)
-- **Models** → `src/{D_dynamics_model,C_multi_image_auto_encoder,B_single_image_auto_encoder,A_LM}/*` (model.py / video_auto_encoder.py / dynamics_model.py)
-- **Training** → `src/<component>/train_*.py`
-- **Environments / data generation** → `src/data_generators/`
+## Concept → location quick index
+- **Models** → `src/models/*` (`dynamics_model.py`, `tokenizer.py`, `single_image_ae.py`, `lm.py`)
+- **Training** → `src/training/train_*.py`
+- **Environments** → `src/envs/` (subclass `BaseEnv`)
+- **Dataset generation** → `src/datagen/generate_*.py`
 - **Data (datasets)** → repo-root `*.npy` (gitignored, local)
-- **Evals** → `src/probe/` (frozen spine) + `src/eval/` (working toolbox)
+- **Evals** → `src/evals/` (registry: `import evals; evals.discover()`; frozen spine under `revisit/` + `position_consistency/`)
 - **Readouts** → `experiments/EXP-NNN/` (PNG/HTML views + NOTES.md decisive read)
-- **Interactive** → `src/D_dynamics_model/play_dynamics_checkpoint.py`, `src/test/latent_explorer/`
+- **Interactive** → `src/interactive/{play_dynamics.py,latent_explorer/,lm_inference.py}`
 
-## Planned cleanup (staged — see `tasks/T-019-repo-reorg-plan.md`)
-The `src/{A,B,C,D}_*` directories mix *model* + *training* per pipeline stage. A clearer target
-(`src/models/`, `src/training/`, `src/envs/`, plus the existing `src/probe` + `src/eval`) is drafted
-in T-019 but **deferred for Merlin's approval** — it's a high-fanout move (every experiment script's
-`sys.path` + `CLAUDE.md` + gate tests) and not safe to do unsupervised. D-028 did the low-risk part
-(extract reused evals → `src/eval/`, hygiene, this map).
+## Adding a new env or eval (the structure's purpose)
+- **New env:** subclass `envs.base.BaseEnv` (implement `reset`/`step`; expose hidden state via
+  `hidden_state()` for measurement only). Add a `datagen/generate_*.py` if it needs a dataset.
+- **New eval:** add `src/evals/<name>/` with an `Eval` subclass (`score()` cheap scalars,
+  optional `report()` rich artifacts; declare `compatible_envs`); `register()` it and add to
+  `discover()`. Mid-run-cheap evals pass `midrun=True`.

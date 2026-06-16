@@ -4,12 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a research implementation of a video dynamics model inspired by Dreamer v4. The project consists of four main components working together in a pipeline:
+This is a research implementation of a video dynamics model inspired by Dreamer v4. Code is organized
+by concern under `src/` (`models/`, `training/`, `envs/`, `datagen/`, `evals/`, `tests/`,
+`interactive/` — see `REPO_MAP.md`). The four pipeline-stage models (historically the A/B/C/D dirs,
+now modules in `src/models/`) are:
 
-- **A_LM**: Character-level language model (standalone, not part of main pipeline)
-- **B_single_image_auto_encoder**: Frame-only autoencoder (baseline)
-- **C_multi_image_auto_encoder**: Temporal video autoencoder with frozen bottleneck
-- **D_dynamics_model**: Causal transformer that predicts latent frame dynamics
+- **LM** (`models/lm.py`): Character-level language model (standalone, not part of main pipeline)
+- **Single-image AE** (`models/single_image_ae.py`): Frame-only autoencoder (baseline)
+- **Tokenizer** (`models/tokenizer.py`): Temporal video autoencoder with frozen bottleneck (= the frozen `trained_autoencoder.pt`)
+- **Dynamics model** (`models/dynamics_model.py`): Causal transformer that predicts latent frame dynamics
 
 The pipeline compresses video into learned latent representations and trains a generative model to predict future frames autoregressively.
 
@@ -20,20 +23,20 @@ The pipeline compresses video into learned latent representations and trains a g
 ```
 Raw Video Frames (B, T, H, W, 3) [uint8]
   ↓
-[C_multi_image_auto_encoder] - Frozen tokenizer
+[models.tokenizer] - Frozen tokenizer
   • Patchifies frames (8×8 patches by default)
   • Encodes via spatial attention layers + temporal attention layers (alternating)
   • Uses MAE (Masked Autoencoder) dropout to prevent latent collapse
   • Outputs: (B, T, n_latents=4, bottleneck_dim=64) clean latents z1
   ↓
-[D_dynamics_model] - Trainable
+[models.dynamics_model] - Trainable
   • Per-frame latent denoising via causal (block-temporal) attention
   • Trained with shortcut forcing: diffusion-based loss + bootstrap distillation
   • Supports discrete action conditioning (optional)
   • Generates: predicts z1 from noised latent + causal history
 ```
 
-### Tokenizer Architecture (C_multi_image_auto_encoder)
+### Tokenizer Architecture (models/tokenizer.py)
 
 **Encoder:**
 - Patchifies input into non-overlapping patches (default 8×8)
@@ -49,7 +52,7 @@ Raw Video Frames (B, T, H, W, 3) [uint8]
 
 **Key Design Choice**: Learned latent tokens have restricted cross-attention with image patches (encoder) and patches cannot attend back (decoder), forcing an information bottleneck.
 
-### Dynamics Model (D_dynamics_model)
+### Dynamics Model (models/dynamics_model.py)
 
 **Token layout per frame** (along spatial axis):
 ```
@@ -128,70 +131,65 @@ pip install -r requirements.txt
 
 ```bash
 # Generate bouncing object dataset (DVD-style physics simulation)
-python src/data_generators/bouncing_objects.py --n_episodes 1000 --out bouncing.npy
+python src/datagen/generate_bouncing.py --n_episodes 1000 --out bouncing.npy
 
 # Debug: preview a single episode
-python src/data_generators/bouncing_objects.py --debug --shape star
+python src/datagen/generate_bouncing.py --debug --shape star
 ```
 
 ### Training
 
+Run training scripts from the repo root (each bootstraps `src` onto the path — no `cd` needed).
+
 **Single-Image Autoencoder (B):**
 ```bash
-cd src/B_single_image_auto_encoder
-python train_autoencoder_bouncing.py --epochs 5 --batch-size 32 --lr 3e-4
+python -u src/training/train_single_image_ae.py --epochs 5 --batch-size 32 --lr 3e-4
 ```
 
 **Temporal Autoencoder (C) - Tokenizer:**
 ```bash
-cd src/C_multi_image_auto_encoder
-python train_autoencoder_bouncing.py --epochs 10 --batch-size 16 --lr 3e-4
+python -u src/training/train_tokenizer.py --epochs 10 --batch-size 16 --lr 3e-4
 # With W&B logging:
-python train_autoencoder_bouncing.py --wandb --wandb-project my-project --epochs 10
+python -u src/training/train_tokenizer.py --wandb --wandb-project my-project --epochs 10
 # Enable LPIPS perceptual loss (additional metric, slower):
-python train_autoencoder_bouncing.py --lpips
+python -u src/training/train_tokenizer.py --lpips
 ```
 
 **Dynamics Model (D):**
 ```bash
-cd src/D_dynamics_model
-python train_dynamics_model.py --epochs 20 --batch-size 32 --context-length 16
+python -u src/training/train_dynamics.py --epochs 20 --batch-size 32 --context-length 16
 # With W&B:
-python train_dynamics_model.py --wandb --wandb-project my-project
+python -u src/training/train_dynamics.py --wandb --wandb-project my-project
 # FF7 register-memory training (D-014): adds the single-timestep-sufficiency loss with
 # lookahead K. At inference, use_register_memory=True checkpoints carry register state across
 # the window via generate_memory, which is a thin loop over the reusable primitives
 # memory_rollout_init / memory_rollout_step (also driven by the interactive viewer):
-python train_dynamics_model.py --ff7 1 --lambda-ff7 1.0 --seed 0
-# Smoke tests for the FF7 paths:
-python test_ff7_smoke.py
-# KV-cache (generate_cached) correctness gate — bit-for-bit vs uncached + long-rollout RoPE:
-python test_kv_cache.py
-# Cross-frame sliding-window eviction cache (generate_streaming) gate — forward-level eviction
-# equivalence vs full windowed recompute (incl. past-table) + frozen-noise reference + speed:
-python test_stream_cache.py
+python -u src/training/train_dynamics.py --ff7 1 --lambda-ff7 1.0 --seed 0
+# Gate tests (run from src/tests/, CPU OK) — FF7 paths, KV cache, streaming cache:
+python -u src/tests/test_ff7_smoke.py
+python -u src/tests/test_kv_cache.py
+python -u src/tests/test_stream_cache.py
 ```
 
 **Language Model (A):**
 ```bash
-cd src/A_LM
-python train.py --epochs 10 --batch-size 64 --seq-len 64 --lr 3e-4
-python inference.py --checkpoint checkpoint.pt --prompt "ROMEO:\n" --max-new-tokens 500
+python -u src/training/train_lm.py --epochs 10 --batch-size 64 --seq-len 64 --lr 3e-4
+python -u src/interactive/lm_inference.py --checkpoint checkpoint.pt --prompt "ROMEO:\n" --max-new-tokens 500
 ```
 
 ### Visualization & Testing
 
 ```bash
 # Inspect autoencoder reconstruction (interactive OpenCV window)
-python src/B_single_image_auto_encoder/train_autoencoder_bouncing.py \
-  --test-checkpoint --checkpoint src/B_single_image_auto_encoder/autoencoder_bouncing.pt
+python src/training/train_single_image_ae.py \
+  --test-checkpoint --checkpoint autoencoder_bouncing.pt
 
-python src/C_multi_image_auto_encoder/train_autoencoder_bouncing.py \
-  --test-checkpoint --checkpoint src/C_multi_image_auto_encoder/autoencoder_bouncing.pt
+python src/training/train_tokenizer.py \
+  --test-checkpoint --checkpoint trained_autoencoder.pt
 
 # Inspect dynamics rollout (interactive)
-python src/D_dynamics_model/train_dynamics_model.py --test-checkpoint
-python src/D_dynamics_model/play_dynamics_checkpoint.py  # Single-frame interactive
+python src/training/train_dynamics.py --test-checkpoint
+python src/interactive/play_dynamics.py  # Single-frame interactive
 # Auto-detects the checkpoint's inference mode (same dispatch order as generate()):
 #   FF7 (config.use_register_memory) -> register-carry relay (memory_rollout_init/step);
 #   FF9 v2 (config.use_full_state_memory & n_memory>0) -> full-state-memory rollout
@@ -200,11 +198,11 @@ python src/D_dynamics_model/play_dynamics_checkpoint.py  # Single-frame interact
 #     indefinitely past the latent window (the exact inference evaluated in EXP-017);
 #   otherwise the vanilla sliding-window path. The on-screen "mode=" line shows which is active.
 # To inspect an FF7 model on the occluded env:
-python src/D_dynamics_model/play_dynamics_checkpoint.py \
+python src/interactive/play_dynamics.py \
   --checkpoint experiments/EXP-010/k3/ff7_k3_s0.pt --tokenizer trained_autoencoder.pt \
   --frames occluded.npy --actions occluded_actions.npy
 # To inspect the FF9 v2 model (EXP-017) on the occluded env:
-python src/D_dynamics_model/play_dynamics_checkpoint.py \
+python src/interactive/play_dynamics.py \
   --checkpoint experiments/EXP-017/ff9v2_s0.pt --tokenizer trained_autoencoder.pt \
   --frames occluded.npy --actions occluded_actions.npy
 ```
@@ -214,7 +212,7 @@ python src/D_dynamics_model/play_dynamics_checkpoint.py \
 All training scripts support optional W&B logging via `wlog.py` (no-op by default):
 
 ```bash
-python train_autoencoder_bouncing.py \
+python -u src/training/train_tokenizer.py \
   --wandb \
   --wandb-entity YOUR_TEAM \
   --wandb-project transformer-C-tokenizer \
@@ -230,40 +228,46 @@ export WANDB_PROJECT=transformer
 
 ## Key Files & Responsibilities
 
-> See `REPO_MAP.md` for the full directory map (incl. the concept→location index and the staged
-> reorg plan T-019). Quick note on the two eval homes: `src/probe/` is the **FROZEN** probe spine
-> (revisit/position consistency, frozen @ 5503e75 — changes are logged decisions); `src/eval/` is the
-> **working** eval toolbox (e.g. `motion.py`: open-loop/teacher-forced/τ-sweep motion curves + A/B
-> helpers, extracted from experiments in D-028). Experiment scripts import these instead of re-pasting.
+> See `REPO_MAP.md` for the full directory map (concept→location index, the Eval/BaseEnv interfaces,
+> how to add an env/eval). All evals live under `src/evals/` (T-019 reorg, D-030): the **FROZEN** spine
+> is `evals/probe_env.py` + `evals/revisit/probe.py` + `evals/position_consistency/consistency.py`
+> (frozen @ 5503e75 — changes are logged decisions); the **working** toolbox is `evals/motion/` (motion
+> curves) + `evals/rollout_view/` (A/B headline). Common interface in `evals/base.py`
+> (`import evals; evals.discover()` → REGISTRY). NEW experiment scripts import these; historical ones
+> are frozen to their commit (D-031).
 
 ### Core Models
 
 | File | Role |
 |------|------|
-| `src/A_LM/model.py` | Transformer LM architecture |
-| `src/B_single_image_auto_encoder/video_auto_encoder.py` | Single-frame AE (baseline) |
-| `src/C_multi_image_auto_encoder/video_auto_encoder.py` | Temporal AE (tokenizer) |
-| `src/D_dynamics_model/dynamics_model.py` | Dreamer-style dynamics transformer |
+| `src/models/lm.py` | Transformer LM architecture |
+| `src/models/single_image_ae.py` | Single-frame AE (baseline) |
+| `src/models/tokenizer.py` | Temporal AE (tokenizer) |
+| `src/models/dynamics_model.py` | Dreamer-style dynamics transformer |
 
 ### Training Scripts
 
 | File | Purpose |
 |------|---------|
-| `src/A_LM/train.py` | Shakespeare LM training |
-| `src/A_LM/inference.py` | LM text generation |
-| `src/B_single_image_auto_encoder/train_autoencoder_bouncing.py` | Single-frame AE training + testing |
-| `src/C_multi_image_auto_encoder/train_autoencoder_bouncing.py` | Temporal AE training + testing |
-| `src/D_dynamics_model/train_dynamics_model.py` | Dynamics model training + rollout visualization |
-| `src/D_dynamics_model/play_dynamics_checkpoint.py` | Interactive single-frame dynamics |
+| `src/training/train_lm.py` | Shakespeare LM training |
+| `src/interactive/lm_inference.py` | LM text generation |
+| `src/training/train_single_image_ae.py` | Single-frame AE training + testing |
+| `src/training/train_tokenizer.py` | Temporal AE training + testing |
+| `src/training/train_dynamics.py` | Dynamics model training + rollout visualization |
+| `src/interactive/play_dynamics.py` | Interactive single-frame dynamics |
 
-### Data & Logging
+### Envs, Data & Evals
 
 | File | Purpose |
 |------|---------|
-| `src/data_generators/bouncing_objects.py` | Bouncing shape video generator |
-| `src/data_generators/occluded_bouncing.py` | Occluded (curtain) action-conditioned env generator |
-| `src/probe/` | FROZEN revisit/position-consistency probe spine (5503e75) |
-| `src/eval/motion.py` | Working motion-eval toolbox (curves + A/B helpers) |
+| `src/envs/base.py` | `BaseEnv` interface (reset/step + measurement-only `hidden_state`) |
+| `src/envs/occluded_bouncing.py` | `OccludedBouncingEnv` (action-conditioned memory env) |
+| `src/envs/bouncing.py` | `BouncingEnv` (unconditioned DVD-style sim) |
+| `src/datagen/generate_bouncing.py` | Bouncing dataset writer + viewer |
+| `src/datagen/generate_occluded.py` | Occluded (curtain) dataset writer + viewer |
+| `src/evals/revisit/probe.py` + `evals/probe_env.py` + `evals/position_consistency/consistency.py` | FROZEN revisit/position-consistency spine (5503e75) |
+| `src/evals/motion/motion.py` | Working motion-eval toolbox (curves + A/B helpers) |
+| `src/evals/base.py` | Eval interface + REGISTRY (`import evals; evals.discover()`) |
 | `src/wlog.py` | Lightweight W&B logger (no-op unless --wandb) |
 
 ### Checkpoints (in repo root)
@@ -291,7 +295,7 @@ All models use dataclass configs for reproducibility:
 - `context_signal`: τ_ctx = signal level of context frames during rollout (0.9; 1.0=clean, 0.0=pure noise)
 - `n_actions`: 0 for unlabeled, >0 for action-conditioned
 
-**ModelConfig** (A_LM):
+**ModelConfig** (models/lm.py):
 - `vokab_size`: vocabulary size
 - `embedding_dim`: 128
 - `max_sequence_length`: sequence length
@@ -303,24 +307,22 @@ All models use dataclass configs for reproducibility:
 
 1. **Generate data** (if needed):
    ```bash
-   python src/data_generators/bouncing_objects.py --n_episodes 5000 --out bouncing.npy
+   python src/datagen/generate_bouncing.py --n_episodes 5000 --out bouncing.npy
    ```
 
 2. **Train tokenizer (C)** - produces z1 representations:
    ```bash
-   cd src/C_multi_image_auto_encoder
-   python train_autoencoder_bouncing.py --epochs 20 --batch-size 16
+   python -u src/training/train_tokenizer.py --epochs 20 --batch-size 16
    ```
 
 3. **Train dynamics model (D)** - predicts future z1:
    ```bash
-   cd src/D_dynamics_model
-   python train_dynamics_model.py --epochs 50 --batch-size 32
+   python -u src/training/train_dynamics.py --epochs 50 --batch-size 32
    ```
 
 4. **Evaluate rollouts**:
    ```bash
-   python train_dynamics_model.py --test-checkpoint
+   python -u src/training/train_dynamics.py --test-checkpoint
    ```
 
 ### Debugging Tips
