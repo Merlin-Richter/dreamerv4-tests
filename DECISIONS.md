@@ -887,3 +887,35 @@ Would change my mind: full-budget C1 fails to beat the control or shows prior-em
 (predDisp -> 0 / per-j floor) -> C1 insufficient, reconsider C2 scheduled-sampling or a larger-data
 regime. Any gate test red after a refactor step -> revert that step immediately before proceeding.
 Spawns: EXP-020 (full run), src/eval refactor, experiments/EXP-020/run.sh, REPO_MAP.md.
+
+## D-029 | 2026-06-16
+Context: EXP-020 full C1 A/B done — C1 SUPPORTED (open-loop below chance through h24; TF flat ~2px;
+val 0.00305 < control 0.0082; collapse monitor coherent). Standing caveat: the 250-ep control is a weak
+motion model (chance TF; sanity-check) so the A/B conflates "C1 learns a map at all on tiny data" with
+"C1 fixes open-loop compounding on a COMPETENT per-step map" (the EXP-018 question). Dataset is 1000
+episodes; the competent reference set (vanilla_s0, ff7_k3, ff9v2) was trained on all 1000 and already
+probed in EXP-018 (TF ff7/ff9 ~1px, but open-loop compounds to chance ~h12-16). Autonomous session,
+no escalation gates (Merlin asleep).
+Decision: two next steps.
+ (A) Cheap inference-only probe (EXP-022, no training): sweep context_signal at INFERENCE and measure
+     the OPEN-LOOP pos_err curve on the existing competent ckpts (vanilla_s0, ff7_k3, c1_h4_s0). Tests
+     the IDEAS "uncertainty-aware rollout" lever: does telling the model the context is less reliable
+     (lower flat signal) change open-loop compounding? Discriminates whether a trained per-frame
+     confidence channel is worth building. ~minutes GPU; reuses src/eval/motion.open_loop_curve.
+ (B) EXP-021 (overnight): train C1 on the FULL 1000-ep occluded data (same C1 flags as EXP-020), then
+     probe its open-loop+TF curve against the EXISTING competent set (vanilla_s0/ff7_k3/ff9v2). This is
+     the confound-free compounding test: among models with a COMPETENT TF map, does C1 have the gentlest
+     open-loop compounding? Not epoch-matched to the references' 100ep (infeasible: ~24min/epoch on 1000
+     ep), but periodic checkpoints + the reported TF curves control for per-step accuracy. Probe the
+     latest checkpoint in the morning; continuable.
+Alternatives rejected: a 2nd matched vanilla+C1 larger-data pair (2 long runs, >12h, infeasible
+overnight); a seed-1 confirmation of EXP-020 (addresses seed variance, but the CONFOUND is the bigger
+caveat — resolve that first); full-data C1 at 100ep to budget-match (infeasible ~45h).
+Expected outcome: (A) if the OL curve shifts with context_signal -> the confidence lever has signal
+(esp. lowering it helps ff7_k3's compounding); if flat -> inert, drop it. (B) C1-full reaches a
+competent TF map (~few px) and shows a gentler open-loop rise than ff7_k3/ff9v2 at matched TF.
+Would change my mind: (A) flat OL vs context_signal -> confidence channel inert, do not build a trained
+version. (B) C1-full's open-loop compounds as fast as ff7_k3 despite a competent TF map -> the EXP-020
+win was the tiny-data regularization effect, NOT a general compounding fix -> re-aim (C2 scheduled
+sampling / re-diagnose). C1-full TF fails to reach competence in the budget -> inconclusive, extend.
+Spawns: EXP-022 (context_signal probe), EXP-021 (C1 full-data overnight).
