@@ -890,3 +890,31 @@ FF7 — it's better ✓). No HALT condition; the surprise is favorable.
 Urgency: blocking per §5 — I am not starting the relay build, ESC-014 probes, or any follow-up until you
 weigh in. Nothing is in flight; the 4070 is idle. Code committed (FF9 eval @ 0f02f18); gates green
 (FF9 9/9, FF7 5/5, KV 5/5, stream 9/9).
+
+## ESC-016 | 2026-06-16 | GridWorld pivot milestone: eval sign-off + compute-tier steer | OPEN
+Context: Merlin live-steered a pivot (D-032) to a discrete GridWorld memory env and a clean eval,
+then "structure checkpoints by env" and "start a vanilla-model smoke test (10 epochs) on the new data."
+Done this session (all committed): GridWorldEnv + datagen (curtain schedule 90/5/5) + **gridworld.npy
+3000x200 generated**; recall eval (`src/evals/gridworld/`) + instrument validation; checkpoints
+reorganized to `checkpoints/<env>/` (D-034); gate tests green; docs synced.
+
+Two things for your review:
+
+1. **Eval scoring design — sign-off requested (D-033, the "vital decision").** HEADLINE = **position
+   recall accuracy vs occlusion length k** (exact 8x8 cell) + **color recall (4-way)**; diagnostics =
+   reflection split (learned the walls vs ballistic) + readout margin; references = oracle ceiling
+   (=1.0), **copy-last/no-memory** baseline, chance (1/64). Readout is closed-form & provably exact on
+   true frames (oracle=1.0; copy-last decays 0.08@k1->0; random~1/64). **Key choice:** I PROMOTED
+   position to the headline (the fluid env had to demote it to a drift-confounded non-metric) because
+   it is the only attribute that CHANGES under occlusion — the genuine dynamic-memory test. Is
+   position-first right, or do you want color-first continuity with the H2/H3 line? Not frozen until
+   you bless it.
+
+2. **Compute tier.** The 4070 runs this tokenizer at ~9 s/it (GPU-bound; EXP-006's real tokenizer was
+   trained on galvani, not locally). So a full 10-epoch run on the 6.9GB set is ~25h locally. I started
+   a reduced local smoke (300-ep subset, 10 epochs, ~2.7h, running) to validate the gridworld pipeline
+   end-to-end (tokenizer -> then vanilla dynamics). **Question:** for the REAL gridworld pipeline
+   (tokenizer + vanilla baseline on full data), do you want it on the cluster (proper, per §6), or keep
+   iterating locally at reduced scope? The local smoke continues either way as a pipeline check.
+
+Resolution: <pending Merlin>
