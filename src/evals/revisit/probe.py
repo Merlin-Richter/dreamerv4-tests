@@ -35,16 +35,16 @@ from dataclasses import fields
 import numpy as np
 import torch
 
-_SRC = pathlib.Path(__file__).resolve().parents[1]            # .../src
+_SRC = pathlib.Path(__file__).resolve().parents[2]            # .../src
 _ROOT = _SRC.parent                                           # repo root
-for _p in (_SRC / "probe", _SRC / "C_multi_image_auto_encoder", _SRC / "D_dynamics_model"):
+for _p in (_SRC, _SRC / "C_multi_image_auto_encoder", _SRC / "D_dynamics_model"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
 from video_auto_encoder import AutoEncoder, AutoEncoderConfig   # noqa: E402
 from dynamics_model import DynamicsModel, DynamicsModelConfig   # noqa: E402
 
-from probe_env import (  # noqa: E402
+from evals.probe_env import (  # noqa: E402
     make_probe_episode, make_probe_batch, ProbeEpisode, ACTION_DOWN,
 )
 

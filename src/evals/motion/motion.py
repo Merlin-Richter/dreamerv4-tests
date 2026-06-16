@@ -22,15 +22,15 @@ import sys
 import numpy as np
 import torch
 
-# Bootstrap the frozen-probe + model import paths so callers only need `src` on sys.path.
-_ROOT = pathlib.Path(__file__).resolve().parents[2]
-_SRC = _ROOT / "src"
-for _p in (_SRC / "probe", _SRC / "C_multi_image_auto_encoder", _SRC / "D_dynamics_model"):
+# Bootstrap the model import paths so callers only need `src` on sys.path.
+_SRC = pathlib.Path(__file__).resolve().parents[2]           # .../src
+_ROOT = _SRC.parent                                          # repo root
+for _p in (_SRC, _SRC / "C_multi_image_auto_encoder", _SRC / "D_dynamics_model"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from revisit_probe import _encode_window, _decode_frame, detect_ball  # noqa: E402,F401
-from revisit_probe import load_models  # noqa: E402,F401  (re-exported convenience)
+from evals.revisit.probe import _encode_window, _decode_frame, detect_ball  # noqa: E402,F401
+from evals.revisit.probe import load_models  # noqa: E402,F401  (re-exported convenience)
 
 # Inference window / visible prefix — fixed by the frozen probe geometry (EXP-009/010/011).
 N, P = 8, 3

@@ -44,9 +44,9 @@ import sys
 
 import numpy as np
 
-_SRC = pathlib.Path(__file__).resolve().parents[1]            # .../src
+_SRC = pathlib.Path(__file__).resolve().parents[2]            # .../src
 _ROOT = _SRC.parent                                           # repo root
-for _p in (_SRC, _SRC / "probe", _SRC / "C_multi_image_auto_encoder", _SRC / "D_dynamics_model"):
+for _p in (_SRC, _SRC / "C_multi_image_auto_encoder", _SRC / "D_dynamics_model"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
@@ -268,8 +268,8 @@ def _belief_at_k(tok, dyn, seed, k, P, K, device, use_memory=False):
     else their beyond-window memory is crippled and they read as vanilla. Same signature.
     Returns (found, x, y, gt_xy(2,), gt_vel(2,))."""
     import torch
-    from probe_env import make_probe_episode
-    from revisit_probe import _prefix_latents, _decode_frame, detect_ball
+    from evals.probe_env import make_probe_episode
+    from evals.revisit.probe import _prefix_latents, _decode_frame, detect_ball
     ep = make_probe_episode(seed=seed, P=P, k=k, R=1)
     context = _prefix_latents(tok, ep.frames, ep.P, device)
     action_idx = torch.from_numpy(ep.actions.astype(np.int64)).unsqueeze(0).to(device)
@@ -300,7 +300,7 @@ def model_belief_trajectory(tok, dyn, seed, k_max, P, K, device, use_memory=Fals
 
 def run_model(args):
     import torch
-    from revisit_probe import load_models
+    from evals.revisit.probe import load_models
     device = "cuda" if torch.cuda.is_available() else "cpu"
     tok, dyn, dcfg, _ = load_models(args.tokenizer, args.dynamics, args.window_N, device)
     K = dcfg.inference_steps if args.K is None else args.K

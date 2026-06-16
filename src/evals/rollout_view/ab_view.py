@@ -4,7 +4,7 @@ Two panels: open-loop pos_err vs horizon (the compounding curve) and teacher-for
 horizon (the per-step map). Each model is a line; copy-last + a chance line give reference. The whole
 A/B read should be obvious at a glance.
 
-Usage:  python -u src/eval/ab_view.py --in experiments/EXP-020/ab.json --out experiments/EXP-020/headline.png
+Usage:  python -u src/evals/rollout_view/ab_view.py --in experiments/EXP-020/ab.json --out experiments/EXP-020/headline.png
 """
 from __future__ import annotations
 
