@@ -7,8 +7,9 @@ folder per eval** (modular, each "perfect for its use case": cheap score evals v
 (2) **split environments from data generation** (envs = steppable RL sims behind a shared interface; data
 generation = a separate dataset-writing layer that drives them).
 
-The move is high-fanout and touches the FROZEN probe spine, so it stays gated on Merlin + a
-critical-claim-verifier pass. Nothing here is executed until then.
+The move is high-fanout and touches the FROZEN probe spine, so it stays gated on Merlin. A
+critical-claim-verifier pass (2026-06-16) returned **SOUND-WITH-FIXES**; its 5 blocking fixes are folded in
+below and summarized in §8. Nothing here is executed until Merlin approves.
 
 ---
 
@@ -95,12 +96,17 @@ class BaseEnv(ABC):
         ...
     # MEASUREMENT-ONLY privileged accessor (the IDEAS.md "eval exception"): evals may read
     # hidden state to SCORE recall; it is NEVER a model input. Named to make misuse obvious.
-    def hidden_state(self) -> np.ndarray: ...           # e.g. [x,y,vx,vy,curtain]; color via .color
+    def hidden_state(self) -> np.ndarray: ...           # per-env semantics (see below); color via .color
 ```
 - `OccludedBouncingEnv` already matches this shape (`reset(seed)`, `step(action)->(frame,state)`, `.color`)
-  — subclassing is mostly declaring the ABC, no logic change.
-- `bouncing.py` (the DVD sim) is currently procedural inside the `__main__`; extract the per-step loop into a
-  `BouncingEnv(BaseEnv)` with `n_actions=0`. This is the one env that needs real (but mechanical) refactor.
+  — subclassing is mostly declaring the ABC, no logic change. (occluded_bouncing.py:129)
+- `bouncing.py` (the DVD sim) **has no env class today** — physics lives inline in `generate_episode`
+  (bouncing_objects.py:94), `n_actions=0`, no `step`/`reset`. Extracting a `BouncingEnv(BaseEnv)` is a **real
+  (not just mechanical) refactor** and it is the only env exercising the unconditioned path — budget for it.
+- **State width is NOT uniform** (verifier finding): occluded state is 5-dim `[x,y,vx,vy,curtain]`, bouncing is
+  4-dim `[x,y,vx,vy]`. The base must NOT fix a 5-vector — `step`/`hidden_state` return `np.ndarray` with
+  **per-env semantics documented in each subclass** (or a dict). The 5-vector is occluded-specific, not the
+  contract.
 - **Channel-order contract (BGR end-to-end) is part of the interface** and must be restated in `envs/README.md`
   + `BaseEnv` docstring — it is a measurement-validity invariant (probe_env.py docstring), easy to silently
   break in a move.
@@ -121,16 +127,30 @@ class EvalResult:
 class Eval(ABC):
     name: str
     frozen: bool = False            # spine evals = True; any logic change is a logged decision (§8 protocol)
-    def score(self, tok, dyn, *, device, budget="fast") -> dict[str, float]: ...   # REQUIRED, cheap
-    def report(self, tok, dyn, out_dir, *, device, budget="full") -> EvalResult: ... # OPTIONAL, rich
+    compatible_envs: list[str]      # which envs / capabilities this eval needs (see below) — REQUIRED
+    def score(self, tok, dyn, cfg, *, device) -> dict[str, float]: ...   # REQUIRED, cheap
+    def report(self, tok, dyn, cfg, out_dir, *, device) -> EvalResult: ... # OPTIONAL, rich
 ```
+- **Pass a config object, not a `budget` string (verifier finding).** Every existing eval needs more than
+  live-model handles: `run_condition(...)` needs `K` (inference steps), `tok_win`, episode set
+  (revisit_probe.py:209); `open_loop_curve(...)` needs `K`, `H`, episodes (motion.py:44). So `cfg` carries
+  `K / window_N / tok_win / episode grid / n_occ / horizon`; the cheap-vs-full distinction is a field on `cfg`
+  (e.g. episode count), not a magic string. **`load()` MUST return `tok_win`** — `load(checkpoint, tokenizer)
+  -> (tok, dyn, dcfg, tok_win)` — because `_encode_window` requires it (window ≤ tokenizer window); the
+  earlier `(tok, dyn, cfg)` return dropped it and would force the adapter to reconstruct it from globals (the
+  contortion §8 warns about).
+- **Env-capability tagging (verifier finding).** A registry of evals with no notion of which envs they can run
+  on produces silent nonsense when a color/position eval is pointed at the curtain-less bouncing env. `Eval`
+  declares `compatible_envs` (or required capabilities, e.g. `needs_occlusion`, `needs_hidden_color`); the
+  runner refuses an incompatible (eval, env) pair. Cheap now, painful to retrofit.
 - **Score evals** (mid-run): implement `score` — a small episode budget, scalars only. `train_dynamics.py`
   can call `evals.MIDRUN` every N steps and `wlog` them. This is a concrete new capability the move unlocks.
 - **Visual evals**: implement `report` — render the chart/rollout/HTML the experiment currently hand-rolls.
-  Default `report` just wraps `score` so a score-only eval still satisfies the interface.
-- **Registry** (`evals/__init__.py`): `REGISTRY: dict[str, Eval]`, a `MIDRUN` list (the cheap set), and a
-  module `load(checkpoint, tokenizer) -> (tok, dyn, cfg)` so both the CLI and the training loop construct
-  models the same way. CLI: `python -u -m evals <name> --checkpoint ... [--report --out experiments/EXP-NNN/]`.
+  Default `report` just wraps `score` so a score-only eval still satisfies the interface (verifier confirmed
+  this split is sound, not over-engineered — `rollout_view` is genuinely score-less).
+- **Registry** (`evals/__init__.py`): `REGISTRY: dict[str, Eval]`, a `MIDRUN` list (the cheap set), and the
+  module `load(...) -> (tok, dyn, dcfg, tok_win)` above so CLI and training loop construct models identically.
+  CLI: `python -u -m evals <name> --checkpoint ... [--report --out experiments/EXP-NNN/]`.
 - **Folder granularity:** a folder per *proper* eval (its own `eval.py` + `README.md` stating use-case,
   budget, and which `scores` keys are headline). Shared primitives live in `_shared/`; we do **not** force a
   folder around a 20-line helper.
@@ -153,11 +173,16 @@ itself is moving. Three coherent options, in increasing structural purity / incr
 
 - **(A) Wrap, don't move (RECOMMENDED).** Leave `src/probe/` physically frozen and untouched. `src/evals/`
   becomes the unified API layer; `evals/revisit/` and `evals/position_consistency/` are thin `Eval` adapters
-  that import the frozen probe. Achieves the unified eval surface + mid-run hooks at **zero risk** to the
+  that import the frozen probe. Achieves the unified eval surface + mid-run hooks at near-**zero risk** to the
   sacred numbers and zero churn on done-experiment imports. Cost: the spine isn't physically "in the evals
-  folder," a mild aesthetic miss vs Merlin's framing. *One subtlety:* the spine imports the env, which DOES
-  move — handle by keeping an `envs`-side shim or a frozen vendored copy of the env class for the probe (see
-  §5 note).
+  folder," a mild aesthetic miss vs Merlin's framing.
+  - **CORRECTION (verifier): option A is NOT automatically bit-identical.** The frozen spine imports the env
+    that DOES move: `probe_env.py:39` and `position_consistency.py:222` do
+    `from data_generators.occluded_bouncing import OccludedBouncingEnv`. When Phase 1 moves that env to
+    `src/envs/`, the untouched spine fails to *import* (hard break, not numeric drift) unless a working
+    `data_generators.occluded_bouncing` alias survives. So under option A the alias is **MANDATORY, not
+    optional**, and the spine byte-diff gate must run at the **end of Phase 1** (when the dep actually moves),
+    not Phase 3. The same alias also covers `verify-T011-scorer/{scorer_probe,c4_markov_check}.py`.
 - **(B) Move under a gate.** `git mv` the spine into `evals/{revisit,position_consistency}/`, import-path
   edits ONLY, then prove bit-identical: re-run `revisit_probe` and diff `results.json` byte-for-byte against
   the committed `last_results.json`; keep a `FROZEN @ 5503e75 (relocated D-NNN)` marker. Leave thin
@@ -175,21 +200,27 @@ let the verifier challenge.
 ## 5. Safe migration recipe (per moved module)
 1. `git mv` to the new home; rename only where it removes ambiguity (the two `video_auto_encoder.py` →
    `tokenizer.py` / `single_image_ae.py`).
-2. Grep + update every importer's `sys.path` insert and `from X import` (`from dynamics_model`,
-   `from video_auto_encoder`, `from train_dynamics_model`, `from probe_env`, `from data_generators...`,
-   `from eval.motion`). Do this per-module, not all at once.
+2. Grep + update every importer's `sys.path` insert and `from X import`. Patterns: `from dynamics_model`,
+   `from video_auto_encoder`, `from train_dynamics_model`, `from probe_env`, **`from probe.` (package-style —
+   e.g. EXP-013 `coherence_eval.py:16`, EXP-015 `perf_rollout.py:22` do `from probe.revisit_probe import`; a
+   bare-import grep MISSES these — verifier finding)**, `from data_generators...`, `from eval.motion`. Do this
+   per-module, not all at once.
 3. Run ALL gate tests (`test_kv_cache / test_stream_cache / test_ff7_smoke / test_ff9_smoke /
    test_multistep_smoke`) — must stay green (CPU OK).
 4. CPU-smoke one representative experiment driver per touched module (e.g. `probe_multistep`, an A/B eval,
    an EXP-017 eval) — must reproduce prior numbers.
-5. **Spine gate (if option B/C):** re-run `revisit_probe` and byte-diff `results.json` vs committed baseline.
+5. **Spine byte-diff gate (ALL options, run at the END OF PHASE 1):** re-run `revisit_probe` and byte-diff
+   `results.json` vs committed `last_results.json` baseline. This is required even under option A, because
+   Phase 1 moves the env the spine imports (see §4 correction) — the gate belongs where the dependency moves,
+   not deferred to Phase 3.
 6. Update `CLAUDE.md` Key-Files table + `REPO_MAP.md` + the new `envs/` & `evals/` READMEs in the SAME commit.
 7. Commit per module (small, revertible). Never one big-bang commit.
 
-Env-move note (re §4 subtlety): the frozen probe's episode-builder drives `OccludedBouncingEnv`. To keep the
-spine bit-identical without touching it, either (a) `envs/occluded_bouncing.py` keeps a back-compat import
-alias at the old path, or (b) the env class moves but is a pure relocation also covered by the spine
-byte-diff gate. Decide alongside §4.
+Env-move note (re §4 correction): the frozen probe's episode-builder drives `OccludedBouncingEnv`, imported as
+`data_generators.occluded_bouncing`. Under option A the spine is untouched, so a working
+`data_generators.occluded_bouncing` alias (a thin re-export module left at the old path, pointing at
+`envs/occluded_bouncing.py`) is **MANDATORY** — without it the untouched spine fails to import. This is a
+load-bearing recipe line, not an optional subtlety. Step 5's byte-diff confirms it.
 
 ---
 
@@ -199,7 +230,9 @@ byte-diff gate. Decide alongside §4.
   `score()` call into `train_dynamics.py` behind a flag. Delivers the unified surface + mid-run evals before
   any risky move.
 - **Phase 1 — env/data split.** Extract `BaseEnv`; move env classes → `envs/`, dataset CLIs → `data/`,
-  viewers → `interactive/`. Gate tests + probe byte-diff.
+  viewers → `interactive/`. **Leave the mandatory `data_generators.occluded_bouncing` alias (§4/§5) and run
+  the spine byte-diff gate here** — Phase 1 is where the spine's dependency actually moves, so this is the
+  phase that can break the frozen spine. Gate tests + probe byte-diff before commit.
 - **Phase 2 — models/training/tests/interactive split** (the original T-019 core). Gate tests + driver smokes.
 - **Phase 3 — fold evals into folders** (`motion/`, `rollout_view/`, and the spine per §4 choice). Re-run
   smokes.
@@ -219,15 +252,23 @@ Phase 0 is safe to do unsupervised; Phases 1–3 are the parts that wait for Mer
 
 ---
 
-## 8. Open risks / things for the verifier to attack
-- Does the `Eval.score(tok, dyn, ...)` signature actually fit both the mid-run loop (live model) and the CLI
-  (load-from-checkpoint) without contortion? Is `budget` the right knob?
-- Is "score vs visual = two methods on one interface" genuinely cleaner than two eval kinds, or does it force
-  awkward no-op `report`s / scoreless visual evals?
-- Is option A's env-shim the cleanest way to keep the spine bit-identical, or does it leave a confusing
-  double-home for the env class?
-- Is the staging order right — is Phase 0 truly zero-risk, and is anything in Phases 1–3 ordered such that a
-  later phase silently depends on an earlier import that moved?
-- Anything that makes a future "Nth env / Nth eval" still painful despite this structure (i.e., did we solve
-  the stated motivation)?
+## 8. Verifier verdict (critical-claim-verifier, 2026-06-16) — SOUND-WITH-FIXES
+Design + option-A recommendation judged correct; "safe to execute *as written*" judged FALSE until 5 blocking
+fixes (all folded into the sections above):
+1. **Mandatory env alias + spine gate at Phase 1** — option A is NOT auto bit-identical; the untouched spine
+   imports `data_generators.occluded_bouncing` which moves (§4 correction, §5 note, §6 Phase 1).
+2. **`probe.*` package-import pattern added to the recipe grep** — EXP-013/EXP-015 use it; bare grep misses it (§5.2).
+3. **`Eval` takes a `cfg` object, not a `budget` string; `load()` returns `tok_win`** — every eval needs
+   `K/tok_win/window_N/episodes` (§3).
+4. **Variable-width env state** — bouncing is 4-dim, occluded 5-dim; base must not fix a 5-vector (§2).
+5. **Env-capability tagging on evals** (`compatible_envs`) — stop pointing a color/position eval at the
+   curtain-less env (§3).
+
+Verifier also confirmed (not changed): registry + folder-per-eval is justified not ceremony; the
+`score`/`report` split is sound (no awkward no-ops, `rollout_view` genuinely score-less); `OccludedBouncingEnv`
+fits `BaseEnv` cleanly; the `BouncingEnv` extraction is real work, not mechanical. Full report retained in
+session log (agent ab8c628a3509f2d22). No code was run by the verifier (no EXPERIMENTS.md entry).
+
+**Remaining open question for Merlin** (design, not a flaw): is "wrap don't move" (option A) the right
+spine call, or does he want the spine physically inside `src/evals/` (option B, gated)? See §7.1.
 ```
