@@ -1,6 +1,23 @@
 # BOARD.md — task board
 
-Updated: 2026-06-14 (ESC-015 RESOLVED; viewer FF9 support done T-015/D-025; one gate left = ESC-014)
+Updated: 2026-06-16 (T-019 full repo reorg DONE; research thread = EXP-021 morning eval, paused)
+
+## Done (2026-06-16, latest)
+- **T-019 — full repo restructure (D-030/D-031) — DONE.** Reorganized `src/` by concern so it scales
+  to many envs/evals. 4 gated phases, all committed: P1 env/data split (`src/envs/` BaseEnv ABC +
+  `src/datagen/`); P2 `src/evals/` (common Eval interface `base.py` REGISTRY + adapters) and the FROZEN
+  probe spine MOVED in (option B, byte-identical-except-imports, code-identity gated); P3
+  models/training/tests/interactive split (retired A/B/C/D dirs); P4 docs (CLAUDE.md + REPO_MAP).
+  Gates each phase: 5 gate tests green, spine code-identity + smoke (detector gate pass), BouncingEnv
+  byte-identical to old generator, both Eval adapters run on ff7_k3. **Historical experiment scripts
+  FROZEN to their commit (D-031)** — not rewired; rerun via `git checkout <commit>`. Verifier pass on
+  the plan (SOUND-WITH-FIXES, all folded). Infra — no present-then-stop.
+
+## Next (research thread, paused)
+- **EXP-021 morning eval (was the overnight NEXT ACTION).** Probe `experiments/EXP-021/c1_full_s0.pt`
+  (~ep10) with open-loop + TF motion curves + per-model context_signal sweep vs ff7_k3/ff9v2; does C1's
+  trained robustness beat ff7 + the tuned inference knob? **Do via the NEW evals interface**
+  (`evals.motion`), not the frozen EXP-021/eval.py. Then reconcile → view → escalate (§5). See ORIENT.
 
 ## Done (2026-06-14, latest)
 - **T-015 — viewer FF9 v2 support + model primitive refactor (D-025) — DONE.** play_dynamics_checkpoint.py
