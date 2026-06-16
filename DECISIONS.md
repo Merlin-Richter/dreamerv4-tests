@@ -981,3 +981,56 @@ Would change my mind: if discretization removes the very failure mode we study (
 trivially memorizes 8x8 positions even past the window) — then the env is too easy and needs more
 state/entropy. Watch for this at first baseline.
 Spawns: T-020 (GridWorld env build) — GATED on Merlin approving the sample look + design questions.
+
+## D-033 | 2026-06-16
+Context: Merlin: "write clean eval metrics for [GridWorld] ... making the right decision on what to
+score is vital." The discrete env's payoff vs the fluid env: in the fluid env, scoring ANYTHING
+needed fuzzy ball localization ("where is the ball, to read its color?"), so the probe fell back to
+latent-MSE and POSITION was demoted to a drift-confounded NON-metric (GOAL H2/H3 — the blocked axis).
+GridWorld makes localization EXACT and closed-form, which unblocks a clean position metric.
+Decision: GridWorld recall eval (src/evals/gridworld/), scored at each REVEAL frame bucketed by
+occlusion length k:
+  PRIMARY (headline): position recall accuracy (exact 8x8 cell match) vs k  [+ Chebyshev cell-dist
+    for graded credit]; color recall (4-way) vs k.
+  SECONDARY / confound check: background recall (4-way) vs k.
+  DIAGNOSTIC: reflection split (bounced-during-occlusion vs not) — learned the walls vs ballistic;
+    readout margin (top1-top2) — flags smeared/hallucinated preds.
+  REFERENCE LINES: oracle ceiling (=1.0, instrument self-test), copy-last / no-memory baseline
+    (decays as the true square moves — beating it IS "has memory"), chance (1/64 pos, 1/4 color).
+  CONTROL (needs the model, lives in the Eval adapter): matched-horizon open-rollout (model run
+    curtain-UP same horizon) separates "can't track motion even in the clear" (GOAL's documented
+    base-dynamics deficit) from "memory lost past window."
+Readout is deterministic (median-cell = bg, max-distance cell = square, nearest-palette = color);
+provably exact on true frames, so — unlike the fluid position-consistency metric Merlin declined to
+freeze (uncertain strength) — this instrument is self-validating (oracle=1.0).
+Rationale for promoting POSITION to headline: it is the ONLY attribute that changes during occlusion,
+so it is the one that genuinely requires integrating hidden dynamics (color/bg/identity are static
+holds). It is exactly the axis the fluid env couldn't measure cleanly.
+Validation (test_gridworld_eval.py, all pass): readout exact on true frames; oracle=1.0; copy-last
+decays 0.08@k1->0.00@k29 (square moves every tick -> freezing nearly always wrong -> a CLEAN bar);
+random ~ chance (0.017 ~ 1/64).
+Status: NOT YET FROZEN. Present to Merlin for sign-off on the scoring choices before locking it as
+the GridWorld spine + wiring the model adapter (needs a gridworld-trained tokenizer+dynamics).
+Alternatives considered: latent-token MSE (decoder/detection-free, continuity with fluid probe) —
+kept as a possible secondary, but pixel readout is now clean and far more interpretable, so it is
+the headline. Full-frame exact reconstruction — rejected (decoder-bound, not decomposable).
+Would change my mind: if Merlin wants color-first continuity over position-first; or if the model
+adapter reveals the decoder is too weak to localize from predicted frames (then add latent-MSE).
+Spawns: T-020 eval core (done, validated); model adapter pending gridworld pipeline.
+
+## D-034 | 2026-06-16
+Context: Merlin: models are env-specific (don't transfer); flat names like 'dynamics_model.pt' hide
+the env and are "incorrect and irritating." Provenance verified (configs + git + EXPERIMENTS/journal):
+trained_autoencoder.pt = tokenizer EXP-006 (occluded.npy); my_dynamics.pt = vanilla dynamics EXP-007
+(occluded, n_actions=2, retired baseline); dynamics_bouncing.pt = EXP-005 unconditional BOUNCING;
+src/autoencoder_bouncing.pt = bouncing tokenizer.
+Decision: checkpoints/<env>/<role>.pt. Moved (gitignored artifacts): -> occluded/tokenizer.pt,
+occluded/dynamics_vanilla.pt, bouncing/dynamics.pt, bouncing/tokenizer.pt. checkpoints/gridworld/ for
+the new pipeline. Repointed all LIVE defaults + frozen-spine argparse default PATHS (probe.py,
+consistency.py) — PATH-ONLY, measurement logic byte-unchanged (this is the §8 logged decision for
+touching the frozen files). Fixed a latent NameError (train_dynamics --tokenizer default referenced
+undefined _TOKENIZER_DIR). Append-only history (DECISIONS/EXPERIMENTS/ESCALATIONS/tasks) left intact
+as provenance of what the paths WERE.
+Would change my mind: if a frozen experiment rerun needs the old root path, pass it explicitly (the
+artifact is external/gitignored; D-031 checkout-to-rerun semantics unaffected by logic).
+Spawns: T-021 (done).
