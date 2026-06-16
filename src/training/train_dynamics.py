@@ -241,13 +241,16 @@ def main():
                         help="Path to actions .npy (N, T) ints. Default: '<frames>_actions.npy' "
                              "if it exists, else unlabeled (no action conditioning).")
     parser.add_argument("--tokenizer", type=Path,
-                        default=_TOKENIZER_DIR / "autoencoder_bouncing.pt",
-                        help="Frozen C tokenizer checkpoint.")
+                        default=_SRC.parent / "checkpoints" / "occluded" / "tokenizer.pt",
+                        help="Frozen C tokenizer checkpoint (env-specific; pass --tokenizer for "
+                             "the right env, e.g. checkpoints/gridworld/tokenizer.pt).")
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=3e-4)
-    parser.add_argument("--checkpoint", type=Path, default=_SRC / "dynamics_bouncing.pt",
-                        help="Where to save weights + config.")
+    parser.add_argument("--checkpoint", type=Path,
+                        default=_SRC.parent / "checkpoints" / "bouncing" / "dynamics.pt",
+                        help="Where to save weights + config (env-specific; pass --checkpoint, "
+                             "e.g. checkpoints/gridworld/dynamics_vanilla.pt).")
     parser.add_argument("--test-checkpoint", action="store_true",
                         help="Load --checkpoint and visualize an autoregressive rollout.")
     parser.add_argument("--context-frames", type=int, default=4,

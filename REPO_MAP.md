@@ -20,8 +20,8 @@ D-030/D-031).
 | `experiments/` | Per-experiment configs, run scripts, NOTES, results, readouts. |
 
 **Local-only artifacts (gitignored — NOT in version control):**
-- Datasets: `bouncing.npy`, `occluded.npy`, `occluded_actions.npy`, `occluded_states.npy` (repo root, ~2.3 GB each).
-- Shared checkpoints: `trained_autoencoder.pt` (frozen tokenizer), `my_dynamics.pt` (retired), `dynamics_bouncing.pt`.
+- Datasets: `bouncing.npy`, `occluded.npy`, `gridworld.npy` (+ `_actions`/`_states`, gridworld also `_colors`) at repo root.
+- Shared checkpoints under **`checkpoints/<env>/`** (D-032 — env is explicit in the path; a model does NOT transfer across envs): `checkpoints/occluded/tokenizer.pt` (frozen tokenizer, was `trained_autoencoder.pt`) + `dynamics_vanilla.pt` (retired, was `my_dynamics.pt`); `checkpoints/bouncing/dynamics.pt` (was `dynamics_bouncing.pt`) + `tokenizer.pt`; `checkpoints/gridworld/` (in progress).
 - Per-experiment checkpoints under `experiments/EXP-NNN/*.pt`. `venv/`, `wandb/`.
 - Because datasets/checkpoints are gitignored, training scripts reference them by path; **do not relocate
   them without updating the `--frames/--actions/--tokenizer/--checkpoint` defaults + every caller.**
@@ -33,7 +33,7 @@ one level deeper) and inserts `_SRC`.
 
 | Path | Role | Notes |
 |------|------|-------|
-| `src/models/` | **Model architectures** | `dynamics_model.py` (active research), `tokenizer.py` (temporal tokenizer = the frozen `trained_autoencoder.pt`), `single_image_ae.py` (baseline), `lm.py` (standalone char-LM) |
+| `src/models/` | **Model architectures** | `dynamics_model.py` (active research), `tokenizer.py` (temporal tokenizer = the frozen `checkpoints/occluded/tokenizer.pt`), `single_image_ae.py` (baseline), `lm.py` (standalone char-LM) |
 | `src/training/` | **Training scripts** | `train_dynamics.py`, `train_tokenizer.py`, `train_single_image_ae.py`, `train_lm.py` |
 | `src/envs/` | **Environments** (steppable sims behind `BaseEnv`) | `base.py` (the ABC), `occluded_bouncing.py` (`OccludedBouncingEnv`), `bouncing.py` (`BouncingEnv`), `gridworld.py` (`GridWorldEnv` — discrete 8×8 grid memory env, D-032) |
 | `src/datagen/` | **Dataset generation + inspection** (drives envs → `.npy`) | `generate_occluded.py`, `generate_bouncing.py`, `generate_gridworld.py`, `example_read.py`. (Named `datagen`, NOT `data/`, to dodge the `.gitignore` `data/` artifact rule.) |

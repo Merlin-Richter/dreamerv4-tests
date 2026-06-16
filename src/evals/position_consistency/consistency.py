@@ -380,8 +380,10 @@ def parse_args():
     p.add_argument("--window-N", type=int, default=8)
     p.add_argument("--prefix-P", type=int, default=3)
     p.add_argument("--K", type=int, default=None, help="shortcut steps (default: cfg)")
-    p.add_argument("--tokenizer", type=pathlib.Path, default=_ROOT / "trained_autoencoder.pt")
-    p.add_argument("--dynamics", type=pathlib.Path, default=_ROOT / "my_dynamics.pt")
+    p.add_argument("--tokenizer", type=pathlib.Path,
+                   default=_ROOT / "checkpoints" / "occluded" / "tokenizer.pt")
+    p.add_argument("--dynamics", type=pathlib.Path,
+                   default=_ROOT / "checkpoints" / "occluded" / "dynamics_vanilla.pt")
     p.add_argument("--out", type=pathlib.Path, default=_SRC / "probe" / "last_posmem.json")
     return p.parse_args()
 

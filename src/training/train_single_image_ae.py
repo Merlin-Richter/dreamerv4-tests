@@ -8,7 +8,7 @@ Or from repo root:
     python src/train_autoencoder_bouncing.py
 
 Visualize a saved checkpoint (OpenCV window; needs a display):
-    python src/train_autoencoder_bouncing.py --test-checkpoint --checkpoint src/autoencoder_bouncing.pt
+    python src/training/train_single_image_ae.py --test-checkpoint --checkpoint checkpoints/bouncing/single_image_ae.pt
 """
 
 import argparse
@@ -137,7 +137,7 @@ def main():
     parser.add_argument(
         "--checkpoint",
         type=Path,
-        default=_SRC / "autoencoder_bouncing.pt",
+        default=_SRC.parent / "checkpoints" / "bouncing" / "single_image_ae.pt",
         help="Where to save weights + config (also loaded by --test-checkpoint).",
     )
     parser.add_argument(

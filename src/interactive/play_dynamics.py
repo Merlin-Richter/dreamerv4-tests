@@ -278,10 +278,11 @@ def main() -> None:
     parser.add_argument("--actions", type=Path, default=None,
                         help="Actions .npy (N, T). Default: '<frames>_actions.npy' if present.")
     parser.add_argument("--tokenizer", type=Path,
-                        default=_ROOT / "trained_autoencoder.pt",
-                        help="Frozen C tokenizer checkpoint.")
-    parser.add_argument("--checkpoint", type=Path, default=_ROOT / "dynamics_bouncing.pt",
-                        help="Dynamics model checkpoint.")
+                        default=_ROOT / "checkpoints" / "occluded" / "tokenizer.pt",
+                        help="Frozen C tokenizer checkpoint (env-specific).")
+    parser.add_argument("--checkpoint", type=Path,
+                        default=_ROOT / "checkpoints" / "occluded" / "dynamics_vanilla.pt",
+                        help="Dynamics model checkpoint (must match the tokenizer's env).")
     parser.add_argument("--tokenizer-context", type=int, default=None,
                         help="Frames fed to the tokenizer on reset (>= 4). "
                              "Default: tokenizer max_temporal_length.")

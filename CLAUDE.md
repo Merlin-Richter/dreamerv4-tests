@@ -11,7 +11,7 @@ now modules in `src/models/`) are:
 
 - **LM** (`models/lm.py`): Character-level language model (standalone, not part of main pipeline)
 - **Single-image AE** (`models/single_image_ae.py`): Frame-only autoencoder (baseline)
-- **Tokenizer** (`models/tokenizer.py`): Temporal video autoencoder with frozen bottleneck (= the frozen `trained_autoencoder.pt`)
+- **Tokenizer** (`models/tokenizer.py`): Temporal video autoencoder with frozen bottleneck (= the frozen `checkpoints/occluded/tokenizer.pt`)
 - **Dynamics model** (`models/dynamics_model.py`): Causal transformer that predicts latent frame dynamics
 
 The pipeline compresses video into learned latent representations and trains a generative model to predict future frames autoregressively.
@@ -182,10 +182,10 @@ python -u src/interactive/lm_inference.py --checkpoint checkpoint.pt --prompt "R
 ```bash
 # Inspect autoencoder reconstruction (interactive OpenCV window)
 python src/training/train_single_image_ae.py \
-  --test-checkpoint --checkpoint autoencoder_bouncing.pt
+  --test-checkpoint --checkpoint checkpoints/bouncing/single_image_ae.pt
 
 python src/training/train_tokenizer.py \
-  --test-checkpoint --checkpoint trained_autoencoder.pt
+  --test-checkpoint --checkpoint checkpoints/occluded/tokenizer.pt
 
 # Inspect dynamics rollout (interactive)
 python src/training/train_dynamics.py --test-checkpoint
@@ -199,11 +199,11 @@ python src/interactive/play_dynamics.py  # Single-frame interactive
 #   otherwise the vanilla sliding-window path. The on-screen "mode=" line shows which is active.
 # To inspect an FF7 model on the occluded env:
 python src/interactive/play_dynamics.py \
-  --checkpoint experiments/EXP-010/k3/ff7_k3_s0.pt --tokenizer trained_autoencoder.pt \
+  --checkpoint experiments/EXP-010/k3/ff7_k3_s0.pt --tokenizer checkpoints/occluded/tokenizer.pt \
   --frames occluded.npy --actions occluded_actions.npy
 # To inspect the FF9 v2 model (EXP-017) on the occluded env:
 python src/interactive/play_dynamics.py \
-  --checkpoint experiments/EXP-017/ff9v2_s0.pt --tokenizer trained_autoencoder.pt \
+  --checkpoint experiments/EXP-017/ff9v2_s0.pt --tokenizer checkpoints/occluded/tokenizer.pt \
   --frames occluded.npy --actions occluded_actions.npy
 ```
 
@@ -272,10 +272,19 @@ export WANDB_PROJECT=transformer
 | `src/evals/base.py` | Eval interface + REGISTRY (`import evals; evals.discover()`) |
 | `src/wlog.py` | Lightweight W&B logger (no-op unless --wandb) |
 
-### Checkpoints (in repo root)
+### Datasets (repo root) & Checkpoints (`checkpoints/<env>/`)
 
-- `bouncing.npy`, `occluded.npy`: Video datasets (2.3+ GB each)
-- `trained_autoencoder.pt`, `dynamics_bouncing.pt`: Model checkpoints
+Datasets at repo root: `bouncing.npy`, `occluded.npy` (+`_actions`/`_states`), `gridworld.npy`
+(+`_actions`/`_states`/`_colors`). All gitignored.
+
+**Checkpoints are organized by environment** (D-032 — a model trained on one env does NOT transfer
+to another; the env MUST be explicit in the path). Layout `checkpoints/<env>/<role>.pt` (gitignored):
+- `checkpoints/occluded/tokenizer.pt` — the frozen LPIPS temporal tokenizer (was `trained_autoencoder.pt`; EXP-006, occluded.npy)
+- `checkpoints/occluded/dynamics_vanilla.pt` — retired H2/H3 vanilla baseline (was `my_dynamics.pt`; EXP-007)
+- `checkpoints/bouncing/dynamics.pt` — unconditional bouncing dynamics (was `dynamics_bouncing.pt`; EXP-005)
+- `checkpoints/bouncing/tokenizer.pt` — bouncing tokenizer (was `src/autoencoder_bouncing.pt`)
+- `checkpoints/gridworld/` — GridWorld pipeline (being trained)
+Authoritative experiment checkpoints stay under `experiments/EXP-NNN/` (frozen provenance, D-031).
 
 ## Config Dataclasses
 
@@ -342,6 +351,6 @@ All models use dataclass configs for reproducibility:
 - **Frozen tokenizer in D**: Ensures latent space stability; dynamics model only learns transitions
 - **Register tokens in D**: free scratch tokens (from recent ViT research). In the vanilla model they are unconstrained scratch; the FF7 line (D-014) repurposes them as the hidden-state *memory carrier* — temporal attention is position-wise, so each register slot is its own causal channel through time, and FF7's loss + register-carry inference make it relay occluded state past the window.
 
-There are trained versions of Tokenizer which works well and had LPIPS loss during training ('trained_autoencoder.pt') and the trained vanilla dynamics model at 'my_dynamics.pt' (its earlier rollout "failure" was an inference bug — context noised at 90%; fixed via `context_signal=0.9`, see EXP-008/D-010).
+There are trained versions of Tokenizer which works well and had LPIPS loss during training (`checkpoints/occluded/tokenizer.pt`) and the trained vanilla dynamics model at `checkpoints/occluded/dynamics_vanilla.pt` (its earlier rollout "failure" was an inference bug — context noised at 90%; fixed via `context_signal=0.9`, see EXP-008/D-010). These are OCCLUDED-env models; GridWorld needs its own `checkpoints/gridworld/` pipeline.
 
 Almost always run python commands with the "-u" flag so output doesn't get buffered.

@@ -23,7 +23,7 @@ Originally lived in `experiments/EXP-018/probe_multistep.py` (+ `EXP-020/ab_eval
 ```python
 import sys; sys.path.insert(0, "src")          # so `eval` is importable as a package
 from eval.motion import open_loop_curve, teacher_forced_curve, load_models, N, P
-tok, dyn, dcfg, _ = load_models("trained_autoencoder.pt", ckpt, N, device)
+tok, dyn, dcfg, _ = load_models("checkpoints/occluded/tokenizer.pt", ckpt, N, device)
 ol = open_loop_curve(tok, dyn, episodes, device, dcfg.inference_steps, H=24)
 ```
 `motion.py` self-bootstraps the frozen-probe / tokenizer / dynamics import paths, so callers only

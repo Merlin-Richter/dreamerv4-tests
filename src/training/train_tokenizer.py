@@ -204,8 +204,9 @@ def main():
     parser.add_argument(
         "--checkpoint",
         type=Path,
-        default=_SRC / "autoencoder_bouncing.pt",
-        help="Where to save weights + config (also loaded by --test-checkpoint).",
+        default=_SRC.parent / "checkpoints" / "bouncing" / "tokenizer.pt",
+        help="Where to save weights + config (also loaded by --test-checkpoint). Env-specific: "
+             "pass --checkpoint, e.g. checkpoints/gridworld/tokenizer.pt.",
     )
     parser.add_argument(
         "--test-checkpoint",

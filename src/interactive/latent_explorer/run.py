@@ -33,7 +33,7 @@ if str(_SRC) not in sys.path:
 from models.tokenizer import AutoEncoder, AutoEncoderConfig  # noqa: E402
 
 HTML_PATH = _HERE / "index.html"
-DEFAULT_TOKENIZER = _REPO / "trained_autoencoder.pt"
+DEFAULT_TOKENIZER = _REPO / "checkpoints" / "occluded" / "tokenizer.pt"
 DEFAULT_FRAMES = _REPO / "bouncing.npy"
 
 

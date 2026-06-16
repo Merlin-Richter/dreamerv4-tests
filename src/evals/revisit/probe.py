@@ -48,8 +48,8 @@ from evals.probe_env import (  # noqa: E402
     make_probe_episode, make_probe_batch, ProbeEpisode, ACTION_DOWN,
 )
 
-DEFAULT_TOKENIZER = _ROOT / "trained_autoencoder.pt"
-DEFAULT_DYNAMICS = _ROOT / "my_dynamics.pt"
+DEFAULT_TOKENIZER = _ROOT / "checkpoints" / "occluded" / "tokenizer.pt"
+DEFAULT_DYNAMICS = _ROOT / "checkpoints" / "occluded" / "dynamics_vanilla.pt"
 
 # Ball detector: ball is high-VALUE (>=225) on a dark bg (<=95) / mid curtain (~60),
 # so a fixed value threshold cleanly isolates it. Value = max over channels.
