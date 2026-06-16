@@ -9,13 +9,13 @@ Run from this folder:
     python train_autoencoder_bouncing.py
 
 Or from repo root:
-    python src/C_multi_image_auto_encoder/train_autoencoder_bouncing.py
+    python src/training/train_tokenizer.py
 
 Log metrics to Weights & Biases (opt-in; off by default):
     python train_autoencoder_bouncing.py --wandb [--wandb-entity TEAM] [--wandb-name run1]
 
 Visualize a saved checkpoint (OpenCV window; needs a display):
-    python src/C_multi_image_auto_encoder/train_autoencoder_bouncing.py --test-checkpoint --checkpoint src/C_multi_image_auto_encoder/autoencoder_bouncing.pt
+    python src/training/train_tokenizer.py --test-checkpoint
 """
 
 import argparse
@@ -34,14 +34,13 @@ from tqdm import tqdm
 # NOTE: `import lpips` is intentionally deferred to the --lpips branch below so that, when the
 # flag is off, the module (and its torchvision backbone imports) impose zero RAM/processing cost.
 
-# Running from repo root: put `src` on path so imports match `train.py`
-_SRC = Path(__file__).resolve().parent
-for _p in (_SRC, _SRC.parent):  # _SRC.parent == src/, where wlog lives
-    if str(_p) not in sys.path:
-        sys.path.insert(0, str(_p))
+# Put `src` on path (where `wlog` and the `models` package live).
+_SRC = Path(__file__).resolve().parents[1]   # .../src
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
 import wlog
-from video_auto_encoder import AutoEncoder, AutoEncoderConfig
+from models.tokenizer import AutoEncoder, AutoEncoderConfig
 
 
 class ChunkClipDataset(Dataset):

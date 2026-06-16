@@ -1,6 +1,6 @@
 """
 Train the Dreamer 4 dynamics model on bouncing.npy, on top of the frozen causal tokenizer
-from ``C_multi_image_auto_encoder``.
+from the frozen tokenizer (`models.tokenizer`).
 
 Pipeline per step:
   frames (B, L, H, W, 3)
@@ -15,16 +15,16 @@ Run from this folder:
     python train_dynamics_model.py
 
 Or from repo root:
-    python src/D_dynamics_model/train_dynamics_model.py
+    python src/training/train_dynamics.py
 
 Log metrics to Weights & Biases (opt-in; off by default):
     python train_dynamics_model.py --wandb [--wandb-entity TEAM] [--wandb-name run1]
 
 Visualize a rollout from a saved checkpoint (OpenCV window; needs a display):
-    python src/D_dynamics_model/train_dynamics_model.py --test-checkpoint
+    python src/training/train_dynamics.py --test-checkpoint
 
 Interactive single-frame rollout (4-frame dynamics context, key 0/1 actions):
-    python src/D_dynamics_model/play_dynamics_checkpoint.py
+    python src/interactive/play_dynamics.py
 """
 
 import argparse
@@ -40,16 +40,14 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-# Put both this folder and the tokenizer folder on the path (and src/, where wlog lives).
-_SRC = Path(__file__).resolve().parent
-_TOKENIZER_DIR = _SRC.parent / "C_multi_image_auto_encoder"
-for p in (_SRC, _TOKENIZER_DIR, _SRC.parent):
-    if str(p) not in sys.path:
-        sys.path.insert(0, str(p))
+# Put `src` on the path (where `wlog` and the `models` / `evals` packages live).
+_SRC = Path(__file__).resolve().parents[1]   # .../src
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
 import wlog
-from dynamics_model import DynamicsModel, DynamicsModelConfig
-from video_auto_encoder import AutoEncoder, AutoEncoderConfig
+from models.dynamics_model import DynamicsModel, DynamicsModelConfig
+from models.tokenizer import AutoEncoder, AutoEncoderConfig
 
 
 class ChunkClipDataset(Dataset):

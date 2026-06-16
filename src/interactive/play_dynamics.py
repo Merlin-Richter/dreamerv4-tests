@@ -22,7 +22,7 @@ survives indefinitely past the window (precise dynamic position is not tracked â
 is frozen). Rollouts continue indefinitely until reset.
 
 Run from repo root:
-    python src/D_dynamics_model/play_dynamics_checkpoint.py
+    python src/interactive/play_dynamics.py
 
 Or from this folder:
     python play_dynamics_checkpoint.py
@@ -38,14 +38,13 @@ import cv2
 import numpy as np
 import torch
 
-_SRC = Path(__file__).resolve().parent
-_TOKENIZER_DIR = _SRC.parent / "C_multi_image_auto_encoder"
-for p in (_SRC, _TOKENIZER_DIR):
-    if str(p) not in sys.path:
-        sys.path.insert(0, str(p))
+_SRC = Path(__file__).resolve().parents[1]   # .../src (the `models` package)
+_ROOT = _SRC.parent                          # repo root (where checkpoints/datasets live)
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
-from dynamics_model import DynamicsModel, DynamicsModelConfig
-from video_auto_encoder import AutoEncoder, AutoEncoderConfig
+from models.dynamics_model import DynamicsModel, DynamicsModelConfig
+from models.tokenizer import AutoEncoder, AutoEncoderConfig
 
 ROLLOUT_CTX = 4
 WINDOW_TITLE = "Dynamics interactive rollout"
@@ -274,14 +273,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Interactive single-frame dynamics rollout (4-frame temporal context)."
     )
-    parser.add_argument("--frames", type=Path, default=_SRC.parent.parent / "bouncing.npy",
+    parser.add_argument("--frames", type=Path, default=_ROOT / "bouncing.npy",
                         help="Path to frames .npy (N, T, H, W, C) uint8.")
     parser.add_argument("--actions", type=Path, default=None,
                         help="Actions .npy (N, T). Default: '<frames>_actions.npy' if present.")
     parser.add_argument("--tokenizer", type=Path,
-                        default=_SRC.parent.parent / "trained_autoencoder.pt",
+                        default=_ROOT / "trained_autoencoder.pt",
                         help="Frozen C tokenizer checkpoint.")
-    parser.add_argument("--checkpoint", type=Path, default=_SRC / "dynamics_bouncing.pt",
+    parser.add_argument("--checkpoint", type=Path, default=_ROOT / "dynamics_bouncing.pt",
                         help="Dynamics model checkpoint.")
     parser.add_argument("--tokenizer-context", type=int, default=None,
                         help="Frames fed to the tokenizer on reset (>= 4). "

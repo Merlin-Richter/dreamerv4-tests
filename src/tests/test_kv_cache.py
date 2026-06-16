@@ -5,7 +5,7 @@ to the uncached recompute over the same horizon — otherwise a positional-encod
 silently corrupts long rollouts and looks like a memory failure. These tests enforce that
 at the deterministic forward level (generate adds RNG, so the forward is the real gate).
 
-Run:  python src/D_dynamics_model/test_kv_cache.py   (or pytest)
+Run:  python src/tests/test_kv_cache.py   (or pytest)
 """
 
 import sys
@@ -13,8 +13,8 @@ from pathlib import Path
 
 import torch
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from dynamics_model import DynamicsModel, DynamicsModelConfig  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from models.dynamics_model import DynamicsModel, DynamicsModelConfig  # noqa: E402
 
 TOL = 1e-4
 

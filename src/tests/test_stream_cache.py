@@ -12,7 +12,7 @@ generate() (each frame's context-noise is drawn ONCE at commit, not redrawn ever
 deviation is checked separately at the generate level against a frozen-noise reference (bit-exact),
 and the residual divergence from generate() is reported.
 
-Run:  python src/D_dynamics_model/test_stream_cache.py   (or pytest)
+Run:  python src/tests/test_stream_cache.py   (or pytest)
 """
 
 import sys
@@ -21,8 +21,8 @@ from pathlib import Path
 
 import torch
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from dynamics_model import DynamicsModel, DynamicsModelConfig  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from models.dynamics_model import DynamicsModel, DynamicsModelConfig  # noqa: E402
 
 TOL = 1e-4
 

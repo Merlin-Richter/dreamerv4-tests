@@ -2,7 +2,7 @@
 Dreamer 4 interactive dynamics model (Section 3.2).
 
 The dynamics model operates on the sequence of continuous representations produced by the
-frozen causal tokenizer (``C_multi_image_auto_encoder``). For every frame it consumes
+frozen causal tokenizer (the frozen tokenizer (`models.tokenizer`)). For every frame it consumes
 ``n_latents`` latent tokens of size ``bottleneck_dim`` and predicts the *clean* latents of
 that frame from a noised version of it, using its causal history as context. It is trained
 with a **shortcut forcing** objective: diffusion forcing (a per-frame signal level) combined

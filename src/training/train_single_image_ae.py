@@ -23,12 +23,12 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, TensorDataset, random_split
 from tqdm import tqdm
 
-# Running from repo root: put `src` on path so imports match `train.py`
-_SRC = Path(__file__).resolve().parent
+# Put `src` on path (where the `models` package lives).
+_SRC = Path(__file__).resolve().parents[1]   # .../src
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-from video_auto_encoder import AutoEncoder, AutoEncoderConfig
+from models.single_image_ae import AutoEncoder, AutoEncoderConfig
 
 
 def _config_from_checkpoint(cfg_dict: dict) -> AutoEncoderConfig:

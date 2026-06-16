@@ -1,4 +1,5 @@
 import argparse
+import sys
 from dataclasses import asdict
 from pathlib import Path
 
@@ -8,7 +9,11 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 
-from model import ModelConfig, Transformer
+_SRC = Path(__file__).resolve().parents[1]   # .../src (the `models` package)
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+from models.lm import ModelConfig, Transformer  # noqa: E402
 
 # ── Dataset ──────────────────────────────────────────────────────────────────
 

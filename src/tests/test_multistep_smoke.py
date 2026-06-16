@@ -1,15 +1,15 @@
 """C1 multi-step motion loss (D-027) smoke tests: identity-when-off (byte-identical, the V-T017-C1
 C-D guard), finiteness + per-horizon parts, gradient flow, and the clip-length assert.
 
-Run:  python src/D_dynamics_model/test_multistep_smoke.py   (or pytest)
+Run:  python src/tests/test_multistep_smoke.py   (or pytest)
 """
 import sys
 from pathlib import Path
 
 import torch
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from dynamics_model import DynamicsModel, DynamicsModelConfig  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from models.dynamics_model import DynamicsModel, DynamicsModelConfig  # noqa: E402
 
 
 def _tiny_cfg(**kw) -> DynamicsModelConfig:

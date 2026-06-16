@@ -46,7 +46,7 @@ import numpy as np
 
 _SRC = pathlib.Path(__file__).resolve().parents[2]            # .../src
 _ROOT = _SRC.parent                                           # repo root
-for _p in (_SRC, _SRC / "C_multi_image_auto_encoder", _SRC / "D_dynamics_model"):
+for _p in (_SRC,):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 

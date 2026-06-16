@@ -1,9 +1,14 @@
 import argparse
+import sys
 from pathlib import Path
 
 import torch
 
-from model import ModelConfig, Transformer
+_SRC = Path(__file__).resolve().parents[1]   # .../src (the `models` package)
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+from models.lm import ModelConfig, Transformer  # noqa: E402
 
 
 @torch.inference_mode()

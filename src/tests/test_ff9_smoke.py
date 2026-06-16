@@ -1,7 +1,7 @@
 """FF9 v2 (D-024) smoke tests: additive memory-token architecture, the memory-only-sufficiency
 loss, gradient paths, and the n_memory=0 identity guard.
 
-Run:  python src/D_dynamics_model/test_ff9_smoke.py   (or pytest)
+Run:  python src/tests/test_ff9_smoke.py   (or pytest)
 """
 
 import sys
@@ -9,8 +9,8 @@ from pathlib import Path
 
 import torch
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from dynamics_model import DynamicsModel, DynamicsModelConfig  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from models.dynamics_model import DynamicsModel, DynamicsModelConfig  # noqa: E402
 
 
 def _tiny_cfg(**kw) -> DynamicsModelConfig:

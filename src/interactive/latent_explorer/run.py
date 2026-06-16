@@ -4,7 +4,7 @@ Minimal web UI to explore tokenizer bottleneck latents.
 Sliders (-1 … 1) feed the frozen C autoencoder decoder; the image updates live.
 
 Run from repo root:
-    python src/test/latent_explorer/run.py
+    python src/interactive/latent_explorer/run.py
 
 Then open http://127.0.0.1:8765
 """
@@ -25,16 +25,15 @@ import torch
 from PIL import Image
 
 _HERE = Path(__file__).resolve().parent
-_REPO = _HERE.parents[2]
-_TOKENIZER_DIR = _HERE.parents[1] / "C_multi_image_auto_encoder"
-for p in (_TOKENIZER_DIR,):
-    if str(p) not in sys.path:
-        sys.path.insert(0, str(p))
+_SRC = _HERE.parents[1]                       # .../src (the `models` package)
+_REPO = _HERE.parents[2]                      # repo root
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
-from video_auto_encoder import AutoEncoder, AutoEncoderConfig  # noqa: E402
+from models.tokenizer import AutoEncoder, AutoEncoderConfig  # noqa: E402
 
 HTML_PATH = _HERE / "index.html"
-DEFAULT_TOKENIZER = _TOKENIZER_DIR / "autoencoder_bouncing.pt"
+DEFAULT_TOKENIZER = _REPO / "trained_autoencoder.pt"
 DEFAULT_FRAMES = _REPO / "bouncing.npy"
 
 
