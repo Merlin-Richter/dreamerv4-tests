@@ -960,3 +960,24 @@ Alternatives rejected: rewire all experiments (clean HEAD but large blast radius
 not cheaply verifiable) — Merlin judged provenance-freeze cleaner and safer.
 Would change my mind: if a CURRENT/live tool (not a historical EXP) turns out to import the old
 probe paths, it must be rewired (not frozen).
+
+## D-032 | 2026-06-16
+Context: Merlin redirected live: STOP the paused C1/motion research thread (EXP-021 morning eval)
+and first build a NEW, "more solid" memory env. Rationale (his): the current bouncing/occluded env
+is too fluid — arbitrary continuous positions, arbitrary continuous colors, arbitrary bg colors —
+which muddies measurement. He wants a clean, discrete, low-entropy env where recall is crisp.
+Decision: Build a GridWorld occluded-memory env: 64x64, 8x8 black grid (2px lines -> 6x6 visible
+cells), solid background color from {red,green,blue,pink}, a square of a DIFFERENT one of those four
+colors filling one cell's 6x6 interior. Square moves exactly one cell/tick in one of 8 directions
+(4 orthogonal + 4 diagonal), reflecting off walls. Same curtain occlusion as OccludedBouncingEnv
+(absolute action 0=revealed / 1=occluded; physics runs behind the curtain). Discrete state =>
+position recall is an 8x8 classification and color recall is 4-way — both crisply measurable
+(aligns with the measurement-validity standing order).
+Alternatives rejected: keep tuning the fluid env (Merlin judged it too noisy to measure cleanly);
+deferred — kept research thread paused, not dropped (EXP-021 ckpt + findings preserved).
+Expected outcome: a BaseEnv subclass + datagen writer + a sample image Merlin approves, before any
+training. Discrete recall metrics replace the continuous ΔRGB/position probes for this env line.
+Would change my mind: if discretization removes the very failure mode we study (i.e. the model
+trivially memorizes 8x8 positions even past the window) — then the env is too easy and needs more
+state/entropy. Watch for this at first baseline.
+Spawns: T-020 (GridWorld env build) — GATED on Merlin approving the sample look + design questions.
