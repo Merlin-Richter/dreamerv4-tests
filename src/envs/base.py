@@ -1,7 +1,7 @@
 """BaseEnv — the shared interface for this project's world-model / RL environments.
 
 A new environment is a `BaseEnv` subclass: implement `reset(seed)` and `step(action)`.
-Once it conforms, every eval in `src/evals/` can run against it and `src/data/` can drive
+Once it conforms, every eval in `src/evals/` can run against it and `src/datagen/` can drive
 it to write a dataset. The project expects many memory environments (see IDEAS.md), which
 is the whole reason this interface exists rather than bespoke per-env scripts.
 

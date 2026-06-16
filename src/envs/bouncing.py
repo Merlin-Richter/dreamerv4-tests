@@ -4,7 +4,7 @@ Bouncing-shape environment — DVD-screensaver-style sim (the unconditioned base
 Shapes: circle, rect, donut, diamond, triangle, star, cross.
 
 This module is the ENV ONLY (shape drawing + a steppable `BouncingEnv`). Dataset writing and
-playback live in `src/data/generate_bouncing.py`. `BouncingEnv` has `n_actions == 0` (no
+playback live in `src/datagen/generate_bouncing.py`. `BouncingEnv` has `n_actions == 0` (no
 actions): `step()` ignores its argument and just advances physics — it is the simplest
 `BaseEnv`, kept conforming so evals/data-gen treat all envs uniformly.
 """

@@ -19,7 +19,7 @@ Convention: ``action[t]`` describes frame ``t`` (the curtain state you observe a
 per-frame action token lines up with the frame it explains.
 
 This module is the ENV ONLY (the steppable simulator). Dataset writing and playback live in
-`src/data/generate_occluded.py`; see that module for the `.npy` writer and viewers.
+`src/datagen/generate_occluded.py`; see that module for the `.npy` writer and viewers.
 """
 from __future__ import annotations
 
