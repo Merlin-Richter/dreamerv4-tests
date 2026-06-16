@@ -262,9 +262,11 @@ export WANDB_PROJECT=transformer
 |------|---------|
 | `src/envs/base.py` | `BaseEnv` interface (reset/step + measurement-only `hidden_state`) |
 | `src/envs/occluded_bouncing.py` | `OccludedBouncingEnv` (action-conditioned memory env) |
+| `src/envs/gridworld.py` | `GridWorldEnv` (D-032): discrete 8×8 grid memory env — solid bg + square (4 colors), square steps 1 cell/tick in 8 directions w/ wall reflection, same curtain occlusion. Recall = 8×8 cell + 4-way color (crisp, no ΔRGB fuzz) |
 | `src/envs/bouncing.py` | `BouncingEnv` (unconditioned DVD-style sim) |
 | `src/datagen/generate_bouncing.py` | Bouncing dataset writer + viewer |
 | `src/datagen/generate_occluded.py` | Occluded (curtain) dataset writer + viewer |
+| `src/datagen/generate_gridworld.py` | GridWorld dataset writer + viewer. Curtain schedule (D-032): per block 90% one random action / 5% 8-revealed run / 5% 8-occluded run. Writes frames/actions/states + `_colors.npy` (per-ep [bg_idx, square_idx], PALETTE order) |
 | `src/evals/revisit/probe.py` + `evals/probe_env.py` + `evals/position_consistency/consistency.py` | FROZEN revisit/position-consistency spine (5503e75) |
 | `src/evals/motion/motion.py` | Working motion-eval toolbox (curves + A/B helpers) |
 | `src/evals/base.py` | Eval interface + REGISTRY (`import evals; evals.discover()`) |
