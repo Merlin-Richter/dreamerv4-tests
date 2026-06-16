@@ -209,10 +209,15 @@ let the verifier challenge.
    test_multistep_smoke`) — must stay green (CPU OK).
 4. CPU-smoke one representative experiment driver per touched module (e.g. `probe_multistep`, an A/B eval,
    an EXP-017 eval) — must reproduce prior numbers.
-5. **Spine byte-diff gate (ALL options, run at the END OF PHASE 1):** re-run `revisit_probe` and byte-diff
-   `results.json` vs committed `last_results.json` baseline. This is required even under option A, because
-   Phase 1 moves the env the spine imports (see §4 correction) — the gate belongs where the dependency moves,
-   not deferred to Phase 3.
+5. **Spine gate (ALL options, run END OF PHASE 1 + after the spine moves in P2).** CORRECTION (2026-06-16,
+   measured): the probe is **stochastic run-to-run** (few-episode dry-run + unseeded diffusion sampling →
+   numbers vary by ±tens of % on a 4-ep dry-run; full 64-ep runs average it out). So a literal byte-diff of
+   `results.json` is INFEASIBLE — it can't separate a real logic change from sampling noise. For a *pure
+   git-mv + import-edit* move the correct, stronger gate is **CODE-IDENTITY**: `git diff -M` must show the
+   file as a rename whose ONLY non-rename hunks are import-path lines (→ measurement logic byte-identical by
+   construction → numbers statistically unchanged). Pair it with a **smoke run** (the relocated probe still
+   imports, the detector gate passes, numbers land in the known range: color_dRGB ≈6–8 px @ n_occ=2, ≈108–116
+   @ n_occ=16). Do NOT seed the probe for determinism — that would itself be a frozen-spine logic change.
 6. Update `CLAUDE.md` Key-Files table + `REPO_MAP.md` + the new `envs/` & `evals/` READMEs in the SAME commit.
 7. Commit per module (small, revertible). Never one big-bang commit.
 
