@@ -33,9 +33,13 @@ train_dynamics default tokenizer arg.
 
 ## IN FLIGHT — training (Merlin: "start a vanilla model smoke test, 10 epochs, on the new data")
 Vanilla DYNAMICS needs a frozen tokenizer; gridworld has none -> training a gridworld TOKENIZER
-first (hard prereq). **RUNNING (harness bg):** tokenizer 10ep bs32 fresh on a **300-ep SMOKE SUBSET**
-(`gridworld_smoke.npy`) -> `checkpoints/gridworld/tokenizer.pt` (log `experiments/_gridworld_tok_smoke.log`).
-NEXT (on completion): verify reconstruction view -> vanilla dynamics 10ep smoke -> present.
+first (hard prereq). **RUNNING (harness bg):** tokenizer 10ep **bs16 LPIPS(vgg) + W&B** fresh on a
+**300-ep SMOKE SUBSET** (`gridworld_smoke.npy`) -> `checkpoints/gridworld/tokenizer.pt`
+(log `experiments/_gridworld_tok_smoke.log`; W&B run gridworld-tok-smoke-s0 in transformer-C-tokenizer).
+~4.6 s/it, ~2.5h. (Corrected from a first MSE/no-W&B launch — Merlin flagged; LPIPS is the proven
+recipe.) **bs dropped 32->16:** tokenizer alone fills ~7.9/8GB on the 4070, so bs32+LPIPS OOMs ->
+another data point that the REAL LPIPS run wants the cluster. NEXT (on completion): reconstruction
+view -> vanilla dynamics 10ep smoke -> present.
 **MUST use `venv/Scripts/python.exe` for training** (bash default python is torch+cpu -> segfault;
 see HOWTO/use_venv_python_for_training.md).
 **COMPUTE FINDING:** 4070 ~9 s/it for this tokenizer (GPU-bound) -> full-data 10ep ≈ 25h; heavy
