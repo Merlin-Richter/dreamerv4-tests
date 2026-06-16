@@ -279,7 +279,7 @@ def main() -> None:
     parser.add_argument("--actions", type=Path, default=None,
                         help="Actions .npy (N, T). Default: '<frames>_actions.npy' if present.")
     parser.add_argument("--tokenizer", type=Path,
-                        default=_TOKENIZER_DIR / "autoencoder_bouncing.pt",
+                        default=_SRC.parent.parent / "trained_autoencoder.pt",
                         help="Frozen C tokenizer checkpoint.")
     parser.add_argument("--checkpoint", type=Path, default=_SRC / "dynamics_bouncing.pt",
                         help="Dynamics model checkpoint.")
