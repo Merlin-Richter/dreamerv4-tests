@@ -1,8 +1,27 @@
 # BOARD.md — task board
 
-Updated: 2026-06-16 (T-019 full repo reorg DONE; research thread = EXP-021 morning eval, paused)
+Updated: 2026-06-16 (PIVOT to GridWorld discrete env — D-032; tokenizer smoke training in flight)
 
-## Done (2026-06-16, latest)
+## In progress (2026-06-16, GridWorld pivot — D-032)
+- **GridWorld tokenizer smoke — RUNNING.** 10ep bs32 MSE fresh → `checkpoints/gridworld/tokenizer.pt`
+  (log `experiments/_gridworld_tok_smoke.log`). Hard prereq for the vanilla-dynamics smoke Merlin asked
+  for (dynamics trains in latent space). NEXT: verify reconstruction → train vanilla dynamics 10ep →
+  present-then-stop.
+
+## Awaiting Merlin
+- **D-033 GridWorld eval design — PENDING SIGN-OFF.** Headline = position recall acc vs occlusion k
+  (exact 8x8) + color 4-way; diagnostics + oracle/copy-last/chance refs. Built & instrument-validated
+  (`src/evals/gridworld/`, test_gridworld_eval.py). NOT frozen until Merlin blesses the scoring choices.
+
+## Done (2026-06-16, GridWorld pivot)
+- **T-020 — GridWorld env + datagen + recall eval.** `src/envs/gridworld.py` (GridWorldEnv),
+  `src/datagen/generate_gridworld.py` (Merlin curtain schedule 90/5/5; memmap writer),
+  `src/evals/gridworld/` (readout + recall metrics). Dataset generated: gridworld.npy 3000x200 (6.9GB).
+  Gate tests: test_gridworld.py + test_gridworld_eval.py green. CLAUDE.md/REPO_MAP synced.
+- **T-021 — checkpoints reorganized to `checkpoints/<env>/` (D-034).** Env now explicit in path; all
+  live refs + frozen-spine default paths repointed (logic byte-unchanged); train_dynamics NameError fixed.
+
+## Done (2026-06-16, pre-pivot)
 - **T-019 — full repo restructure (D-030/D-031) — DONE.** Reorganized `src/` by concern so it scales
   to many envs/evals. 4 gated phases, all committed: P1 env/data split (`src/envs/` BaseEnv ABC +
   `src/datagen/`); P2 `src/evals/` (common Eval interface `base.py` REGISTRY + adapters) and the FROZEN

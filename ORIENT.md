@@ -1,42 +1,49 @@
 # ORIENT.md
 
-Rewritten: 2026-06-16 (after the T-019 repo reorg, with Merlin steering live).
+Rewritten: 2026-06-16 (Merlin live-steered a PIVOT to a new discrete env; D-032/033/034).
 
 ## What we are doing and why
-Just completed a **full repo restructure (T-019, D-030/D-031)** at Merlin's request — reframe the
-codebase around concerns so it scales to "many envs and evals." The research thread (C1 / motion,
-exposure-bias / open-loop compounding) is **paused mid-flight** and resumes next.
+**PIVOT (Merlin, 2026-06-16, D-032):** stop the C1/motion thread and build a new, "more solid"
+memory env. The fluid bouncing/occluded env was too high-entropy (arbitrary sub-pixel positions,
+arbitrary continuous colors) — measurement was fuzzy (the fluid env couldn't cleanly score POSITION;
+GOAL demoted it to a drift-confounded non-metric). The new **GridWorldEnv** is discrete so recall is
+crisp: 8x8 cell position + 4-way color, read out closed-form and exactly.
 
-## Repo structure NOW (src/, reorganized — see REPO_MAP.md)
-`models/` `training/` `envs/` (BaseEnv ABC + the 2 sims) `datagen/` (dataset writers) `evals/`
-(common Eval interface: `base.py` REGISTRY, FROZEN spine under `revisit/`+`position_consistency/`+
-`probe_env.py`, working `motion/`+`rollout_view/`) `tests/` (5 gate tests) `interactive/` `wlog.py`.
-- **Eval interface:** `import evals; evals.discover()` → REGISTRY {motion, revisit}; each has
-  `score(tok,dyn,cfg)` (cheap scalars, mid-run-able) + optional `report(...)`; `compatible_envs` tags.
-- **FROZEN spine** moved byte-identical-except-imports (gated by old→new diff; commit 5503e75 logic intact).
-- **Historical experiment scripts are FROZEN to their commit (D-031)** — they import old paths and are
-  NOT rewired. To rerun an old EXP: `git checkout` its commit. NEW work imports from `src/evals/`.
+## GridWorld env (built this session — `src/envs/gridworld.py`, datagen, evals)
+- 64x64, 8x8 grid (1px outer border + 8x6px cells + 7x2px lines = 64), solid bg from {red,green,
+  blue,pink}, square a DIFFERENT one of the four, fills a cell's 6x6 interior. Moves 1 cell/tick in
+  8 directions, reflects off walls (corner = both flip). Same curtain occlusion (action 0=revealed,
+  1=occluded gray); physics runs behind the curtain. `.color/.bg_color` measurement-only.
+- **Curtain schedule (Merlin spec):** per block 90% one random action / 5% 8-revealed run /
+  5% 8-occluded run.
+- **Dataset GENERATED:** `gridworld.npy` 3000x200 (6.9GB) + _actions/_states/_colors. occ frac 0.50.
+- Gate tests green: `test_gridworld.py` (env), `test_gridworld_eval.py` (eval instrument).
 
-## Reorg status: DONE (4 phases, all committed + gated)
-- P1 env/data split · P2 evals move + frozen-spine relocation + Eval interface · P3 models/training/
-  tests/interactive split · P4 docs (CLAUDE.md + REPO_MAP). Gates each phase: 5 gate tests green,
-  spine code-identity + smoke, BouncingEnv byte-identical, Eval adapters run on ff7_k3.
+## Eval design (D-033) — PENDING MERLIN SIGN-OFF (the "vital decision")
+`src/evals/gridworld/` {readout.py, recall.py}. HEADLINE = **position recall acc vs occlusion k**
+(exact cell) + color (4-way); diagnostics = reflection split, readout margin; refs = oracle(=1.0),
+copy-last(no-memory), chance. Validated: oracle=1.0, copy-last 0.08@k1->0, random~1/64. Position is
+promoted to headline because it's the only attribute that CHANGES under occlusion (true dynamic
+memory). NOT frozen yet — escalated for Merlin's review before locking + wiring the model adapter.
 
-## Research thread — PAUSED, resumes next (was the overnight C1/motion work)
-- **EXP-021 (full-data C1 training)** left a usable checkpoint `experiments/EXP-021/c1_full_s0.pt`
-  (~epoch 10/40; the overnight job stopped). Purpose (D-029): confound-free open-loop compounding test
-  — C1-full vs the COMPETENT reference set (vanilla_s0 / ff7_k3 / ff9v2) at matched TF-map quality.
-- **Pending NEXT ACTION (research):** probe `c1_full_s0.pt` with open-loop + TF motion curves AND the
-  per-model `context_signal` sweep (EXP-022 made the s-sweep a standard axis): does C1's TRAINED
-  robustness beat ff7 + the tuned inference knob? **Do this via the NEW evals interface** (MotionEval /
-  `evals.motion.motion`), NOT the frozen EXP-021/eval.py. Reconcile → view → escalate to Merlin (§5).
-- Key prior findings still standing: EXP-020 C1 SUPPORTED (250-ep, weak-control caveat); EXP-022
-  context_signal lever HALVES ff7 open-loop compounding, C1 already optimal at 0.9.
+## Checkpoints reorganized (D-034): `checkpoints/<env>/`
+occluded/{tokenizer.pt, dynamics_vanilla.pt}, bouncing/{dynamics.pt, tokenizer.pt}, gridworld/ (WIP).
+All live refs + frozen-spine default PATHS repointed (logic byte-unchanged). Fixed a NameError in
+train_dynamics default tokenizer arg.
+
+## IN FLIGHT — training (Merlin: "start a vanilla model smoke test, 10 epochs, on the new data")
+Vanilla DYNAMICS needs a frozen tokenizer; gridworld has none -> training a gridworld TOKENIZER
+first (hard prereq). **RUNNING:** tokenizer 10ep bs32 MSE fresh -> `checkpoints/gridworld/tokenizer.pt`
+(log `experiments/_gridworld_tok_smoke.log`). NEXT: verify reconstruction, then vanilla dynamics
+10ep smoke on gridworld latents -> present-then-stop.
 
 ## Current worries
-1. EXP-021 checkpoint is only ~ep10 — TF map may not yet be competent enough for a clean compounding
-   comparison; if so, retrain longer before concluding.
-2. Single seed throughout the C1 thread — positive deltas need a seed before any standalone claim.
+1. D-032 tripwire: discrete env might be TOO easy (model trivially memorizes 8x8 past the window) —
+   the position-vs-k curve is also the instrument that detects this; watch at first baseline.
+2. Eval not yet blessed by Merlin — don't freeze/over-build the model adapter until he signs off.
+3. Tokenizer smoke quality gates whether the dynamics smoke is meaningful (gridworld is visually
+   simple, so MSE should be fine, but verify reconstruction before reading dynamics results).
 
-## Parked
-- **ESC-014 (OPEN):** op-3 relay gradient design (dynamic-state occluded memory). Resume after motion.
+## Parked (the pre-pivot thread — resume if Merlin redirects back)
+- C1/motion (EXP-021 checkpoint ~ep10), exposure-bias/open-loop compounding. ESC-014 op-3 relay.
+- Occluded-line H3 (FF7 color SUPPORTED; position open). All occluded models under checkpoints/occluded/.
