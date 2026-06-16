@@ -219,7 +219,7 @@ def f2_bounce_desync(states, S):
 
 def _gt_occluded_states(seed, n_occ):
     """Drive the env curtain-down for n_occ steps; return (states (n,5), S)."""
-    from data_generators.occluded_bouncing import OccludedBouncingEnv
+    from envs.occluded_bouncing import OccludedBouncingEnv
     env = OccludedBouncingEnv(img_size=IMG, radius=RADIUS).reset(seed=seed)
     states = np.empty((n_occ, 5), dtype=np.float64)
     for t in range(n_occ):

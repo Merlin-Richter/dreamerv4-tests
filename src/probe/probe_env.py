@@ -36,7 +36,7 @@ _SRC = pathlib.Path(__file__).resolve().parents[1]  # .../src
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-from data_generators.occluded_bouncing import OccludedBouncingEnv  # noqa: E402
+from envs.occluded_bouncing import OccludedBouncingEnv  # noqa: E402
 
 # Action convention (matches occluded_bouncing): 0 = curtain UP (revealed), 1 = DOWN.
 ACTION_UP = 0
