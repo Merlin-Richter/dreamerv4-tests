@@ -5,18 +5,21 @@ Updated: 2026-06-18 (cleanup pass: completed/historical entries moved to `BOARD-
 > Live task state only: in-progress / next / awaiting-Merlin / parked / blocked.
 > Completed, superseded, and dropped work lives in `BOARD-archive.md` (grep there for history).
 
-## In progress
-- **GridWorld tokenizer on ferranti — RUNNING (job 405629, EXP-024).** 30ep bs64 LPIPS(vgg), ~95% util
-  (D-041 perf fix), ETA ~15:45 → `runs/gridworld-tok-v2/{tokenizer.pt,recon.png}`. Provenance:
-  feat/motion-prediction @ d5cef58. NEXT on completion: `pull_results --what checkpoints` → review recon
-  → present-then-stop (this is the frozen GridWorld tokenizer; check recon quality + no latent collapse).
+## HALT — tokenizer EXP-024 FAILED (ball dropped)
+- **GridWorld tokenizer EXP-024 — FAT FAIL (job 405629 COMPLETED but unusable).** Aggregate metrics
+  healthy-looking, but recon drops the ball entirely (background-only; sparse-target local optimum).
+  Latents carry no ball info → blocks all downstream memory work. Evidence: `experiments/gridworld-tok-v2/`
+  recon.png + _block0/_block2.png. NOT frozen; checkpoints/gridworld/ stays empty.
+- **NEXT (aligning fix with Merlin):** foreground-weighted recon loss (upweight ball/non-bg pixels) + add a
+  ball-region recon metric to W&B (never trust aggregate MSE for a sparse object again) → retrain on cluster.
 
-## Next (after the tokenizer lands)
+## Next (after a working tokenizer exists)
+- **Grad-clip fix for train_dynamics.py** (unclipped at lines 466–468; tokenizer+LM already clip at
+  max_norm=1.0). Apply before the dynamics cluster run. (Open question to Merlin from this session.)
 - **Vanilla GridWorld dynamics on the cluster** (record a decision first). Frozen tokenizer; train_dynamics
   perf-fixed (D-041) but RE-PROFILE batch (latent-space compute profile ≠ tokenizer bs64).
 - **Wire the eval model-adapter** (`src/evals/gridworld/recall.py` is frame-source based; add a
   dynamics-rollout source) → recall curves (graded position + ball/bg colour) vs k → vs copy-last/oracle.
-  Then periodic-W&B eval with Merlin.
 
 ## Awaiting Merlin
 - **ESC-016 Q1 — GridWorld eval sign-off / freeze.** Refined eval BUILT (D-040): graded position_score

@@ -9,15 +9,19 @@ eval is built (D-040). **First real cluster training is IN FLIGHT** (the GridWor
 becomes the frozen backbone for the GridWorld dynamics model (the H2/H3 memory work, now on the clean
 discrete env).
 
-## IN FLIGHT — tokenizer run (ferranti)
-- **Job 405629** `gridworld-tok-v2`, RUNNING (~ep6/30 at last check, ETA ~15:45, ~2.85 min/epoch,
-  95%+ GPU util after the D-041 perf fix). Provenance: feat/motion-prediction @ d5cef58, EXP-024.
-- Produces on the node: `runs/gridworld-tok-v2/tokenizer.pt` (per-epoch saved) + `recon.png`
-  (reconstruction strips). W&B run `gridworld-tok-v2` in project `transformer-C-tokenizer`.
-- **Completion watcher ARMED:** `wait_for_jobs.sh --cluster ferranti 405629 --poll 60` is running as a
-  background task → the harness wakes me on terminal state (0=COMPLETED, 7=failed/crash, 3=AUTH_DEAD).
-  This is now the standard pattern after every submit (HOWTO/cluster.md "Get notified when a cluster
-  job finishes"); wait_for_jobs.sh hardened to exit AUTH_DEAD on mid-wait socket death instead of hanging.
+## HALT — tokenizer run (ferranti) FAILED: ball dropped (sparse-target collapse)
+- **Job 405629** `gridworld-tok-v2` COMPLETED 0:0, 1:23:05, EXP-024 — but it is a **FAT FAIL**, NOT a
+  usable backbone. Aggregate metrics looked healthy (val MSE 0.00364, latent_cos 0.217, pred_std 0.362,
+  LPIPS 0.013), but the recon **drops the ball entirely**: background+grid perfect, blue ball absent in
+  every recon frame, all bg colors (evidence: experiments/gridworld-tok-v2/_block0.png, _block2.png).
+- **Root cause:** ball ≈1/36 cells (~1% of pixels) → per-pixel MSE+LPIPS has near-zero gradient for it,
+  so the tokenizer found the trivial local optimum of reconstructing only the static background. The
+  aggregate MSE metric is BLIND to this (I wrongly read it as success; Merlin caught it visually). The
+  latents therefore encode NO ball position/color — every downstream memory experiment would be on sand.
+- **Fix direction (to align with Merlin):** foreground-weighted reconstruction loss (upweight the moving
+  ball / non-background pixels) + ADD a ball-region recon metric to W&B so aggregate MSE can never mislead
+  again. Then retrain. Do NOT freeze; checkpoints/gridworld/ stays empty.
+- **Completion watcher pattern VALIDATED end-to-end** (woke me on exit 0; that part worked).
 
 ## HOW TO OPERATE THE CLUSTER (read before touching it)
 - **All `scripts/` verbs run in WSL**, NOT Git Bash (shared ssh-socket namespace — D-036). Invoke:
