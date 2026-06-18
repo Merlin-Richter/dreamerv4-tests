@@ -196,6 +196,31 @@ hard to sanity-check from intuition alone — do not rely on your own judgment a
 Routine bugfixes and small, obvious changes do not need this. Use it when getting
 wrong would be costly and the reasoning is genuinely hard.
 
+### State-file housekeeping (`clean-up` agent)
+
+The live state files (`ESCALATIONS.md`, `BOARD.md`) are append-heavy: resolved
+escalations and completed board entries accumulate and inflate every cold-start and
+post-compaction read, since you re-consume the whole history to recover a little open
+state. Cold-start cost should track *open* work, not *total* project age.
+
+When the live files have grown heavy with resolved/done entries — a good trigger is a
+**milestone, or noticing on cold-start that resolved history dominates what you read** —
+spawn the cheap **`clean-up`** agent (haiku). It relocates resolved/completed entries
+verbatim into `*-archive.md` counterparts (`ESCALATIONS-archive.md`, `BOARD-archive.md`),
+leaving the live files holding only OPEN + most-recent-resolved (escalations) and
+forward-looking sections (board). It moves, never deletes — full audit trail and git
+history are preserved, and archives stay greppable for any past resolution.
+
+Rules of engagement:
+- It is the **sanctioned exception** to "workers never touch canonical state files" — but
+  only for *mechanical relocation*, never substantive edits. It does not commit; **you
+  verify its artifacts** (the entry-conservation check it reports: original = live + archived)
+  and commit the result with a `BOARD:`/`ESC:` prefix.
+- `DECISIONS.md` and `EXPERIMENTS.md` are append-only audit trails — the agent leaves them
+  alone (or, only if huge, splits the oldest tail behind a pointer). Don't ask it to prune them.
+- This is bookkeeping, not research. Never let it judge whether work is *scientifically*
+  done — it keys only off explicit RESOLVED/Done markers, and leaves anything ambiguous live.
+
 ---
 
 ## 5. Experiments and reconciliation
