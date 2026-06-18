@@ -18,8 +18,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from datagen.generate_gridworld import generate_episode  # noqa: E402
 from envs.gridworld import GRID_N, PALETTE, GridWorldEnv, make_grid_background, stamp_square  # noqa: E402
 from evals.gridworld.readout import read_square  # noqa: E402
-from evals.gridworld.recall import (aggregate, copylast_frames, find_reveal_events,  # noqa: E402
-                                     oracle_frames, score_episode)
+from evals.gridworld.recall import (aggregate, chance_levels, copylast_frames,  # noqa: E402
+                                     find_reveal_events, oracle_frames, score_episode)
 
 _PAL = list(PALETTE.values())
 
@@ -45,8 +45,9 @@ def test_oracle_is_ceiling():
     agg = aggregate(recs)
     assert agg["n_events"] > 200, f"too few reveal events: {agg['n_events']}"
     assert all(v == 1.0 for v in agg["position_acc"].values()), agg["position_acc"]
+    assert all(v == 1.0 for v in agg["position_score"].values()), agg["position_score"]  # graded ceiling
     assert all(v == 1.0 for v in agg["color_acc"].values()), agg["color_acc"]
-    print(f"[ok] oracle ceiling: position_acc==1.0 at all k ({agg['n_events']} events, "
+    print(f"[ok] oracle ceiling: position_acc & position_score ==1.0 at all k ({agg['n_events']} events, "
           f"k={sorted(agg['position_acc'])})")
 
 
@@ -97,7 +98,12 @@ def test_random_is_chance():
     overall = np.mean([r["pos_correct"] for r in recs])
     chance = 1.0 / (GRID_N * GRID_N)
     assert overall < 3 * chance, f"random position acc should be ~{chance:.4f}: {overall:.4f}"
-    print(f"[ok] random-cell source ~chance: overall pos_acc={overall:.4f} (1/{GRID_N*GRID_N}={chance:.4f})")
+    # graded score should sit near its analytic (grid-averaged) chance, NOT near 1.0
+    gs = np.mean([r["pos_score"] for r in recs])
+    gs_chance = chance_levels()["position_score"]
+    assert abs(gs - gs_chance) < 0.03, f"random position_score {gs:.3f} should be ~chance {gs_chance:.3f}"
+    print(f"[ok] random-cell source ~chance: pos_acc={overall:.4f} (1/{GRID_N*GRID_N}={chance:.4f}); "
+          f"position_score={gs:.3f} (analytic chance {gs_chance:.3f})")
 
 
 def test_reflection_split_present():

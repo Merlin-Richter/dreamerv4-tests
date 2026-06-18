@@ -1135,3 +1135,45 @@ Flag to watch when reading the first GridWorld baseline; not a blocker.
 Would change my mind: if 6x6 is so periodic that ballistic/periodic extrapolation trivially solves
 occluded position (copy-last/no-memory ≈ oracle) — then the env is too easy and needs more cells/state.
 Spawns: regenerated dataset; re-runs the (now-invalidated) tokenizer pipeline on the cluster.
+
+## D-039 | 2026-06-18
+Context: T-003 cluster pipeline validated (D-037) and the GridWorld env reworked to the anti-overfit
+6x6/10px geometry (D-038). Merlin: kick off the REAL GridWorld tokenizer run on ferranti. This is the
+ESC-016 Q2 payoff — the first real cluster training, producing the frozen tokenizer backbone for the
+GridWorld dynamics stage.
+Decision: One ferranti job `gridworld-tok-v2`: (1) regenerate full data ON the node
+(generate_gridworld 3000x200, deterministic seed) for self-contained provenance; (2) train the
+tokenizer with the PROVEN recipe — LPIPS (vgg) + W&B, --fresh, 40 epochs, bs32, lr3e-4, checkpoint to
+runs/gridworld-tok-v2/tokenizer.pt; (3) render recon strips (--save-recon) for the present-then-stop
+view. Code @ cf0a8e1 (committed env + datagen + --save-recon). venv reused (requirements unchanged
+since the smoke). W&B project transformer-C-tokenizer, run gridworld-tok-v2.
+Expected outcome: faithful gridworld reconstruction (crisp grid + colored square in the recon strips,
+low val MSE), NO latent collapse (latent_cos well below 0.7, pred_std high). Frozen tokenizer ready
+for the vanilla dynamics stage.
+Would change my mind / tripwires: latent collapse (latent_cos high / uniform-mean recon) → revisit
+MAE-mask / bottleneck; recon drops the square or smears colors → the 10px-vs-8px patch change hurt
+recon (would be surprising — it should HELP); val MSE not converging by 40ep → extend or raise lr.
+40 epochs is a first solid pass on a simple env; extend if not converged (decide at present-then-stop).
+Spawns: ferranti run gridworld-tok-v2 (EXPERIMENTS row); → vanilla dynamics next.
+
+## D-040 | 2026-06-18
+Context: Merlin refined the GridWorld eval (supersedes the D-033 proposal's raw-Chebyshev position
+credit). Two metrics, build now (model-agnostic; wiring into training/W&B discussed later).
+Decision:
+  (1) POSITION — graded per reveal event by Chebyshev cell-distance d: exact=full, partial MINIMAL and
+      gone by d=3. Default credit POSITION_CREDIT = {0:1.0, 1:0.25, 2:0.0625, >=3:0.0} (each cell of
+      distance quarters the credit, then cut to 0). Headline = mean graded `position_score` vs k; the
+      strict exact-match `position_acc` (chance 1/36) is reported alongside.
+  (2) COLOR — 4-way accuracy of BALL and BACKGROUND, using the dead-simple detection Merlin specified:
+      take every cell's mean colour, the MOST DIFFERENT cell (farthest from the median = bg) is the
+      ball; nearest-palette gives the class. (Already how readout.py works — kept, clarified.)
+  (3) STATISTICAL RELIABILITY — score over MANY reveal events; aggregate reports per-k counts AND a
+      standard error per curve so a k-bin's score is a real "chance of keeping position", not luck on a
+      few rollouts. A driver evaluates any frame source (oracle/copy-last/model) over a whole dataset.
+References unchanged: oracle (graded & exact must be 1.0 — instrument self-test), copy-last (no-memory),
+chance (analytic, grid-averaged for the graded score; 1/36 exact). NOT YET wired into training — built as
+a reusable scorer + flat per-k dict ready for a periodic W&B eval hook (Merlin: "we'll talk about where").
+Expected/validation: oracle position_score==1.0 & color==1.0 at all k; random≈analytic chance; copy-last
+decays; on the new 6x6 data the per-k curves have large n with small SE.
+Would change my mind: if the {1:0.25,2:0.0625} falloff proves too generous/stingy in practice, it's a
+one-line constant change (logged). Spawns: refined src/evals/gridworld/{recall,readout}.py + test.
