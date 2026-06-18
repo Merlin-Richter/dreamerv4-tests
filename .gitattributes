@@ -1,5 +1,21 @@
-# Shell scripts MUST stay LF — they run in Git Bash / on the cluster; CRLF breaks
-# bash (`$'\r': command not found`) and the sbatch shebang. (T-003 / D-035)
+# Force LF for all text files (autodetected); leave binaries untouched. This repo is
+# edited on Windows but runs on the Linux cluster + WSL — CRLF breaks bash scripts
+# (`$'\r'`), sbatch shebangs, and tools that read configs. (D-035/D-036)
+* text=auto eol=lf
+
+# Shell / job scripts must be LF regardless of content detection.
 *.sh        text eol=lf
 *.sbatch    text eol=lf
 scripts/**  text eol=lf
+
+# Known binaries — never normalize.
+*.npy   binary
+*.pt    binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.pdf   binary
+*.gz    binary
+*.zip   binary
+*.pyc   binary
