@@ -1197,3 +1197,32 @@ Would change my mind: if util stays low after the fix, the bottleneck is elsewhe
 per-step .item() syncs at lines 547/554, or LPIPS-VGG compute) -> next: on-device metric accumulation,
 torch.compile, or shard the data. Attention is hand-rolled (QK-norm/soft-cap) so no FlashAttention/SDPA.
 Spawns: resubmit EXP-024; deferred follow-ups (per-step sync removal, torch.compile) if still starved.
+
+## D-042 | 2026-06-18
+Context: EXP-024 GridWorld tokenizer FAILED — recon drops the ball entirely (background+grid perfect, blue
+ball absent in every recon frame, all bg colors; evidence experiments/gridworld-tok-v2/_block0/_block2.png).
+Merlin caught it visually; aggregate val MSE 0.00364 was BLIND to it because the ball is ~1/36 cells (~1% of
+pixels) so plain mean MSE (train_tokenizer.py:520/574) + LPIPS have near-zero gradient for it → the tokenizer
+settled into the trivial background-only local optimum, fast (val MSE plateaued ~ep3). Latents encode no ball
+→ unusable backbone. Merlin approved the fix + local-validate-first plan ("yes that's fine").
+Decision:
+  (1) FOREGROUND-WEIGHTED RECON LOSS in train_tokenizer.py. Per-pixel weight w = 1 + alpha*fg, where fg is
+      derived from the VISIBLE input clip (NOT privileged — tokenizer reconstructs fully-visible frames): the
+      per-pixel TEMPORAL-MEDIAN over the clip is the static scene (bg+grid+border are constant across a clip;
+      the ball is in a different cell each tick so it medians out), and fg = (|frame - temporal_median| summed
+      over RGB) > --fg-thresh isolates the moving ball (refinement within Merlin's "deviation-from-background"
+      family — temporal-median template isolates the BALL specifically, vs spatial-median which would also
+      upweight the static grid/border). Loss = weighted_mse + LPIPS (LPIPS unchanged). New args --fg-weight
+      (alpha, default 0.0 = old uniform behavior, opt-in) + --fg-thresh (default 0.1).
+  (2) BALL-REGION VALIDITY METRIC to W&B: val/fg_mse and val/bg_mse (recon MSE restricted to fg vs bg pixels)
+      + val/fg_frac. fg_mse is the headline guard + mid-training tripwire — if the ball is dropped, fg_mse
+      stays high while bg_mse→0 even as aggregate val/mse looks fine. Never trust aggregate MSE for a sparse
+      object again (measurement-validity).
+  (3) VALIDATE LOCALLY FIRST (4070, small subset / few epochs): confirm the recon visibly keeps the ball and
+      val/fg_mse drops, sweeping alpha if needed, BEFORE promoting to a full cluster retrain (§6).
+Expected outcome: with adequate alpha the recon shows the ball at the correct cell+color; val/fg_mse drops
+substantially (vs the failed run where it would be ~chance); bg stays good. Then a known-good cluster run.
+Would change my mind / tripwires: if even high alpha can't bring the ball back, the bottleneck (4 latents x 64)
+or MAE-mask is the constraint, not the loss → revisit capacity/MAE (less likely — capacity easily fits
+bg(4)+ballcolor(4)+ballcell(36)). If fg mask is dominated by the curtain/occlusion rather than the ball,
+tighten thresh or restrict to reveal frames. Spawns: train_tokenizer.py changes + local validation EXP.

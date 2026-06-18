@@ -97,6 +97,56 @@ def _config_from_checkpoint(cfg_dict: dict) -> AutoEncoderConfig:
     return AutoEncoderConfig(**{k: v for k, v in cfg_dict.items() if k in allowed})
 
 
+def foreground_mask(frames: torch.Tensor, thresh: float = 0.1) -> torch.Tensor:
+    """Per-clip foreground (moving-object) mask from the VISIBLE input frames.
+
+    The static scene (background colour + grid lines + border) is constant across a clip; the
+    only thing that changes cell-to-cell is the ball. So the per-pixel TEMPORAL median over the
+    clip's frames is the static scene (the ball, in a different cell each tick, medians out), and
+    a pixel's deviation from that median isolates the ball (plus any moving overlay such as the
+    occlusion curtain). This is NOT privileged information: the tokenizer reconstructs fully
+    visible frames, so locating the moving object from the input pixels is just emphasising
+    visible content (D-042).
+
+    Args:
+        frames: (B, T, H, W, 3) in [0, 1].
+        thresh: per-pixel L1 deviation (summed over RGB) above which a pixel is foreground.
+    Returns:
+        (B, T, H, W) float mask in {0, 1}.
+    """
+    template = frames.median(dim=1, keepdim=True).values     # (B, 1, H, W, 3) static scene
+    dev = (frames - template).abs().sum(dim=-1)               # (B, T, H, W)
+    return (dev > thresh).float()
+
+
+def weighted_mse(pred: torch.Tensor, target: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
+    """Per-pixel-weighted MSE. ``weight`` is (B, T, H, W), broadcast over the RGB channel.
+
+    Normalised by the total weight so the scale stays comparable to a plain mean MSE and the
+    background is still reconstructed (it is easy / low-loss); the weighting only re-prioritises
+    gradient toward the upweighted foreground pixels (D-042).
+    """
+    w = weight.unsqueeze(-1)                                  # (B, T, H, W, 1)
+    se = (pred - target) ** 2                                 # (B, T, H, W, 3)
+    return (w * se).sum() / (w.expand_as(se).sum() + 1e-8)
+
+
+def region_mse(pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor):
+    """Recon MSE restricted to foreground vs background pixels, for the validity metric (D-042).
+
+    Returns (fg_mse, bg_mse, fg_frac). If the ball is dropped, fg_mse stays high while bg_mse → 0
+    even as the aggregate MSE looks healthy — the signal that aggregate MSE is blind to.
+    """
+    se_pix = ((pred - target) ** 2).mean(dim=-1)             # (B, T, H, W), mean over RGB
+    fg = mask
+    bg = 1.0 - mask
+    fg_sum, bg_sum = fg.sum(), bg.sum()
+    fg_mse = (se_pix * fg).sum() / (fg_sum + 1e-8)
+    bg_mse = (se_pix * bg).sum() / (bg_sum + 1e-8)
+    fg_frac = fg_sum / fg.numel()
+    return fg_mse.item(), bg_mse.item(), fg_frac.item()
+
+
 def run_test_checkpoint(args: argparse.Namespace) -> None:
     import cv2
 
@@ -355,6 +405,22 @@ def main():
         default=0.2,
         help="Weight of the LPIPS term added to MSE (only used when --lpips is set).",
     )
+    parser.add_argument(
+        "--fg-weight",
+        type=float,
+        default=0.0,
+        help="Foreground (moving-object) upweighting alpha for the recon loss (D-042). Per-pixel "
+        "weight = 1 + alpha*fg, where fg = deviation from the per-clip temporal-median (static "
+        "scene) > --fg-thresh, which isolates the ball. 0.0 = uniform mean MSE (old behaviour). "
+        "Needed for sparse objects: the GridWorld ball is ~1%% of pixels, so uniform MSE ignores it.",
+    )
+    parser.add_argument(
+        "--fg-thresh",
+        type=float,
+        default=0.1,
+        help="Per-pixel deviation-from-static-scene threshold (L1 summed over RGB, [0,1] scale) "
+        "for the foreground mask used by --fg-weight and the val/fg_mse validity metric.",
+    )
     wlog.add_args(parser)
     args = parser.parse_args()
     # Enable TF32 for any fp32 matmuls that remain outside the bf16 autocast region (free on H100).
@@ -569,11 +635,15 @@ def main():
             B, T, H, W, C = batch_x.shape
             n_train_samples += B
             batch_x = batch_x.to(device)
+            # Foreground mask from the (fp32) input, outside autocast (D-042). None when disabled.
+            fg = foreground_mask(batch_x, args.fg_thresh) if args.fg_weight > 0 else None
             with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
                 pred = model(batch_x)
-                mse = loss_fn(pred, batch_x)
+                mse_plain = loss_fn(pred, batch_x)        # plain mean MSE: logged + LPIPS scale anchor
+                mse_raw = mse_plain.detach().item()
+                # Foreground-weighted MSE drives the loss when --fg-weight > 0; else plain mean MSE.
+                mse = weighted_mse(pred, batch_x, 1.0 + args.fg_weight * fg) if fg is not None else mse_plain
                 loss = mse
-                mse_raw = mse.detach().item()
                 if lpips_loss_fn is not None:
                     lpips_val = lpips_loss_fn(
                         pred.reshape(B * T, H, W, 3).permute(0, 3, 1, 2),
@@ -607,6 +677,7 @@ def main():
 
         model.eval()
         val_loss = 0.0
+        val_fg_mse = val_bg_mse = val_fg_frac = 0.0  # ball-region validity metric (D-042)
         with torch.no_grad():
             for batch_x, _ in tqdm(
                 val_loader,
@@ -616,11 +687,21 @@ def main():
                 mininterval=1.0,
             ):
                 batch_x = batch_x.to(device)
+                fg = foreground_mask(batch_x, args.fg_thresh)
                 with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
-                    val_loss += loss_fn(model(batch_x), batch_x).item()
+                    pred = model(batch_x)
+                    val_loss += loss_fn(pred, batch_x).item()
+                fmse, bmse, ffrac = region_mse(pred.float(), batch_x, fg)
+                val_fg_mse += fmse
+                val_bg_mse += bmse
+                val_fg_frac += ffrac
 
         train_mse = train_loss / len(train_loader)
         val_mse = val_loss / len(val_loader)
+        n_val = len(val_loader)
+        val_fg_mse /= n_val   # recon MSE on ball/moving pixels — THE validity guard: stays high if
+        val_bg_mse /= n_val   # the ball is dropped even while val/mse looks healthy (background-only)
+        val_fg_frac /= n_val
         train_lpips_mean = train_lpips / len(train_loader) if lpips_loss_fn is not None else None
         lat_cos, pred_std = latent_health()
         current_lr = opt.param_groups[0]["lr"]
@@ -633,6 +714,7 @@ def main():
         )
         print(
             f"Epoch {epoch + 1} | train MSE: {train_mse:.6f} | val MSE: {val_mse:.6f} "
+            f"| val fg_mse: {val_fg_mse:.6f} bg_mse: {val_bg_mse:.6f} (fg_frac {val_fg_frac:.3f}) "
             f"| latent_cos: {lat_cos:.3f} (<0.7=escaped) | pred_std: {pred_std:.4f} (>0.04=content) "
             f"| train_clip_offset={train_off} | lr: {current_lr:.2e}"
         )
@@ -640,6 +722,9 @@ def main():
             {
                 "train/mse": train_mse,
                 "val/mse": val_mse,
+                "val/fg_mse": val_fg_mse,   # recon MSE on ball/moving pixels — validity guard (D-042)
+                "val/bg_mse": val_bg_mse,   # recon MSE on static background pixels
+                "val/fg_frac": val_fg_frac, # fraction of pixels flagged foreground
                 "latent_cos": lat_cos,  # <0.7 == escaped collapse
                 "pred_std": pred_std,   # >0.04 == rendering real content
                 "lr": current_lr,
