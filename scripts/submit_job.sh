@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/_common.sh"
 
 # custom parse: pull --cluster/--name/--gpus/--hours, then everything after `--` is CMD
-RUN_NAME=""; GPUS=""; HOURS=""; DRYRUN=0; CMD_ARGS=()
+RUN_NAME=""; GPUS=""; HOURS=""; CPUS="8"; DRYRUN=0; CMD_ARGS=()
 ARGS=("$@")
 i=0
 while [ $i -lt ${#ARGS[@]} ]; do
@@ -23,6 +23,7 @@ while [ $i -lt ${#ARGS[@]} ]; do
     --name) RUN_NAME="${ARGS[$((i+1))]:-}"; i=$((i+2));;
     --gpus) GPUS="${ARGS[$((i+1))]:-}"; i=$((i+2));;
     --hours) HOURS="${ARGS[$((i+1))]:-}"; i=$((i+2));;
+    --cpus) CPUS="${ARGS[$((i+1))]:-}"; i=$((i+2));;
     --dry-run) DRYRUN=1; i=$((i+1));;
     --) i=$((i+1)); while [ $i -lt ${#ARGS[@]} ]; do CMD_ARGS+=("${ARGS[$i]}"); i=$((i+1)); done;;
     *) die_config "unexpected arg '${ARGS[$i]}' (command must come after --)";;
@@ -41,6 +42,8 @@ TIME="$(printf '%02d:00:00' "$HOURS")"
 # gres count override
 if [ -n "$GPUS" ]; then GRES="$(echo "$GRES" | sed -E "s/:[0-9]+$//; s/$/:$GPUS/")"; fi
 
+echo "$CPUS" | grep -qE '^[0-9]+$' || die_config "--cpus must be an integer"
+CPUS_LINE="#SBATCH --cpus-per-task=$CPUS"
 # optional SLURM directives only if configured
 PART_LINE=""; [ -n "$PARTITION" ] && PART_LINE="#SBATCH --partition=$PARTITION"
 ACCT_LINE=""; [ -n "$ACCOUNT" ] && ACCT_LINE="#SBATCH --account=$ACCOUNT"
@@ -66,6 +69,7 @@ render() {
   t="${t//@VENV_ROOT@/$(_esc "$VENV_ROOT")}"
   t="${t//@GRES@/$(_esc "$GRES")}"
   t="${t//@TIME@/$(_esc "$TIME")}"
+  t="${t//@SBATCH_CPUS@/$(_esc "$CPUS_LINE")}"
   t="${t//@SBATCH_PARTITION@/$(_esc "$PART_LINE")}"
   t="${t//@SBATCH_ACCOUNT@/$(_esc "$ACCT_LINE")}"
   t="${t//@SBATCH_CONSTRAINT@/$(_esc "$CONS_LINE")}"

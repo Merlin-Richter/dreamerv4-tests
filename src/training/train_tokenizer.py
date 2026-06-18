@@ -19,6 +19,7 @@ Visualize a saved checkpoint (OpenCV window; needs a display):
 """
 
 import argparse
+import os
 import random
 import sys
 import time
@@ -279,6 +280,13 @@ def main():
     )
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=None,
+        help="DataLoader worker processes. Default: auto from SLURM_CPUS_PER_TASK / os.cpu_count() "
+             "(capped at 8). 0 = synchronous load on the main thread (starves the GPU).",
+    )
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument(
         "--checkpoint",
@@ -349,6 +357,8 @@ def main():
     )
     wlog.add_args(parser)
     args = parser.parse_args()
+    # Enable TF32 for any fp32 matmuls that remain outside the bf16 autocast region (free on H100).
+    torch.set_float32_matmul_precision("high")
 
     if args.test_checkpoint:
         run_test_checkpoint(args)
@@ -399,8 +409,24 @@ def main():
             "Try a smaller --val-offset or longer episodes."
         )
 
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
-    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False)
+    # DataLoader throughput (D-041): num_workers=0 loads each batch synchronously on the main
+    # thread (memmap read + uint8->float32) while the GPU idles -> the 0<->100% util sawtooth /
+    # cold H100 we observed. Use background workers + pinned memory + persistent workers +
+    # prefetch so batches are ready before the GPU asks. num_workers auto-derives from the SLURM
+    # CPU allocation (job MUST request enough --cpus, else workers contend); override with --num-workers.
+    nw = args.num_workers
+    if nw is None:
+        slurm_cpus = os.environ.get("SLURM_CPUS_PER_TASK")
+        nw = int(slurm_cpus) if slurm_cpus else (os.cpu_count() or 1)
+        nw = max(0, min(nw, 8))
+    pin = torch.cuda.is_available()
+    loader_kw = dict(num_workers=nw, pin_memory=pin)
+    if nw > 0:
+        loader_kw.update(persistent_workers=True, prefetch_factor=4)
+    print(f"DataLoader: num_workers={nw} pin_memory={pin}"
+          + (f" prefetch_factor=4 persistent_workers=True" if nw > 0 else ""))
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, drop_last=True, **loader_kw)
+    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, **loader_kw)
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # --- latent-collapse health probe -------------------------------------------------

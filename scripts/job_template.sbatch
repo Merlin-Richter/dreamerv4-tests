@@ -4,6 +4,7 @@
 #SBATCH --error=@RUNS_DIR@/@RUN_NAME@/slurm-%j.out
 #SBATCH --gres=@GRES@
 #SBATCH --time=@TIME@
+@SBATCH_CPUS@
 @SBATCH_PARTITION@
 @SBATCH_ACCOUNT@
 @SBATCH_CONSTRAINT@
@@ -18,6 +19,8 @@ nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
 
 cd "@REMOTE_PATH@"
 echo "=== commit: $(git rev-parse HEAD) ==="
+# Pin CPU-thread libs to the SLURM allocation (avoid oversubscription with DataLoader workers).
+export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 
 # --- optional module loads (blank = pure venv) ---
 @MODULE_LOADS@

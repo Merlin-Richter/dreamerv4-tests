@@ -1177,3 +1177,23 @@ Expected/validation: oracle position_score==1.0 & color==1.0 at all k; random≈
 decays; on the new 6x6 data the per-k curves have large n with small SE.
 Would change my mind: if the {1:0.25,2:0.0625} falloff proves too generous/stingy in practice, it's a
 one-line constant change (logged). Spawns: refined src/evals/gridworld/{recall,readout}.py + test.
+
+## D-041 | 2026-06-18
+Context: Merlin's W&B dashboard for gridworld-tok-v2 showed the classic GPU-starvation signature on
+the H100 — utilization sawtoothing 0<->100%, power ~35% (245/700W), VRAM 32%, temp ~35C. Diagnosed
+from our code (not generic): train_tokenizer.py built its DataLoader with all defaults
+(`num_workers=0`, no pin_memory/persistent_workers/prefetch) -> every batch loads synchronously on the
+main thread (weka memmap read + uint8->float32) while the GPU idles. bf16 autocast was ALREADY on
+(not the issue). Compounding: the SLURM job requested only cpu=2, so even adding workers would contend.
+Decision: (1) train_tokenizer DataLoader -> num_workers (auto from SLURM_CPUS_PER_TASK/os.cpu_count(),
+cap 8; --num-workers override) + pin_memory + persistent_workers + prefetch_factor=4 + drop_last;
+(2) submit_job.sh + job_template.sbatch -> `--cpus N` => #SBATCH --cpus-per-task (default 8) + export
+OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK; (3) torch.set_float32_matmul_precision("high") (free TF32 on
+remaining fp32 matmuls). Resubmit gridworld-tok-v2 with --cpus 8, bs64 (VRAM headroom), and watch
+it/s + util to confirm. Cancelled 405623 (per Merlin "stop the current run and make a faster one").
+Expected outcome: GPU util pinned high, large it/s increase (est. 3-5x from feeding alone) -> the real
+tokenizer trains in ~1-1.5h instead of ~5.7h. Benefits ALL future cluster training (dynamics, sweeps).
+Would change my mind: if util stays low after the fix, the bottleneck is elsewhere (weka IO, or the
+per-step .item() syncs at lines 547/554, or LPIPS-VGG compute) -> next: on-device metric accumulation,
+torch.compile, or shard the data. Attention is hand-rolled (QK-norm/soft-cap) so no FlashAttention/SDPA.
+Spawns: resubmit EXP-024; deferred follow-ups (per-step sync removal, torch.compile) if still starved.
