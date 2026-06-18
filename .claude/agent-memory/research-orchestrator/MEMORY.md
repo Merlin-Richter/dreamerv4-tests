@@ -7,3 +7,4 @@
 - [Sequence subobjectives, keep the end-goal visible](feedback_sequence_subobjectives.md) — finish one subobjective in isolation before the next, but don't scrub the big-picture goal when narrowing scope
 - [Use idle overnight GPU](feedback_overnight_gpu.md) — when wrapping up late, launch a relevant low-risk overnight run (even a known-imperfect method); don't rush a bug-prone build
 - [Cluster wrappers run in WSL](feedback_cluster_use_wsl.md) — scripts/ verbs + ssh master socket MUST run in WSL (shared socket namespace), not Git Bash/PowerShell; invoke via wsl.exe
+- [Never clobber cluster.env](feedback_never_clobber_cluster_env.md) — scripts/cluster.env is Merlin's gitignored secret config; back up before any test that writes scripts/, never rm/overwrite it
