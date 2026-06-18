@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# scripts/submit_job.sh --cluster {feranti|galvani} --name RUN [--gpus N] [--hours H] -- <command...>
+# scripts/submit_job.sh --cluster {ferranti|galvani} --name RUN [--gpus N] [--hours H] -- <command...>
 #
 # Renders job_template.sbatch with the cluster's SLURM settings + your command, pipes it
 # to `sbatch` over the master socket, and echoes the new job id as "JOB_ID: <n>".
 # The command is the EXACT training invocation, e.g.:
-#   submit_job.sh --cluster feranti --name gw-tok-s0 --hours 6 -- \
+#   submit_job.sh --cluster ferranti --name gw-tok-s0 --hours 6 -- \
 #       python -u src/training/train_tokenizer.py --wandb --epochs 10 --batch-size 16
 # Record JOB_ID + the resolved SHA (from sync_code.sh) in EXPERIMENTS.md immediately.
 # Provenance: commit a run spec per experiment (experiments/EXP-NNN/run.sh) holding this line.
@@ -28,7 +28,7 @@ while [ $i -lt ${#ARGS[@]} ]; do
     *) die_config "unexpected arg '${ARGS[$i]}' (command must come after --)";;
   esac
 done
-case "${CLUSTER:-}" in feranti|galvani) :;; "") die_config "--cluster required";; *) die_config "unknown cluster '$CLUSTER'";; esac
+case "${CLUSTER:-}" in ferranti|galvani) :;; "") die_config "--cluster required";; *) die_config "unknown cluster '$CLUSTER'";; esac
 [ -n "$RUN_NAME" ] || die_config "--name RUN is required"
 [ "${#CMD_ARGS[@]}" -gt 0 ] || die_config "no command given (put it after --)"
 echo "$RUN_NAME" | grep -qE '^[A-Za-z0-9._-]+$' || die_config "run name must be [A-Za-z0-9._-]"

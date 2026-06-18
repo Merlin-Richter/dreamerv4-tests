@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/job_status.sh --cluster {feranti|galvani} [jobid ...]
+# scripts/job_status.sh --cluster {ferranti|galvani} [jobid ...]
 #
 # No ids  -> squeue for your jobs (live queue).
 # With ids -> sacct: state, exit code, elapsed, MaxRSS (post-mortem accounting).

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/clean_run.sh --cluster {feranti|galvani} <run>
+# scripts/clean_run.sh --cluster {ferranti|galvani} <run>
 #
 # Deletes $RUNS_DIR/<run> on the cluster. Restricted to the runs/ subtree (protocol §6):
 # refuses absolute paths, '..', slashes, or anything that would escape $RUNS_DIR.

@@ -1049,7 +1049,7 @@ QUOTA/BAD_REF/BAD_CONFIG; NEVER re-auth), all site specifics isolated into one `
 (two stanzas), an sbatch template with a venv-by-sha256(requirements.txt) prologue, and the 9 verbs
 (sync_code, submit_job, job_status, fetch_logs, wait_for_jobs, pull_results, cancel_job [refuses ids
 not in EXPERIMENTS.md], cluster_health [reports BOTH clusters], clean_run [restricted to runs/ subtree]).
-Merlin's answers (2026-06-18): NO default cluster — two named clusters **feranti (H100)** and
+Merlin's answers (2026-06-18): NO default cluster — two named clusters **ferranti (H100)** and
 **galvani (A100)**, `--cluster` REQUIRED (choice depends on his live fairshare+queue); code sync =
 remote git fetch + checkout from origin. Strategy: the config file IS the question — build the whole
 scaffold now (touches nothing on the cluster), Merlin fills cluster.env + opens the socket, then test
@@ -1064,3 +1064,32 @@ Would change my mind: if the actual login flow is NOT a reusable ControlMaster s
 that must be minted per-command, or a jump host that breaks multiplexing) — then the connection helper
 needs rework and I escalate before building on it.
 Spawns: T-003 build (Phase 1 read-only verbs → Phase 2 submit/sync → Phase 3 fetch/wait/pull/cancel/clean).
+
+## D-036 | 2026-06-18
+Context: First live test of the T-003 wrappers (D-035) failed AUTH_DEAD even though Merlin had a
+master session up. Root cause: the local execution environment was ambiguous. Merlin opened the
+ControlMaster socket in **WSL** (Ubuntu); the orchestrator runs the Bash tool as **Git Bash (MSYS2)**.
+WSL and Git Bash are separate ssh stacks with separate $HOME and separate unix-socket namespaces, so
+a socket opened in one is invisible to the other. PowerShell is unusable for this regardless (can't
+run the bash wrappers; Windows-native OpenSSH has no ControlMaster multiplexing → would 2FA every
+command). The opener (human) and the wrapper-runner (orchestrator) MUST share one environment.
+Decision: **Standardize the cluster wrappers on WSL.** Merlin opens the master in WSL
+(`scripts/open_master.sh --cluster ferranti`); the orchestrator invokes every wrapper through WSL
+(`wsl.exe -e bash -lc "cd /mnt/c/.../transformer && bash scripts/<verb> ..."`). Rationale: WSL is the
+most robust ssh+rsync stack on this machine, it is Merlin's natural environment (so the master socket
+won't drift again — the exact failure we hit), and the only cost (invoking via wsl.exe) is on the
+orchestrator side, invisible to Merlin. **Deliberate split by concern:** local 4070 *training* stays
+in Windows/Git-Bash (CUDA venv `venv/Scripts/python.exe`); *cluster orchestration* lives in WSL. The
+wrappers never run training locally, so the split is clean. cluster.env's `~`-relative CONTROL_PATH
+resolves correctly in whichever env runs it, so no path edits needed as long as opener==runner==WSL.
+Live-verified this session via WSL: cluster_health (real fairshare/queue/disk), job_status (squeue),
+submit_job --dry-run (real config), sync_code BAD_REF (remote git + error contract). Not yet tested
+live: the submit→sacct→logs→wait→pull mutating pipeline (needs one trivial queued job — gated on Merlin).
+Alternatives rejected: Git Bash (works + supports ControlMaster, and would let the orchestrator run
+wrappers natively with no wsl prefix — but MSYS2 ssh/rsync has more path/socket edge cases, AND it
+creates a recurring human/orchestrator env-mismatch footgun since Merlin prefers WSL); PowerShell
+(disqualified above).
+Would change my mind: if WSL→cluster networking proves flaky, or rsync over /mnt/c is too slow/buggy
+for result pulls — then reconsider Git Bash (orchestrator-native) and require Merlin to open the
+master there.
+Spawns: HOWTO/cluster.md + scripts/README.md env documentation; cosmetic: none.

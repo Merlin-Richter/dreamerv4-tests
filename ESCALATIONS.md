@@ -920,7 +920,7 @@ Two things for your review:
 Resolution (partial, 2026-06-18):
 - **Q2 (compute tier) — ANSWERED = cluster.** Merlin directed "Its time to work on the cluster
   interface scripts" → the GridWorld pipeline goes to the cluster. Built T-003 (`scripts/`, D-035).
-  Correction he gave: two clusters **feranti (H100)** and **galvani (A100)**, no default — pick per
+  Correction he gave: two clusters **ferranti (H100)** and **galvani (A100)**, no default — pick per
   live fairshare/queue. Code sync = remote git fetch+checkout. (Local smoke already completed: W&B
   zjvhcn4s, val/mse 0.00216, latent_cos 0.37 — pipeline validated end-to-end on the 300-ep subset.)
 - **Q1 (GridWorld eval design sign-off, D-033 position-first headline) — STILL OPEN.** Not frozen;

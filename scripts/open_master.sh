@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/open_master.sh --cluster {feranti|galvani}
+# scripts/open_master.sh --cluster {ferranti|galvani}
 #
 # INTERACTIVE — run this yourself (Merlin) in a normal terminal. It opens the shared
 # ControlMaster socket the wrappers reuse, completing 2FA here once. The orchestrator

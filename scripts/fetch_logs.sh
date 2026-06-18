@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/fetch_logs.sh --cluster {feranti|galvani} <jobid> [--tail N]
+# scripts/fetch_logs.sh --cluster {ferranti|galvani} <jobid> [--tail N]
 #
 # Prints the job's slurm log (works while running or after completion). --tail N limits
 # to the last N lines. Resolves the log path via `scontrol show job` (falls back to the

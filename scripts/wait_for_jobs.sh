@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/wait_for_jobs.sh --cluster {feranti|galvani} <jobid> [jobid ...] [--poll SECONDS]
+# scripts/wait_for_jobs.sh --cluster {ferranti|galvani} <jobid> [jobid ...] [--poll SECONDS]
 #
 # Blocks until all jobs reach a terminal state. Returns EARLY (non-zero) on the first
 # FAILED/TIMEOUT/CANCELLED/OOM job OR a "Traceback" appearing in a running job's log,

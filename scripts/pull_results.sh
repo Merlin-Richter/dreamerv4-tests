@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/pull_results.sh --cluster {feranti|galvani} <run> [--what all|logs|metrics|checkpoints] [--dest DIR]
+# scripts/pull_results.sh --cluster {ferranti|galvani} <run> [--what all|logs|metrics|checkpoints] [--dest DIR]
 #
 # rsyncs $RUNS_DIR/<run>/ from the cluster to a local dir (default experiments/<run>/).
 # Checkpoints (*.pt) are EXCLUDED unless --what explicitly includes 'checkpoints' or 'all'

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/cluster_health.sh [--cluster {feranti|galvani|both}]
+# scripts/cluster_health.sh [--cluster {ferranti|galvani|both}]
 #
 # Reports fairshare, queue depth, your running/pending jobs, and disk/quota for each
 # cluster — run BEFORE every submit, and to PICK which cluster (no default; choice
@@ -18,8 +18,8 @@ while [ $# -gt 0 ]; do
     *) shift ;;
   esac
 done
-case "$WANT" in feranti|galvani|both) : ;; *) die_config "unknown cluster '$WANT' (feranti|galvani|both)";; esac
-[ "$WANT" = both ] && CLUSTERS=(feranti galvani) || CLUSTERS=("$WANT")
+case "$WANT" in ferranti|galvani|both) : ;; *) die_config "unknown cluster '$WANT' (ferranti|galvani|both)";; esac
+[ "$WANT" = both ] && CLUSTERS=(ferranti galvani) || CLUSTERS=("$WANT")
 
 report_one() {
   CLUSTER="$1"

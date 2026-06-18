@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/sync_code.sh --cluster {feranti|galvani} <branch> [sha]
+# scripts/sync_code.sh --cluster {ferranti|galvani} <branch> [sha]
 #
 # On the remote clone: git fetch origin, checkout <sha> (or <branch> tip if no sha),
 # and echo the RESOLVED commit SHA (record it in EXPERIMENTS.md for provenance).

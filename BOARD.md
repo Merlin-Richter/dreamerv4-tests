@@ -4,7 +4,7 @@ Updated: 2026-06-16 (PIVOT to GridWorld discrete env — D-032; tokenizer smoke 
 
 ## In progress (2026-06-18) — cluster interface scripts (T-003 / D-035)
 - **T-003 — cluster wrapper scripts BUILT.** `scripts/` (9 verbs + `_common.sh` + `cluster.env.example`
-  + `job_template.sbatch` + `open_master.sh` + README). Two clusters feranti(H100)/galvani(A100), no
+  + `job_template.sbatch` + `open_master.sh` + README). Two clusters ferranti(H100)/galvani(A100), no
   default, `--cluster` required. Code sync = remote git fetch+checkout. Offline-verified (guards, error
   contract, `--dry-run` render). **BLOCKED on Merlin** for the live Phase-1 test: fill `scripts/cluster.env`
   + `scripts/open_master.sh --cluster <c>` (interactive 2FA — orchestrator can't auth). Plan: tasks/T-003-plan.md.

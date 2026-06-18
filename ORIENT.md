@@ -14,16 +14,20 @@ tier = cluster).
   `job_template.sbatch` + `open_master.sh` + `README.md`. D-035 records the design; `tasks/T-003-plan.md`
   the plan. Offline-verified: arg/guard logic, the AUTH_DEAD/QUOTA/BAD_REF/BAD_CONFIG error contract
   (machine-parseable first stderr line), and sbatch rendering (`submit_job.sh --dry-run`, incl. special
-  chars). Two clusters, **no default**: `feranti` (H100) / `galvani` (A100); `--cluster` required.
-- **BLOCKED on Merlin for live Phase-1 test** (read-only verbs cluster_health/job_status):
-  he must (1) `cp scripts/cluster.env.example scripts/cluster.env` and fill the blanks (hostnames,
-  partition, account, …), (2) `scripts/open_master.sh --cluster <c>` (interactive 2FA — I cannot auth).
-  Until then the connection assumption (a reusable ControlMaster socket) is unverified.
+  chars). Two clusters, **no default**: `ferranti` (H100) / `galvani` (A100); `--cluster` required.
+- **LIVE-VERIFIED (read-only), via WSL (D-036).** Phase-1 passed against ferranti: `cluster_health`
+  (real fairshare 0.39 / partition h100-ferranti 44 pending,57 running / weka 81%), `job_status`
+  (squeue), `submit_job --dry-run` (real config), `sync_code` BAD_REF (remote git + error contract).
+  Connection model confirmed: a reusable ControlMaster socket — but it MUST live in **WSL** (Merlin
+  opens it there; orchestrator runs verbs via `wsl.exe -e bash -lc "cd /mnt/c/.../transformer && ..."`).
+  Git Bash/PowerShell can't see the WSL socket. D-036 records this; HOWTO/README documented.
 
-## Next action (once Merlin unblocks)
-Phase 1: run `cluster_health.sh` + `job_status.sh` live → confirm the connection layer. Phase 2:
-`sync_code.sh` + a tiny `submit_job.sh` smoke (nvidia-smi) → confirm JOB_ID/log/wait/sacct. Phase 3:
-fetch/pull/cancel/clean live-checks. Then first real job = the GridWorld **tokenizer** on the cluster.
+## Next action — Phase 2 (gated on Merlin: needs ONE trivial queued job)
+Not yet live-tested: the mutating pipeline submit→sacct→fetch_logs→wait_for_jobs→pull_results, and
+sync_code happy-path. The only way to exercise these is to queue one trivial NON-training job
+(`nvidia-smi`/`hostname`). Asked Merlin to OK that before submitting (he said "without a real training
+run" — a trivial smoke is not training, but I'm confirming). Then Phase 3 guards (cancel/clean live),
+then first real job = the GridWorld **tokenizer** on the cluster.
 
 ## GridWorld research thread (paused under the cluster task; still Merlin-gated)
 - **Tokenizer SMOKE COMPLETED** while no session was alive (W&B `zjvhcn4s`, ~17 min on the 300-ep
@@ -37,10 +41,9 @@ fetch/pull/cancel/clean live-checks. Then first real job = the GridWorld **token
   cluster-scripts commits; left for that thread's owner to land.
 
 ## Current worries
-1. The ControlMaster/2FA connection model in `_common.sh` is the standard pattern but UNVERIFIED
-   against the real clusters — if the actual login flow differs (per-command token, multiplex-breaking
-   jump host), the connection helper needs rework. The D-035 tripwire covers this; live test settles it.
-2. Don't over-build past Phase 1 before the connection layer is confirmed live.
+1. Connection model now CONFIRMED (read-only) — must always run cluster verbs in WSL, never Git Bash
+   (separate socket namespaces; that mismatch caused the first AUTH_DEAD). Documented; stay disciplined.
+2. Mutating pipeline (submit/sacct/logs/wait/pull) still unverified — needs the one trivial smoke job.
 3. GridWorld eval still unblessed (ESC-016 Q1) — gates the downstream dynamics eval, not tokenizer training.
 
 ## Parked (pre-pivot threads — resume only if Merlin redirects)

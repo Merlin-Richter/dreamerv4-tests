@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/cancel_job.sh --cluster {feranti|galvani} <jobid>
+# scripts/cancel_job.sh --cluster {ferranti|galvani} <jobid>
 #
 # scancel — but REFUSES any job id not recorded in EXPERIMENTS.md (protocol §6: only
 # jobs present in the index). This guards against cancelling someone else's job or a

@@ -52,15 +52,15 @@ lockfile hash"). Plan: `HASH=$(sha256 requirements.txt); VENV=$VENV_ROOT/venv-$H
 create + `pip install -r requirements.txt`; else reuse. Treat env-build failure as a dependency bug.
 
 ## Merlin's answers (2026-06-18)
-- **No default cluster.** TWO clusters: **`feranti`** (H100s) and **`galvani`** (A100s). `--cluster`
+- **No default cluster.** TWO clusters: **`ferranti`** (H100s) and **`galvani`** (A100s). `--cluster`
   is REQUIRED on every verb — the right choice depends on his live fairshare + queue depth at each,
-  so `cluster_health.sh` should report BOTH to inform the pick. (W&B-metadata "MLCloud/mlcbm*" = feranti.)
+  so `cluster_health.sh` should report BOTH to inform the pick. (W&B-metadata "MLCloud/mlcbm*" = ferranti.)
 - **Code sync = remote git fetch + checkout** (remote holds a clone, pulls from GitHub origin;
   provenance = resolved SHA).
 
 ## Strategy: the config file IS the question
 Everything site-specific is isolated into ONE self-documenting `scripts/cluster.env` (two stanzas,
-feranti/galvani). The wrapper *logic* is connection-independent. So I build the full scaffold now;
+ferranti/galvani). The wrapper *logic* is connection-independent. So I build the full scaffold now;
 Merlin only (a) fills `cluster.env` values and (b) opens the master socket — then Phase-1 read-only
 verbs are testable live. Values needed FROM `cluster.env` (placeholders shipped):
   per cluster: SSH host, user, optional ProxyJump, ControlPath socket, remote repo path, partition,

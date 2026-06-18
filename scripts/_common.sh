@@ -39,9 +39,9 @@ parse_cluster() {
     esac
   done
   case "$CLUSTER" in
-    feranti|galvani) : ;;
-    "") die_config "--cluster {feranti|galvani} is required (no default — pick per live fairshare/queue)" ;;
-    *) die_config "unknown cluster '$CLUSTER' (expected feranti|galvani)" ;;
+    ferranti|galvani) : ;;
+    "") die_config "--cluster {ferranti|galvani} is required (no default — pick per live fairshare/queue)" ;;
+    *) die_config "unknown cluster '$CLUSTER' (expected ferranti|galvani)" ;;
   esac
 }
 
