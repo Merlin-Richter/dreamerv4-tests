@@ -2,6 +2,13 @@
 
 Updated: 2026-06-16 (PIVOT to GridWorld discrete env — D-032; tokenizer smoke training in flight)
 
+## In progress (2026-06-18) — cluster interface scripts (T-003 / D-035)
+- **T-003 — cluster wrapper scripts BUILT.** `scripts/` (9 verbs + `_common.sh` + `cluster.env.example`
+  + `job_template.sbatch` + `open_master.sh` + README). Two clusters feranti(H100)/galvani(A100), no
+  default, `--cluster` required. Code sync = remote git fetch+checkout. Offline-verified (guards, error
+  contract, `--dry-run` render). **BLOCKED on Merlin** for the live Phase-1 test: fill `scripts/cluster.env`
+  + `scripts/open_master.sh --cluster <c>` (interactive 2FA — orchestrator can't auth). Plan: tasks/T-003-plan.md.
+
 ## In progress (2026-06-16, GridWorld pivot — D-032)
 - **GridWorld tokenizer smoke — RUNNING.** 10ep bs32 MSE fresh → `checkpoints/gridworld/tokenizer.pt`
   (log `experiments/_gridworld_tok_smoke.log`). Hard prereq for the vanilla-dynamics smoke Merlin asked
@@ -148,10 +155,10 @@ Updated: 2026-06-16 (PIVOT to GridWorld discrete env — D-032; tokenizer smoke 
   by artifacts (5/5 unit smokes; 1-epoch train finite; probe dry-run end-to-end through
   `generate_memory`). Spec: tasks/T-009.md.
 
-## Deferred (until H3 method work needs heavy training / long horizons)
-- **T-003 — Cluster wrapper scripts (`scripts/`).** Probe suite + H2 baseline run
-  locally on the 4070 against existing checkpoints; no cluster needed yet. Until done:
-  all cluster interaction is manual by Merlin; orchestrator submits nothing.
+## Deferred — NOW ACTIVE (moved to In progress 2026-06-18, D-035)
+- **T-003 — Cluster wrapper scripts (`scripts/`)** — was deferred ("probe suite + H2 baseline run
+  locally; no cluster needed yet"). Un-deferred by Merlin's directive + the GridWorld pipeline's
+  heavy-training need. See the In-progress entry at the top.
 
 ## Done (recent)
 - **T-008 (D) — KV caching for the dynamics model** (2026-06-13, D-017; done while waiting on

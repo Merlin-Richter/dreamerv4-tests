@@ -917,4 +917,15 @@ Two things for your review:
    (tokenizer + vanilla baseline on full data), do you want it on the cluster (proper, per §6), or keep
    iterating locally at reduced scope? The local smoke continues either way as a pipeline check.
 
-Resolution: <pending Merlin>
+Resolution (partial, 2026-06-18):
+- **Q2 (compute tier) — ANSWERED = cluster.** Merlin directed "Its time to work on the cluster
+  interface scripts" → the GridWorld pipeline goes to the cluster. Built T-003 (`scripts/`, D-035).
+  Correction he gave: two clusters **feranti (H100)** and **galvani (A100)**, no default — pick per
+  live fairshare/queue. Code sync = remote git fetch+checkout. (Local smoke already completed: W&B
+  zjvhcn4s, val/mse 0.00216, latent_cos 0.37 — pipeline validated end-to-end on the 300-ep subset.)
+- **Q1 (GridWorld eval design sign-off, D-033 position-first headline) — STILL OPEN.** Not frozen;
+  model adapter not wired. Tokenizer training on the cluster does not need this; the downstream
+  dynamics RECALL eval does.
+
+Still awaiting: (a) Q1 eval sign-off; (b) Merlin to fill `scripts/cluster.env` + open the master
+socket so the cluster wrappers can be live-tested before the first real cluster job.
