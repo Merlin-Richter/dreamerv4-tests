@@ -34,8 +34,31 @@ once per cluster: `scripts/open_master.sh --cluster ferranti` (interactive, comp
 Code sync = remote `git fetch + checkout` from GitHub origin (Merlin's chosen model). The venv is
 built/reused on the node keyed on `sha256(requirements.txt)`.
 
-**NOT yet live-tested** end-to-end (needs Merlin's cluster.env + an open socket); offline-verified:
-arg/guard logic, error contract, sbatch rendering (`submit_job.sh --dry-run`).
+**Live-tested end-to-end** (2026-06-18, ferranti): full pipeline (datagen → train → W&B → pull) green.
+
+## Run tuning notes (learned 2026-06-18, EXP-024 / D-041 — read before the next cluster run)
+- **Always pass enough CPUs.** `submit_job.sh --cpus N` → `#SBATCH --cpus-per-task=N` (default 8).
+  Without it SLURM gives `cpu=2` and the DataLoader (num_workers auto = `SLURM_CPUS_PER_TASK`, cap 8)
+  STARVES the H100 — the 0↔100% util sawtooth, ~35% power. With `--cpus 8` the tokenizer holds **95%+
+  util** (i.e. now compute-bound, not input-bound).
+- **Tokenizer (LPIPS vgg) sweet spot: `--batch-size 64`.** On the H100 that's **~3.13 it/s,
+  ~2.85 min/epoch, 61% VRAM, 95% util**. Because util is already saturated (LPIPS-VGG-bound), a bigger
+  batch only *fits* more — it does NOT speed things up. Keep bs64 for the LPIPS tokenizer; re-profile
+  separately for dynamics (different compute profile) or if LPIPS is off.
+- **Right-size epochs + wall time.** GridWorld tokenizer val-MSE plateaus by ~epoch **3** (latent_cos
+  still settling to ~ep10); 15–30 epochs is ample. 30 ep ≈ **1.4 h**, so `--hours 2–3` is enough
+  (don't over-request, and don't UNDER-request → the run wall-kills mid-train: 405597 was a 40ep/4h
+  that would've died ~ep28).
+- **bf16 autocast + TF32 are already in `train_tokenizer.py`** (D-041). `torch.compile` and removing
+  per-step `.item()` syncs are the remaining (smaller) compute wins, not yet applied. FlashAttention is
+  unavailable (hand-rolled QK-norm/soft-cap attention).
+- **venv cache:** keyed on `sha256(requirements.txt)` at `$VENV_ROOT/venv-<hash>`. First run builds
+  (torch+CUDA download, a few min); reused after. Don't churn `requirements.txt` casually.
+- **W&B auth = the cluster's `~/.netrc`** (user mot936) — leave `WANDB_API_KEY` empty in cluster.env.
+- **Scheduling:** jobs landed on an H100 immediately both times (fairshare ~0.39); queue depth (30–60
+  pending) hasn't been a problem.
+
+## Pre-T-003 history (manual runs)
 
 Observed throughput (tokenizer, 100 epochs, occluded.npy): galvani-cn109 ≈ 30
 samples/s (10.1 h); mlcbm014 ≈ 179 samples/s (1.7 h). Cause of the gap not
