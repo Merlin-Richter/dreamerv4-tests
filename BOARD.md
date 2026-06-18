@@ -2,12 +2,18 @@
 
 Updated: 2026-06-16 (PIVOT to GridWorld discrete env — D-032; tokenizer smoke training in flight)
 
-## In progress (2026-06-18) — cluster interface scripts (T-003 / D-035)
-- **T-003 — cluster wrapper scripts BUILT.** `scripts/` (9 verbs + `_common.sh` + `cluster.env.example`
-  + `job_template.sbatch` + `open_master.sh` + README). Two clusters ferranti(H100)/galvani(A100), no
-  default, `--cluster` required. Code sync = remote git fetch+checkout. Offline-verified (guards, error
-  contract, `--dry-run` render). **BLOCKED on Merlin** for the live Phase-1 test: fill `scripts/cluster.env`
-  + `scripts/open_master.sh --cluster <c>` (interactive 2FA — orchestrator can't auth). Plan: tasks/T-003-plan.md.
+## Done (2026-06-18) — cluster interface scripts (T-003 / D-035/036/037)
+- **T-003 — cluster wrappers BUILT + VALIDATED END-TO-END.** `scripts/` (9 verbs + `_common.sh` +
+  `cluster.env.example` + `job_template.sbatch` + `open_master.sh` + README). Clusters ferranti(H100)/
+  galvani(A100), no default. **Standardized on WSL** (D-036 — shared ssh socket namespace). Full mini
+  pipeline green on ferranti (job 405555): venv build, sync_code, cluster datagen, train, W&B (via
+  ~/.netrc), pull_results, clean_run. Pre-req fixes: requirements.txt UTF-16→UTF-8, repo-wide LF,
+  branch pushed. Plan: tasks/T-003-plan.md; row INFRA-clustersmoke. **Cluster ready for real GridWorld run.**
+
+## Awaiting Merlin (cluster next step)
+- **Greenlight the real GridWorld tokenizer run on the cluster** (ESC-016 Q2 payoff). Open question:
+  generate full data on the cluster vs reuse the local 6.9GB set. (ESC-016 Q1 eval sign-off still open
+  — gates the dynamics recall eval, not tokenizer training.)
 
 ## In progress (2026-06-16, GridWorld pivot — D-032)
 - **GridWorld tokenizer smoke — RUNNING.** 10ep bs32 MSE fresh → `checkpoints/gridworld/tokenizer.pt`

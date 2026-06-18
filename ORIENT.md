@@ -15,19 +15,20 @@ tier = cluster).
   the plan. Offline-verified: arg/guard logic, the AUTH_DEAD/QUOTA/BAD_REF/BAD_CONFIG error contract
   (machine-parseable first stderr line), and sbatch rendering (`submit_job.sh --dry-run`, incl. special
   chars). Two clusters, **no default**: `ferranti` (H100) / `galvani` (A100); `--cluster` required.
-- **LIVE-VERIFIED (read-only), via WSL (D-036).** Phase-1 passed against ferranti: `cluster_health`
-  (real fairshare 0.39 / partition h100-ferranti 44 pending,57 running / weka 81%), `job_status`
-  (squeue), `submit_job --dry-run` (real config), `sync_code` BAD_REF (remote git + error contract).
-  Connection model confirmed: a reusable ControlMaster socket — but it MUST live in **WSL** (Merlin
-  opens it there; orchestrator runs verbs via `wsl.exe -e bash -lc "cd /mnt/c/.../transformer && ..."`).
-  Git Bash/PowerShell can't see the WSL socket. D-036 records this; HOWTO/README documented.
+- **VALIDATED END-TO-END (D-037), via WSL.** Full mini pipeline ran green on ferranti (job 405555,
+  COMPLETED): venv-by-hash build (pip on the fixed UTF-8 requirements), `sync_code` checkout,
+  cluster datagen (gridworld_mini), tokenizer 1ep train, **W&B synced via the cluster's ~/.netrc**
+  (run 2n8ym02n), checkpoint `pull_results`'d back to the laptop, `clean_run` cleaned up. All verbs
+  exercised live (cancel_job guard offline-only — nothing cancellable). Connection = a reusable
+  ControlMaster socket that MUST live in **WSL** (D-036). Pre-req fixes folded: requirements.txt
+  UTF-16→UTF-8, repo-wide LF (.gitattributes), branch pushed to origin.
 
-## Next action — Phase 2 (gated on Merlin: needs ONE trivial queued job)
-Not yet live-tested: the mutating pipeline submit→sacct→fetch_logs→wait_for_jobs→pull_results, and
-sync_code happy-path. The only way to exercise these is to queue one trivial NON-training job
-(`nvidia-smi`/`hostname`). Asked Merlin to OK that before submitting (he said "without a real training
-run" — a trivial smoke is not training, but I'm confirming). Then Phase 3 guards (cancel/clean live),
-then first real job = the GridWorld **tokenizer** on the cluster.
+## Next action — the cluster is READY for the real GridWorld run
+T-003 is done. The cluster can now run the real GridWorld **tokenizer** (full data) — this is the
+ESC-016 Q2 payoff. NOT starting it unprompted: present-then-stop / awaiting Merlin's go (and note
+ESC-016 Q1, the eval-design sign-off, is still open — it gates the downstream dynamics RECALL eval,
+NOT tokenizer training). When greenlit: generate full gridworld data on the cluster (or reuse the
+local 6.9GB set?) → train tokenizer (LPIPS, ~10ep) → pull → then vanilla dynamics.
 
 ## GridWorld research thread (paused under the cluster task; still Merlin-gated)
 - **Tokenizer SMOKE COMPLETED** while no session was alive (W&B `zjvhcn4s`, ~17 min on the 300-ep

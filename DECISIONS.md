@@ -1093,3 +1093,20 @@ Would change my mind: if WSL→cluster networking proves flaky, or rsync over /m
 for result pulls — then reconsider Git Bash (orchestrator-native) and require Merlin to open the
 master there.
 Spawns: HOWTO/cluster.md + scripts/README.md env documentation; cosmetic: none.
+
+## D-037 | 2026-06-18
+Context: D-035/036 verified the cluster wrappers' read-only path live. Merlin: run a FULL mini
+end-to-end pipeline to "get all the details right" — env setup (venv build), git checkout, data
+generation ON the cluster, actual training, W&B integration, and moving the model back to the laptop.
+Decision: Run a tiny throwaway pipeline on ferranti (run name `cluster-smoke`): generate a 16-episode
+gridworld_mini.npy on the node, train the tokenizer 1 epoch (bs8, MSE, --fresh) with W&B logging to a
+throwaway project `cluster-pipeline-test`, save the checkpoint into the run dir, then pull it back with
+pull_results --what checkpoints. Exercises every verb + integration: sync_code, submit_job, the venv-
+by-hash prologue (first torch install), job_status/sacct, fetch_logs, wait_for_jobs, pull_results, and
+clean_run (cleanup). Pre-req fixes folded in: requirements.txt UTF-16→UTF-8 (would have broken pip),
+repo-wide LF (.gitattributes), branch pushed to origin (sync_code fetches from GitHub).
+Expected outcome: green job; checkpoint lands locally; a W&B run appears under cluster-pipeline-test.
+Would change my mind / tripwires: venv build fails (dependency/encoding bug) → fix; W&B doesn't auth on
+node (no ~/.netrc) → surface + decide key vs netrc; rsync of the .pt fails → pull_results bug. Any of
+these is exactly what this rehearsal exists to catch before the real GridWorld run.
+Spawns: run `cluster-smoke` (infra validation row in EXPERIMENTS.md).
