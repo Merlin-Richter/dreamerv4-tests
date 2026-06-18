@@ -30,16 +30,20 @@ ESC-016 Q1, the eval-design sign-off, is still open — it gates the downstream 
 NOT tokenizer training). When greenlit: generate full gridworld data on the cluster (or reuse the
 local 6.9GB set?) → train tokenizer (LPIPS, ~10ep) → pull → then vanilla dynamics.
 
-## GridWorld research thread (paused under the cluster task; still Merlin-gated)
-- **Tokenizer SMOKE COMPLETED** while no session was alive (W&B `zjvhcn4s`, ~17 min on the 300-ep
-  subset): val/mse **0.00216**, latent_cos 0.37 (not collapsed). Recon views in `experiments/EXP-023/`.
-  Pipeline validated end-to-end on the subset. (Processed per cold-start §1.4 — flagged to Merlin,
-  not acted on, since he redirected me to cluster scripts.)
-- **ESC-016 Q1 STILL PENDING:** the GridWorld eval design sign-off (D-033, position-first headline) —
-  do NOT freeze the eval or wire the model adapter until Merlin blesses it. Q2 (compute tier) answered.
-- Uncommitted `src/training/train_tokenizer.py` (+101 lines: LPIPS/W&B/subset for the smoke) +
-  `experiments/EXP-023/` + `_gridworld_tok_smoke.log` belong to the GridWorld thread — NOT part of the
-  cluster-scripts commits; left for that thread's owner to land.
+## GridWorld env CHANGED (D-038, 2026-06-18) — geometry reworked
+- Merlin: the old 8×8 cells (8px stride) aligned to the tokenizer's 8×8 patches → overfit risk.
+  New geometry: **6×6 cells, 10px stride** (8px interior + 2px line) + 3px border = 64. Cell stride
+  (10) ≠ patch (8), so cells straddle patches. Recall now 6×6 (chance 1/36) + 4-way color.
+- Env overwritten in place; **gridworld.npy regenerated** (3000×200, new env, ~16s, occ 0.50);
+  ALL stale-env artifacts DELETED: old data + smoke subset, `checkpoints/gridworld/tokenizer.pt`
+  (trained on old env → INVALID), `experiments/EXP-023/`, smoke log. Eval (readout/recall, chance
+  from GRID_N), tests, CLAUDE.md/REPO_MAP updated. Geometry verified pixel-exact + visual
+  (`experiments/gridworld_v2_preview/geometry.png`) + both gate tests green.
+- **The prior GridWorld tokenizer SMOKE (W&B zjvhcn4s) is now INVALID** (old env). Re-run needed.
+- **ESC-016 Q1 STILL PENDING:** GridWorld eval *design* sign-off (D-033, position-first) — unchanged
+  by the geometry tweak (still position-first, now 6×6/chance 1/36). Don't freeze/ wire adapter until blessed.
+- Uncommitted `src/training/train_tokenizer.py` (+101 lines) still belongs to the GridWorld thread —
+  left untouched (the COMMITTED train_tokenizer already supports --wandb/--lpips, enough for the real run).
 
 ## Current worries
 1. Connection model now CONFIRMED (read-only) — must always run cluster verbs in WSL, never Git Bash

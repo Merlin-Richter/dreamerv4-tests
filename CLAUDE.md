@@ -262,7 +262,7 @@ export WANDB_PROJECT=transformer
 |------|---------|
 | `src/envs/base.py` | `BaseEnv` interface (reset/step + measurement-only `hidden_state`) |
 | `src/envs/occluded_bouncing.py` | `OccludedBouncingEnv` (action-conditioned memory env) |
-| `src/envs/gridworld.py` | `GridWorldEnv` (D-032): discrete 8×8 grid memory env — solid bg + square (4 colors), square steps 1 cell/tick in 8 directions w/ wall reflection, same curtain occlusion. Recall = 8×8 cell + 4-way color (crisp, no ΔRGB fuzz) |
+| `src/envs/gridworld.py` | `GridWorldEnv` (D-032; geometry D-038): discrete **6×6** grid memory env — solid bg + square (4 colors), square steps 1 cell/tick in 8 directions w/ wall reflection, same curtain occlusion. **Geometry: 3px border + 6×8px cells + 5×2px lines = 64; cell i interior at 3+10·i. The 10px cell stride is deliberately NOT a multiple of the tokenizer's 8px patch (anti-overfit, D-038).** Recall = 6×6 cell (chance 1/36) + 4-way color (crisp, no ΔRGB fuzz) |
 | `src/envs/bouncing.py` | `BouncingEnv` (unconditioned DVD-style sim) |
 | `src/datagen/generate_bouncing.py` | Bouncing dataset writer + viewer |
 | `src/datagen/generate_occluded.py` | Occluded (curtain) dataset writer + viewer |

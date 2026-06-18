@@ -35,7 +35,7 @@ one level deeper) and inserts `_SRC`.
 |------|------|-------|
 | `src/models/` | **Model architectures** | `dynamics_model.py` (active research), `tokenizer.py` (temporal tokenizer = the frozen `checkpoints/occluded/tokenizer.pt`), `single_image_ae.py` (baseline), `lm.py` (standalone char-LM) |
 | `src/training/` | **Training scripts** | `train_dynamics.py`, `train_tokenizer.py`, `train_single_image_ae.py`, `train_lm.py` |
-| `src/envs/` | **Environments** (steppable sims behind `BaseEnv`) | `base.py` (the ABC), `occluded_bouncing.py` (`OccludedBouncingEnv`), `bouncing.py` (`BouncingEnv`), `gridworld.py` (`GridWorldEnv` — discrete 8×8 grid memory env, D-032) |
+| `src/envs/` | **Environments** (steppable sims behind `BaseEnv`) | `base.py` (the ABC), `occluded_bouncing.py` (`OccludedBouncingEnv`), `bouncing.py` (`BouncingEnv`), `gridworld.py` (`GridWorldEnv` — discrete 6×6 grid memory env, D-032; 10px-stride cells anti-overfit the 8px tokenizer patch, D-038) |
 | `src/datagen/` | **Dataset generation + inspection** (drives envs → `.npy`) | `generate_occluded.py`, `generate_bouncing.py`, `generate_gridworld.py`, `example_read.py`. (Named `datagen`, NOT `data/`, to dodge the `.gitignore` `data/` artifact rule.) |
 | `src/evals/` | **Evaluation toolbox** (common Eval interface) | `base.py` (Eval ABC + REGISTRY + `load()`), `probe_env.py` (FROZEN episode builder), `revisit/` (FROZEN spine `probe.py` @ 5503e75 + RevisitEval), `position_consistency/` (FROZEN `consistency.py`), `motion/` (working curves + MotionEval), `rollout_view/` (`ab_view.py`) |
 | `src/tests/` | **Gate tests** (the dynamics-model safety net) | `test_kv_cache/stream_cache/ff7_smoke/ff9_smoke/multistep_smoke.py`, `test_gridworld.py` (GridWorld env, D-032) |

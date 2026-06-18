@@ -1110,3 +1110,28 @@ Would change my mind / tripwires: venv build fails (dependency/encoding bug) →
 node (no ~/.netrc) → surface + decide key vs netrc; rsync of the .pt fails → pull_results bug. Any of
 these is exactly what this rehearsal exists to catch before the real GridWorld run.
 Spawns: run `cluster-smoke` (infra validation row in EXPERIMENTS.md).
+
+## D-038 | 2026-06-18
+Context: Merlin flagged a tokenizer-overfit risk in GridWorld: the tokenizer patchifies in 8x8
+patches, and the old env used 8x8 cells (6px interior + 2px line, 8px stride) — patch grid aligned
+to cell grid, so the tokenizer can trivially overfit one cell per patch and get stuck in a bad local
+minimum. He specified a new geometry that breaks the alignment.
+Decision: Change GridWorldEnv geometry to **6x6 cells, 10px stride** (8x8 interior + 2px line), with
+a **3px black border** each side: 3 + 6*8 + 5*2 + 3 = 64. Cell i interior starts at pixel 3+10*i.
+The 10px cell stride is deliberately NOT a multiple of the tokenizer's 8px patch — cells straddle
+patch boundaries, so no patch maps to exactly one cell. Recall is now 6x6=36 cells (chance 1/36) +
+4-way color; 8 directions unchanged. Overwrote the env in place; regenerated gridworld.npy (3000x200)
+on the new env and DELETED all stale-env artifacts (old gridworld.npy + smoke subset + variants,
+checkpoints/gridworld/tokenizer.pt [trained on old env], experiments/EXP-023 recon, smoke log).
+Updated readout/recall (chance 1/36 derived from GRID_N), tests (geometry + chance assertions; the
+small grid's short bounce-recurrence period made the old "largest-k copy-last < 0.5" assertion brittle
+on a 1-event bin → switched to a support-weighted large-k average), CLAUDE.md/REPO_MAP.
+Validation: geometry pixel-exact (axis runs border3/[cell8,line2]x5/cell8/border3) + visual preview
+(experiments/gridworld_v2_preview/geometry.png) + both gate tests green (oracle 1.0, random≈1/36,
+copy-last decays 0.12@k1→0.17 weighted).
+Note (research): on the smaller 6x6 bouncing grid, copy-last's no-memory floor is a bit higher than
+on 8x8 (more position recurrence) — the memory task is marginally easier to fake via periodicity.
+Flag to watch when reading the first GridWorld baseline; not a blocker.
+Would change my mind: if 6x6 is so periodic that ballistic/periodic extrapolation trivially solves
+occluded position (copy-last/no-memory ≈ oracle) — then the env is too easy and needs more cells/state.
+Spawns: regenerated dataset; re-runs the (now-invalidated) tokenizer pipeline on the cluster.

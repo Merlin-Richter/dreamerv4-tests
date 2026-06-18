@@ -9,15 +9,18 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from envs.gridworld import (CURTAIN_COLOR, GRID_N, IMG_SIZE, PALETTE, VIS,  # noqa: E402
+from envs.gridworld import (BORDER, CURTAIN_COLOR, GRID_N, IMG_SIZE, PALETTE, VIS,  # noqa: E402
                             GridWorldEnv, cell_origin, interior_axis_mask)
 from datagen.generate_gridworld import generate_episode, make_curtain_schedule  # noqa: E402
 
 
-def test_geometry_uniform_6px_cells_and_borders():
-    """1px border + 8x(6px cell)+7x(2px line)+1px border = 64; every interior run is 6px."""
+def test_geometry_uniform_cells_and_borders():
+    """BORDER + GRID_N*(VIS cell) + (GRID_N-1)*(2px line) + BORDER = 64; interiors uniform VIS px,
+    internal lines 2px, borders BORDER px."""
     mask = interior_axis_mask()  # True = interior
-    assert mask[0] == False and mask[-1] == False, "outer border must be black (1px)"
+    assert len(mask) == IMG_SIZE
+    assert not mask[:BORDER].any() and not mask[-BORDER:].any(), f"outer border must be black ({BORDER}px)"
+    assert mask[BORDER], "first interior pixel should be right after the border"
     # run-length encode the interior/line alternation
     runs, cur, length = [], mask[0], 1
     for v in mask[1:]:
@@ -27,8 +30,11 @@ def test_geometry_uniform_6px_cells_and_borders():
             runs.append((bool(cur), length)); cur, length = v, 1
     runs.append((bool(cur), length))
     interiors = [ln for is_int, ln in runs if is_int]
+    lines = [ln for is_int, ln in runs if not is_int]
     assert interiors == [VIS] * GRID_N, f"expected {GRID_N} interiors of {VIS}px, got {interiors}"
-    print("[ok] geometry: uniform 6px cells, enclosed by 1px border")
+    assert lines[0] == BORDER and lines[-1] == BORDER, f"borders must be {BORDER}px, got {lines[0]},{lines[-1]}"
+    assert lines[1:-1] == [2] * (GRID_N - 1), f"internal lines must be 2px x{GRID_N-1}, got {lines[1:-1]}"
+    print(f"[ok] geometry: {GRID_N}x {VIS}px cells, 2px internal lines, {BORDER}px border = {IMG_SIZE}")
 
 
 def test_deterministic():

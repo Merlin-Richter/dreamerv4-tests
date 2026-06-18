@@ -1,7 +1,7 @@
 """Deterministic, closed-form readout of GridWorld frames.
 
 The whole reason for the discrete env (D-032): reading the hidden state out of a (predicted or
-true) frame is EXACT and self-contained, not a fuzzy blob detection. A frame has 64 cells; 63
+true) frame is EXACT and self-contained, not a fuzzy blob detection. A frame has 36 cells; 35
 are background and 1 is the square. So:
 
     inferred background = the MEDIAN cell color (robust to the single outlier square),
@@ -53,8 +53,8 @@ def read_square(frame: np.ndarray) -> dict:
         margin            : top1-top2 distance-from-bg over cells (confidence)
         is_occluded       : True if the frame looks like a flat curtain (no clear outlier cell)
     """
-    means = cell_mean_colors(frame)                       # (8,8,3)
-    flat = means.reshape(-1, 3)                            # (64,3)
+    means = cell_mean_colors(frame)                       # (GRID_N,GRID_N,3)
+    flat = means.reshape(-1, 3)                            # (GRID_N**2,3)
     bg = np.median(flat, axis=0)                           # inferred background color
     dist = np.sqrt(((flat - bg) ** 2).sum(-1))            # (64,) distance from bg
     order = np.argsort(dist)[::-1]

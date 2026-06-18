@@ -6,7 +6,7 @@ correctly the model must have RETAINED the hidden square through the occlusion. 
 is discrete, every quantity is scored exactly:
 
   PRIMARY (the headline curve, vs occlusion length k):
-    * position_acc[k]  = P(predicted square cell == true cell)          -- exact 8x8 recall
+    * position_acc[k]  = P(predicted square cell == true cell)          -- exact 6x6 recall
     * position_dist[k] = mean Chebyshev cell-distance error             -- graded partial credit
     * color_acc[k]     = P(predicted square color == true color)        -- 4-way identity recall
 
@@ -23,7 +23,7 @@ the ceiling are therefore just alternative frame sources fed to the SAME scorer:
     * oracle (true frames)        -> ceiling, must be position_acc==1.0  (instrument self-test)
     * copy-last (square frozen at its last observed cell) -> the NO-MEMORY reference; it decays as
       the true square moves away, so beating it is the operational definition of "has memory."
-    * chance                      -> 1/64 position, 1/4 color.
+    * chance                      -> 1/36 position, 1/4 color.
 The matched-horizon open-rollout control (model run curtain-UP for the same horizon) separates
 "can't track motion even in the clear" from "memory lost past the window" — it needs the model, so
 it lives in the Eval adapter, not this pure core.
@@ -39,7 +39,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # src/
-from envs.gridworld import PALETTE, GridWorldEnv, make_grid_background, stamp_square  # noqa: E402
+from envs.gridworld import GRID_N, PALETTE, GridWorldEnv, make_grid_background, stamp_square  # noqa: E402
 from evals.gridworld.readout import read_square  # noqa: E402
 
 _PAL = list(PALETTE.values())
@@ -171,7 +171,7 @@ def copylast_frames(states: np.ndarray, colors: np.ndarray, curtain: np.ndarray)
 
 def chance_levels() -> dict:
     """Analytic floors for reference lines."""
-    return {"position_acc": 1.0 / 64, "color_acc": 1.0 / len(_PAL), "bg_acc": 1.0 / len(_PAL)}
+    return {"position_acc": 1.0 / (GRID_N * GRID_N), "color_acc": 1.0 / len(_PAL), "bg_acc": 1.0 / len(_PAL)}
 
 
 # ---------------------------------------------------------------------------

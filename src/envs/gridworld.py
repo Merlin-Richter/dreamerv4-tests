@@ -2,16 +2,16 @@
 GridWorld occluded-memory environment — a clean, discrete, low-entropy memory env.
 
 Why this env (vs. OccludedBouncingEnv):
-  * **Discrete & solid, not fluid.** The world is an 8x8 grid drawn with black lines. A single
+  * **Discrete & solid, not fluid.** The world is a 6x6 grid drawn with black lines. A single
     square occupies exactly one cell and moves exactly one cell per tick. No sub-pixel
     positions, no continuous velocity, no textured gradient backgrounds. This makes recall a
     crisp classification problem rather than a fuzzy regression:
-        - position recall -> which of the 8x8=64 cells (exact-match accuracy), and
+        - position recall -> which of the 6x6=36 cells (exact-match accuracy), and
         - color recall    -> which of 4 colors (4-way accuracy),
     both measurable without the ΔRGB / sub-pixel noise the fluid env suffered from.
   * **Low, controlled entropy.** Background is ONE solid color from {red, green, blue, pink};
     the square is a DIFFERENT one of those four. Hidden state to retain across an occlusion is
-    therefore exactly: square color (4-way), square cell (8x8), and direction (1 of 8).
+    therefore exactly: square color (4-way), square cell (6x6), and direction (1 of 8).
   * **Same occlusion logic as OccludedBouncingEnv.** Two *absolute* actions set the curtain for
     the current frame:
         action[t] = 0 -> curtain UP   (revealed: grid + background + square visible)
@@ -19,10 +19,12 @@ Why this env (vs. OccludedBouncingEnv):
     The square keeps moving (with wall reflections) behind the curtain, so predicting the
     reveal frame requires integrating hidden position+direction across the occluded stretch.
 
-Geometry (64x64, chosen with Merlin):
-    1px outer border + 8 cells * 6px + 7 internal lines * 2px + 1px border = 64.
-    A pixel index `i` is INSIDE a cell interior iff ((i - 1) % 8) < 6; otherwise it is a black
-    line/border pixel. Every cell interior is a uniform 6x6 block.
+Geometry (64x64, chosen with Merlin — D-038):
+    3px border + 6 cells * 8px interior + 5 internal lines * 2px + 3px border = 64.
+    Cell `i`'s interior starts at pixel ``3 + 10*i`` and spans 8px; everything else is a black
+    line/border pixel. Every cell interior is a uniform 8x8 block. Cells are deliberately NOT
+    8px-stride-aligned to the tokenizer's 8x8 patch grid (8px interior + 2px line = 10px stride),
+    so the tokenizer cannot trivially overfit one cell per patch (the change's whole purpose).
 
 Convention: ``action[t]`` describes frame ``t`` (the curtain you observe at t), matching the
 per-frame action token to the frame it explains — identical to OccludedBouncingEnv.
@@ -43,9 +45,10 @@ from .base import BaseEnv
 # ---------------------------------------------------------------------------
 
 IMG_SIZE = 64
-GRID_N = 8        # cells per axis
-CELL = 8          # stride per cell (px): 6 interior + the line that precedes the next cell
-VIS = 6           # visible interior of each cell (px)
+GRID_N = 6        # cells per axis
+CELL = 10         # stride per cell (px): 8 interior + 2 line
+VIS = 8           # visible interior of each cell (px)
+BORDER = 3        # black border on each side (px)
 BLACK = (0, 0, 0)
 CURTAIN_COLOR = (128, 128, 128)  # neutral gray: distinct from black lines AND all 4 palette colors
 
@@ -59,18 +62,23 @@ PALETTE: dict[str, tuple[int, int, int]] = {
 COLOR_NAMES = tuple(PALETTE.keys())  # index <-> name mapping for 4-way recall
 
 
+def cell_origin(idx: int) -> int:
+    """Top-left interior pixel of cell `idx` (0..GRID_N-1) along one axis."""
+    return BORDER + CELL * idx
+
+
 def interior_axis_mask(img_size: int = IMG_SIZE) -> np.ndarray:
     """Boolean mask over one axis: True = cell interior, False = black line/border.
 
-    Layout: 1px border, then alternating 6px interior / 2px line, ending in a 1px border.
+    Layout: 3px border, then 8px interior / 2px line alternating (6 interiors, 5 internal
+    lines), ending in a 3px border: 3 + 6*8 + 5*2 + 3 = 64. Built explicitly per cell so
+    there are no modular edge cases.
     """
-    coords = np.arange(img_size)
-    return ((coords - 1) % CELL) < VIS
-
-
-def cell_origin(idx: int) -> int:
-    """Top-left interior pixel of cell `idx` (0..GRID_N-1) along one axis."""
-    return 1 + CELL * idx
+    mask = np.zeros(img_size, dtype=bool)
+    for idx in range(GRID_N):
+        o = cell_origin(idx)
+        mask[o:o + VIS] = True
+    return mask
 
 
 def make_grid_background(bg_color: tuple[int, int, int], img_size: int = IMG_SIZE) -> np.ndarray:
@@ -84,7 +92,7 @@ def make_grid_background(bg_color: tuple[int, int, int], img_size: int = IMG_SIZ
 
 
 def stamp_square(frame: np.ndarray, col: int, row: int, color: tuple[int, int, int]) -> None:
-    """In-place: fill cell (col,row)'s 6x6 interior with `color`."""
+    """In-place: fill cell (col,row)'s 8x8 interior with `color`."""
     y0, x0 = cell_origin(row), cell_origin(col)
     frame[y0:y0 + VIS, x0:x0 + VIS] = color
 
@@ -115,7 +123,7 @@ class GridWorldEnv(BaseEnv):
 
     def __init__(self, img_size: int = IMG_SIZE):
         if img_size != IMG_SIZE:
-            # Geometry constants assume the 64px / 8-cell layout.
+            # Geometry constants assume the 64px / 6-cell layout.
             raise ValueError(f"GridWorldEnv geometry is fixed at {IMG_SIZE}px (got {img_size}).")
         self.img_size = img_size
         self.rng = np.random.default_rng()

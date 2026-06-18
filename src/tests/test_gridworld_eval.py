@@ -4,7 +4,7 @@ The discrete env's payoff is that the readout is closed-form and provable:
   * on TRUE frames the readout recovers the exact (col,row,color,bg)  -> instrument is exact;
   * the ORACLE frame source scores position_acc == 1.0 at every k       -> ceiling sanity;
   * the COPY-LAST (no-memory) source decays with k and never beats oracle -> baseline is meaningful;
-  * a RANDOM-cell source sits at ~chance (1/64)                          -> floor sanity.
+  * a RANDOM-cell source sits at ~chance (1/36)                          -> floor sanity.
 If these hold, a real model's curve between copy-last and oracle is interpretable as "memory."
 
 Run:  python src/tests/test_gridworld_eval.py   (CPU only).
@@ -63,9 +63,15 @@ def test_copylast_decays_and_below_oracle():
     assert pa[ks[0]] < 1.0, f"copy-last should be imperfect even at k=1: {pa}"
     # color is static -> copy-last keeps it perfectly (sanity: memory of identity is trivial here)
     assert all(v == 1.0 for v in agg["color_acc"].values()), agg["color_acc"]
-    # large-k position accuracy should be low (square has wandered far)
-    assert pa[ks[-1]] < 0.5, f"copy-last position should be poor at large k: {pa}"
-    print(f"[ok] copy-last: pos_acc decays {pa[ks[0]]:.2f}@k{ks[0]} -> {pa[ks[-1]]:.2f}@k{ks[-1]}; "
+    # Large-k position accuracy should be low. On the small 6x6 grid the bounce has a short
+    # recurrence period, so a single-event large-k bin can coincidentally hit 1.0 -> assert a
+    # SUPPORT-WEIGHTED average over the upper half of k, which averages those spikes out.
+    nbk = agg["n_by_k"]
+    big_ks = [k for k in ks if k >= ks[len(ks) // 2]]
+    den = sum(nbk[k] for k in big_ks)
+    wavg = sum(pa[k] * nbk[k] for k in big_ks) / den
+    assert wavg < 0.5, f"copy-last large-k position should be poor (support-weighted {wavg:.3f}): {pa}"
+    print(f"[ok] copy-last: pos_acc {pa[ks[0]]:.2f}@k{ks[0]} -> large-k support-weighted {wavg:.2f}; "
           f"color stays 1.0 (static identity)")
 
 
@@ -89,8 +95,9 @@ def test_random_is_chance():
         recs += score_episode(random_frames(st, col, ac), st, col, ac)
     agg = aggregate(recs)
     overall = np.mean([r["pos_correct"] for r in recs])
-    assert overall < 0.05, f"random position acc should be ~1/64: {overall:.4f}"
-    print(f"[ok] random-cell source ~chance: overall pos_acc={overall:.4f} (1/64={1/64:.4f})")
+    chance = 1.0 / (GRID_N * GRID_N)
+    assert overall < 3 * chance, f"random position acc should be ~{chance:.4f}: {overall:.4f}"
+    print(f"[ok] random-cell source ~chance: overall pos_acc={overall:.4f} (1/{GRID_N*GRID_N}={chance:.4f})")
 
 
 def test_reflection_split_present():
