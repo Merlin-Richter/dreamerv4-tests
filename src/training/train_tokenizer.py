@@ -190,6 +190,85 @@ def run_test_checkpoint(args: argparse.Namespace) -> None:
     cv2.destroyAllWindows()
 
 
+def run_save_recon(args: argparse.Namespace) -> None:
+    """Headless: render N temporal input/reconstruction strips to a single PNG (no GUI).
+
+    Layout per clip: two rows (top=ground-truth input frames, bottom=reconstruction)
+    laid out left->right across the L timesteps. Clips are stacked vertically with a
+    thin separator. Reproducible via --seed. For async review of tokenizer quality,
+    including curtain/occlusion frames.
+    """
+    import cv2
+
+    if not args.checkpoint.is_file():
+        raise FileNotFoundError(f"Checkpoint not found: {args.checkpoint}")
+
+    rng = random.Random(args.seed)
+    raw = np.load(args.frames, mmap_mode="r")
+    if raw.ndim != 5 or raw.shape[-1] != 3:
+        raise ValueError(f"Expected (N, T, H, W, 3), got {raw.shape}")
+    n_eps, n_frames, h, w, _ = raw.shape
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    payload = torch.load(args.checkpoint, map_location=device, weights_only=False)
+    cfg = _config_from_checkpoint(payload["config"])
+    model = AutoEncoder(cfg).to(device)
+    model.load_state_dict(payload["model_state_dict"])
+    model.eval()
+
+    L = cfg.max_temporal_length
+    if n_frames < L:
+        raise ValueError(f"Episode length {n_frames} < context length {L}.")
+
+    sep = 3  # px separator (mid-gray) between rows/clips, pre-scale
+    gray = 128
+    total_mse = 0.0
+    clip_rows = []
+    for _ in range(args.n_samples):
+        ep = rng.randrange(n_eps)
+        start = rng.randrange(0, n_frames - L + 1)
+        clip_u8 = np.asarray(raw[ep, start : start + L])  # (L, H, W, 3) RGB uint8
+        clip = clip_u8.astype(np.float32) / 255.0
+        x = torch.from_numpy(clip).unsqueeze(0).to(device)
+        with torch.no_grad():
+            recon = model.decoder(model.encoder(x))
+        rec01 = recon[0].clamp(0, 1).cpu().numpy()  # (L, H, W, 3) RGB
+        total_mse += float(((rec01 - clip) ** 2).mean())
+
+        def strip(frames_rgb):  # (L, H, W, 3) -> BGR row with 1px gaps
+            cells = [cv2.cvtColor(f, cv2.COLOR_RGB2BGR) for f in frames_rgb]
+            row = []
+            for k, c in enumerate(cells):
+                if k:
+                    row.append(np.full((h, 1, 3), gray, np.uint8))
+                row.append(c)
+            return np.hstack(row)
+
+        inp_row = strip(clip_u8)
+        rec_row = strip((rec01 * 255).round().astype(np.uint8))
+        wbar = np.full((sep, inp_row.shape[1], 3), gray, np.uint8)
+        clip_rows.append(np.vstack([inp_row, wbar, rec_row]))
+
+    gap = np.full((sep * 3, clip_rows[0].shape[1], 3), 60, np.uint8)
+    stacked = clip_rows[0]
+    for cr in clip_rows[1:]:
+        stacked = np.vstack([stacked, gap, cr])
+
+    scale = max(2, 768 // stacked.shape[1])
+    big = cv2.resize(
+        stacked,
+        (stacked.shape[1] * scale, stacked.shape[0] * scale),
+        interpolation=cv2.INTER_NEAREST,
+    )
+    args.save_recon.parent.mkdir(parents=True, exist_ok=True)
+    cv2.imwrite(str(args.save_recon), big)
+    mean_mse = total_mse / args.n_samples
+    print(
+        f"Saved {args.n_samples} input/recon strips (L={L}) to {args.save_recon}  "
+        f"| mean per-pixel MSE over rendered clips: {mean_mse:.5f}"
+    )
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -212,6 +291,24 @@ def main():
         "--test-checkpoint",
         action="store_true",
         help="Load --checkpoint and open a window: random L-frame clip vs reconstruction; SPACE = new sample; q/Esc = quit. L = max_temporal_length from checkpoint.",
+    )
+    parser.add_argument(
+        "--save-recon",
+        type=Path,
+        default=None,
+        help="Headless: load --checkpoint, render N temporal input/reconstruction strips to this PNG (no GUI). For async review.",
+    )
+    parser.add_argument(
+        "--n-samples",
+        type=int,
+        default=4,
+        help="Number of clips to render for --save-recon.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="RNG seed for --save-recon clip selection (reproducible views).",
     )
     parser.add_argument(
         "--context-length",
@@ -255,6 +352,10 @@ def main():
 
     if args.test_checkpoint:
         run_test_checkpoint(args)
+        return
+
+    if args.save_recon is not None:
+        run_save_recon(args)
         return
 
     # Memory-mapped uint8; clips are converted to float32 per-batch in the dataset, so RAM
