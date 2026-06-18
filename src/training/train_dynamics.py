@@ -28,6 +28,7 @@ Interactive single-frame rollout (4-frame dynamics context, key 0/1 actions):
 """
 
 import argparse
+import os
 import random
 import sys
 import time
@@ -246,6 +247,13 @@ def main():
                              "the right env, e.g. checkpoints/gridworld/tokenizer.pt).")
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=None,
+        help="DataLoader worker processes. Default: auto from SLURM_CPUS_PER_TASK / os.cpu_count() "
+             "(capped at 8). 0 = synchronous load on the main thread (starves the GPU).",
+    )
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--checkpoint", type=Path,
                         default=_SRC.parent / "checkpoints" / "bouncing" / "dynamics.pt",
@@ -299,6 +307,8 @@ def main():
                              "--max-episodes of the fixed seed-0 train permutation (reproducible).")
     wlog.add_args(parser)
     args = parser.parse_args()
+    # Enable TF32 for any fp32 matmuls outside the bf16 autocast region (free on H100).
+    torch.set_float32_matmul_precision("high")
 
     if args.test_checkpoint:
         run_test_checkpoint(args)
@@ -375,8 +385,27 @@ def main():
     if len(train_ds) == 0 or len(val_ds) == 0:
         raise ValueError(f"No clips with L={chunk_len}; try shorter clips or smaller --val-offset.")
 
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
-    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False)
+    # DataLoader throughput (D-041): default num_workers=0 loads each batch synchronously on the main
+    # thread (memmap read + uint8->float32) while the GPU idles. Background workers + pinned memory +
+    # prefetch keep the GPU fed. num_workers auto-derives from the SLURM CPU allocation (request enough
+    # via submit_job --cpus); override with --num-workers. __getitem__ returns CPU tensors (the .to(device)
+    # is in _split_batch, in the loop), so workers are safe (no CUDA in subprocesses).
+    nw = args.num_workers
+    if nw is None:
+        if os.name == "nt":
+            nw = 0  # native-Windows local smokes: avoid spawn/memmap-pickle overhead (cluster is Linux)
+        else:
+            slurm_cpus = os.environ.get("SLURM_CPUS_PER_TASK")
+            nw = int(slurm_cpus) if slurm_cpus else (os.cpu_count() or 1)
+            nw = max(0, min(nw, 8))
+    pin = torch.cuda.is_available()
+    loader_kw = dict(num_workers=nw, pin_memory=pin)
+    if nw > 0:
+        loader_kw.update(persistent_workers=True, prefetch_factor=4)
+    print(f"DataLoader: num_workers={nw} pin_memory={pin}"
+          + (" prefetch_factor=4 persistent_workers=True" if nw > 0 else ""))
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, drop_last=True, **loader_kw)
+    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, **loader_kw)
 
     if args.checkpoint.is_file() and not args.fresh:
         payload = torch.load(args.checkpoint, map_location=device, weights_only=False)

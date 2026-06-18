@@ -416,9 +416,12 @@ def main():
     # CPU allocation (job MUST request enough --cpus, else workers contend); override with --num-workers.
     nw = args.num_workers
     if nw is None:
-        slurm_cpus = os.environ.get("SLURM_CPUS_PER_TASK")
-        nw = int(slurm_cpus) if slurm_cpus else (os.cpu_count() or 1)
-        nw = max(0, min(nw, 8))
+        if os.name == "nt":
+            nw = 0  # native-Windows local smokes: avoid spawn/memmap-pickle overhead (cluster is Linux)
+        else:
+            slurm_cpus = os.environ.get("SLURM_CPUS_PER_TASK")
+            nw = int(slurm_cpus) if slurm_cpus else (os.cpu_count() or 1)
+            nw = max(0, min(nw, 8))
     pin = torch.cuda.is_available()
     loader_kw = dict(num_workers=nw, pin_memory=pin)
     if nw > 0:
