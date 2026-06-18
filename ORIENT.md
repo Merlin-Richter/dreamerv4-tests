@@ -1,56 +1,60 @@
 # ORIENT.md
 
-Rewritten: 2026-06-18 (built the cluster wrapper scripts, T-003/D-035).
+Rewritten: 2026-06-18 (cold-start-ready: cluster live, GridWorld tokenizer training in flight).
 
-## What we are doing right now and why
-**Active task: cluster interface scripts (T-003), at Merlin's direction ("Its time to work on the
-cluster interface scripts").** This is the long-deferred wrapper layer (protocol §6) — needed because
-the GridWorld pipeline (tokenizer + vanilla dynamics on the full 6.9 GB set) is overnight/OOM territory
-on the 4070 (~25 h local for a 10-ep tokenizer). Building it implicitly resolves ESC-016 Q2 (compute
-tier = cluster).
+## What we're doing right now and why
+Building the **GridWorld discrete-memory pipeline on the cluster**. The cluster interface (T-003) is
+built + validated end-to-end; the env was reworked to a 6×6 anti-overfit geometry (D-038); the recall
+eval is built (D-040). **First real cluster training is IN FLIGHT** (the GridWorld tokenizer), which
+becomes the frozen backbone for the GridWorld dynamics model (the H2/H3 memory work, now on the clean
+discrete env).
 
-## Status — BUILT this session, awaiting Merlin for the live test
-- `scripts/` now holds all 9 verbs + `_common.sh` (connection core) + `cluster.env.example` +
-  `job_template.sbatch` + `open_master.sh` + `README.md`. D-035 records the design; `tasks/T-003-plan.md`
-  the plan. Offline-verified: arg/guard logic, the AUTH_DEAD/QUOTA/BAD_REF/BAD_CONFIG error contract
-  (machine-parseable first stderr line), and sbatch rendering (`submit_job.sh --dry-run`, incl. special
-  chars). Two clusters, **no default**: `ferranti` (H100) / `galvani` (A100); `--cluster` required.
-- **VALIDATED END-TO-END (D-037), via WSL.** Full mini pipeline ran green on ferranti (job 405555,
-  COMPLETED): venv-by-hash build (pip on the fixed UTF-8 requirements), `sync_code` checkout,
-  cluster datagen (gridworld_mini), tokenizer 1ep train, **W&B synced via the cluster's ~/.netrc**
-  (run 2n8ym02n), checkpoint `pull_results`'d back to the laptop, `clean_run` cleaned up. All verbs
-  exercised live (cancel_job guard offline-only — nothing cancellable). Connection = a reusable
-  ControlMaster socket that MUST live in **WSL** (D-036). Pre-req fixes folded: requirements.txt
-  UTF-16→UTF-8, repo-wide LF (.gitattributes), branch pushed to origin.
+## IN FLIGHT — tokenizer run (ferranti)
+- **Job 405629** `gridworld-tok-v2`, RUNNING (~ep6/30 at last check, ETA ~15:45, ~2.85 min/epoch,
+  95%+ GPU util after the D-041 perf fix). Provenance: feat/motion-prediction @ d5cef58, EXP-024.
+- Produces on the node: `runs/gridworld-tok-v2/tokenizer.pt` (per-epoch saved) + `recon.png`
+  (reconstruction strips). W&B run `gridworld-tok-v2` in project `transformer-C-tokenizer`.
 
-## Next action — the cluster is READY for the real GridWorld run
-T-003 is done. The cluster can now run the real GridWorld **tokenizer** (full data) — this is the
-ESC-016 Q2 payoff. NOT starting it unprompted: present-then-stop / awaiting Merlin's go (and note
-ESC-016 Q1, the eval-design sign-off, is still open — it gates the downstream dynamics RECALL eval,
-NOT tokenizer training). When greenlit: generate full gridworld data on the cluster (or reuse the
-local 6.9GB set?) → train tokenizer (LPIPS, ~10ep) → pull → then vanilla dynamics.
+## HOW TO OPERATE THE CLUSTER (read before touching it)
+- **All `scripts/` verbs run in WSL**, NOT Git Bash (shared ssh-socket namespace — D-036). Invoke:
+  `wsl.exe -e bash -lc "cd /mnt/c/Users/richt/OneDrive/Desktop/Code/transformer && bash scripts/<verb> ..."`.
+- Two clusters, no default: `--cluster ferranti` (H100, in use) / `galvani` (A100, unconfigured).
+- Master socket is opened by Merlin in WSL; `ERROR: AUTH_DEAD` → ask him to re-run `open_master.sh`.
+- `submit_job` default `--cpus 8` (needed — else SLURM gives cpu=2 and starves the GPU). bf16+TF32 on.
+- Run-tuning recipe (batch/epochs/venv/W&B) in `HOWTO/cluster.md` "Run tuning notes". `scripts/cluster.env`
+  was reconstructed this session (D-041 turn) after I deleted it; verified via cluster_health — if a
+  cluster field misbehaves, suspect a reconstructed value.
 
-## GridWorld env CHANGED (D-038, 2026-06-18) — geometry reworked
-- Merlin: the old 8×8 cells (8px stride) aligned to the tokenizer's 8×8 patches → overfit risk.
-  New geometry: **6×6 cells, 10px stride** (8px interior + 2px line) + 3px border = 64. Cell stride
-  (10) ≠ patch (8), so cells straddle patches. Recall now 6×6 (chance 1/36) + 4-way color.
-- Env overwritten in place; **gridworld.npy regenerated** (3000×200, new env, ~16s, occ 0.50);
-  ALL stale-env artifacts DELETED: old data + smoke subset, `checkpoints/gridworld/tokenizer.pt`
-  (trained on old env → INVALID), `experiments/EXP-023/`, smoke log. Eval (readout/recall, chance
-  from GRID_N), tests, CLAUDE.md/REPO_MAP updated. Geometry verified pixel-exact + visual
-  (`experiments/gridworld_v2_preview/geometry.png`) + both gate tests green.
-- **The prior GridWorld tokenizer SMOKE (W&B zjvhcn4s) is now INVALID** (old env). Re-run needed.
-- **ESC-016 Q1 STILL PENDING:** GridWorld eval *design* sign-off (D-033, position-first) — unchanged
-  by the geometry tweak (still position-first, now 6×6/chance 1/36). Don't freeze/ wire adapter until blessed.
-- Uncommitted `src/training/train_tokenizer.py` (+101 lines) still belongs to the GridWorld thread —
-  left untouched (the COMMITTED train_tokenizer already supports --wandb/--lpips, enough for the real run).
+## NEXT ACTIONS (in order)
+1. **When 405629 finishes:** `job_status`/`fetch_logs` confirm COMPLETED → `pull_results --cluster
+   ferranti gridworld-tok-v2 --what checkpoints` (gets tokenizer.pt + recon.png) → review the recon
+   strips → **present-then-stop** (this is the frozen GridWorld tokenizer; check recon quality + no
+   latent collapse: val MSE was ~0.004, latent_cos healthy in the cancelled twin).
+2. **Then: vanilla GridWorld dynamics on the cluster** (record a decision first). Uses the frozen
+   tokenizer. `train_dynamics.py` is perf-fixed (D-041) BUT **re-profile its batch size** — it trains
+   in latent space (frozen-tokenizer encode per step), a different compute profile than the LPIPS
+   tokenizer's bs64. Watch util on the first run.
+3. **Then: wire the eval model-adapter.** `src/evals/gridworld/recall.py` is frame-source based
+   (oracle/copy-last built); add a dynamics-rollout frame source → run recall curves (graded position
+   + ball/bg color) vs occlusion k → compare to copy-last/oracle. Then decide the periodic-W&B-during-
+   training eval with Merlin.
 
-## Current worries
-1. Connection model now CONFIRMED (read-only) — must always run cluster verbs in WSL, never Git Bash
-   (separate socket namespaces; that mismatch caused the first AUTH_DEAD). Documented; stay disciplined.
-2. Mutating pipeline (submit/sacct/logs/wait/pull) still unverified — needs the one trivial smoke job.
-3. GridWorld eval still unblessed (ESC-016 Q1) — gates the downstream dynamics eval, not tokenizer training.
+## EVAL (D-040) — built + validated, NOT frozen
+Headline = graded `position_score` (exact=1.0, adjacent=0.25, →0 by Chebyshev d=3) + `position_acc`
+(exact, chance 1/36); ball + bg 4-way color via most-different-cell detection; per-k counts + SE.
+Self-validates (oracle 1.0, random≈analytic chance 0.086, copy-last decays). **KEY FINDING:** the 6×6
+bounce has period 2·(6−1)=**10**, so copy-last (no-memory) spikes to **1.0 at k≡9 (mod 10)**. ⇒ judge
+memory by beating copy-last *per k*; for the periodic W&B eval pick occlusion lengths OFF that grid
+(e.g. k∈{3,6,12,16}). A single averaged scalar would be inflated by the periodic spikes.
 
-## Parked (pre-pivot threads — resume only if Merlin redirects)
+## Open escalations / worries
+- **ESC-016 Q1 OPEN:** GridWorld eval design sign-off + freeze + periodicity handling + where to put
+  the periodic-W&B eval. (Q2 compute-tier = cluster, answered.) Merlin gave the refined spec (D-040);
+  awaiting his "freeze it / here's where to use it."
+- **Tripwire (D-038):** if periodic/ballistic extrapolation ≈ oracle on position even off-period, the
+  6×6 env is too easy → add cells/state.
+- Dynamics batch-size re-profile (above).
+
+## Parked (pre-pivot; resume only if Merlin redirects)
 - C1/motion (EXP-021 ckpt ~ep10), exposure-bias/open-loop compounding. ESC-014 op-3 relay open.
-- Occluded-line H3 (FF7 color SUPPORTED; FF9 v2 static-color SUPPORTED; position open). Under checkpoints/occluded/.
+- Occluded-line H3 (FF7 color SUPPORTED; FF9 v2 static-color SUPPORTED; position open). checkpoints/occluded/.

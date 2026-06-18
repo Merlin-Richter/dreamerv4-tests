@@ -929,3 +929,10 @@ Resolution (partial, 2026-06-18):
 
 Still awaiting: (a) Q1 eval sign-off; (b) Merlin to fill `scripts/cluster.env` + open the master
 socket so the cluster wrappers can be live-tested before the first real cluster job.
+
+Update (2026-06-18, later): (b) DONE — cluster live, T-003 validated end-to-end, first real tokenizer
+run in flight (job 405629). (a) Q1 PROGRESSED — Merlin gave a refined eval spec, built as D-040
+(graded position_score + ball/bg colour + per-k stats; validated). STILL OPEN for Q1: formally
+FREEZE the eval + decide periodicity handling (copy-last spikes to 1.0 at k≡9 mod 10 on the 6×6 env →
+judge per-k; periodic-W&B eval should use off-grid k like {3,6,12,16}) + where to wire the during-
+training W&B eval. Tokenizer training does not need this; the dynamics recall eval does.

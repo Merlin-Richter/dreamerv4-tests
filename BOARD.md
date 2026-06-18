@@ -1,30 +1,37 @@
 # BOARD.md — task board
 
-Updated: 2026-06-16 (PIVOT to GridWorld discrete env — D-032; tokenizer smoke training in flight)
+Updated: 2026-06-18 (cluster live; GridWorld env reworked D-038; tokenizer training in flight on ferranti)
 
-## Done (2026-06-18) — cluster interface scripts (T-003 / D-035/036/037)
-- **T-003 — cluster wrappers BUILT + VALIDATED END-TO-END.** `scripts/` (9 verbs + `_common.sh` +
-  `cluster.env.example` + `job_template.sbatch` + `open_master.sh` + README). Clusters ferranti(H100)/
-  galvani(A100), no default. **Standardized on WSL** (D-036 — shared ssh socket namespace). Full mini
-  pipeline green on ferranti (job 405555): venv build, sync_code, cluster datagen, train, W&B (via
-  ~/.netrc), pull_results, clean_run. Pre-req fixes: requirements.txt UTF-16→UTF-8, repo-wide LF,
-  branch pushed. Plan: tasks/T-003-plan.md; row INFRA-clustersmoke. **Cluster ready for real GridWorld run.**
+## In progress (2026-06-18)
+- **GridWorld tokenizer on ferranti — RUNNING (job 405629, EXP-024).** 30ep bs64 LPIPS(vgg), 95% util
+  (D-041 perf fix), ETA ~15:45 → `runs/gridworld-tok-v2/{tokenizer.pt,recon.png}`. NEXT on completion:
+  pull_results --what checkpoints → review recon → present-then-stop (frozen GridWorld tokenizer).
 
-## Awaiting Merlin (cluster next step)
-- **Greenlight the real GridWorld tokenizer run on the cluster** (ESC-016 Q2 payoff). Open question:
-  generate full data on the cluster vs reuse the local 6.9GB set. (ESC-016 Q1 eval sign-off still open
-  — gates the dynamics recall eval, not tokenizer training.)
-
-## In progress (2026-06-16, GridWorld pivot — D-032)
-- **GridWorld tokenizer smoke — RUNNING.** 10ep bs32 MSE fresh → `checkpoints/gridworld/tokenizer.pt`
-  (log `experiments/_gridworld_tok_smoke.log`). Hard prereq for the vanilla-dynamics smoke Merlin asked
-  for (dynamics trains in latent space). NEXT: verify reconstruction → train vanilla dynamics 10ep →
-  present-then-stop.
+## Next (after the tokenizer lands)
+- **Vanilla GridWorld dynamics on the cluster** (record a decision first). Frozen tokenizer; train_dynamics
+  perf-fixed (D-041) but RE-PROFILE batch (latent-space compute profile ≠ tokenizer bs64).
+- **Wire the eval model-adapter** (recall.py is frame-source based; add a dynamics-rollout source) → recall
+  curves (graded position + ball/bg colour) vs k → vs copy-last/oracle. Then periodic-W&B eval with Merlin.
 
 ## Awaiting Merlin
-- **D-033 GridWorld eval design — PENDING SIGN-OFF.** Headline = position recall acc vs occlusion k
-  (exact 8x8) + color 4-way; diagnostics + oracle/copy-last/chance refs. Built & instrument-validated
-  (`src/evals/gridworld/`, test_gridworld_eval.py). NOT frozen until Merlin blesses the scoring choices.
+- **ESC-016 Q1 — GridWorld eval sign-off / freeze.** Refined eval BUILT (D-040): graded position_score
+  (exact=1/adj=0.25/→0@d3) + exact acc (chance 1/36) + ball/bg 4-way colour + per-k counts/SE; validated
+  (oracle 1.0, random≈chance, copy-last decays). **Periodicity finding:** copy-last spikes to 1.0 at
+  k≡9 (mod 10) (6×6 bounce period 10) → judge per-k; periodic W&B eval should use off-grid k {3,6,12,16}.
+  Pending: freeze + where to use. (Q2 compute=cluster, answered.)
+
+## Done (2026-06-18)
+- **D-038 — GridWorld geometry reworked to 6×6 / 10px stride** (anti tokenizer-8px-patch overfit). Env
+  overwritten, data regenerated, stale artifacts deleted, eval/tests/docs updated, geometry verified.
+- **D-040 — GridWorld recall eval built** (graded position + colour + stats), validated; periodicity finding.
+- **D-041 — GPU-starvation fix** (DataLoader workers + submit_job --cpus 8 + TF32; bf16 already on);
+  applied to BOTH train_tokenizer + train_dynamics; ~3× throughput (67→200 smp/s) confirmed. Windows-safe default.
+- **T-003 / D-035/036/037 — cluster wrappers BUILT + VALIDATED end-to-end** (WSL-standardized; mini pipeline
+  green on ferranti; requirements.txt UTF-16→UTF-8, repo-wide LF). Plan: tasks/T-003-plan.md.
+
+## Superseded
+- **D-033 GridWorld eval design (8×8)** — SUPERSEDED by D-040 (Merlin's refined spec: graded position +
+  ball/bg colour) and D-038 (6×6 env, chance 1/36). See the "Awaiting Merlin / ESC-016 Q1" block above.
 
 ## Done (2026-06-16, GridWorld pivot)
 - **T-020 — GridWorld env + datagen + recall eval.** `src/envs/gridworld.py` (GridWorldEnv),
