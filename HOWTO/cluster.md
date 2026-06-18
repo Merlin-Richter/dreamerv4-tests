@@ -36,6 +36,23 @@ built/reused on the node keyed on `sha256(requirements.txt)`.
 
 **Live-tested end-to-end** (2026-06-18, ferranti): full pipeline (datagen → train → W&B → pull) green.
 
+### Get notified when a cluster job finishes (do this after EVERY submit)
+The harness re-invokes the orchestrator when a `run_in_background` task exits. `wait_for_jobs.sh`
+blocks until the job reaches a terminal state, so **launch it as a background task** and the harness
+notifies you on completion — exactly like a local training run. One command (note the `wsl.exe` wrap —
+the scripts MUST run in WSL for the shared ssh-socket namespace):
+
+```
+wsl.exe -e bash -lc "cd /mnt/c/Users/richt/OneDrive/Desktop/Code/transformer && bash scripts/wait_for_jobs.sh --cluster ferranti <JOBID> --poll 60"
+```
+
+with `run_in_background: true`. Exit codes tell you what happened without re-polling: **0** = all
+COMPLETED (→ pull results, present-then-stop); **7** = a job FAILED/TIMEOUT/CANCELLED/OOM or a
+Traceback/CUDA-OOM appeared in its log (→ fetch_logs, diagnose); **3** = `AUTH_DEAD`, the master
+socket died mid-wait (→ ask Merlin to re-open it, then relaunch the watcher). The watcher tolerates
+transient ssh blips (3 consecutive poll failures before it declares AUTH_DEAD) so a network hiccup
+won't kill it. `--poll 60` is gentle on the scheduler; the default is 30s.
+
 ## Run tuning notes (learned 2026-06-18, EXP-024 / D-041 — read before the next cluster run)
 - **Always pass enough CPUs.** `submit_job.sh --cpus N` → `#SBATCH --cpus-per-task=N` (default 8).
   Without it SLURM gives `cpu=2` and the DataLoader (num_workers auto = `SLURM_CPUS_PER_TASK`, cap 8)

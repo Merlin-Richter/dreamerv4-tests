@@ -26,10 +26,25 @@ require_master
 IDS=("${WRAP_ARGS[@]}")
 idcsv="$(IFS=,; echo "${IDS[*]}")"
 
+# Tolerate transient ssh blips, but if the master socket dies mid-wait (Merlin's 2FA
+# session expiring during a long run) detect it and exit AUTH_DEAD instead of looping
+# forever reading every job as PENDING — otherwise a backgrounded watcher never notifies.
+FAILS=0; MAX_FAILS=3
 log "waiting on $CLUSTER jobs ${idcsv} (poll ${POLL}s)"
 while true; do
-  # state per job from sacct (-X = allocation row only)
-  states="$(ssh_cluster "sacct -j '$idcsv' -X -n --format=JobID%20,State%20 2>&1")" || true
+  # state per job from sacct (-X = allocation row only). Capture ssh's own stderr too
+  # (socket-dead messages) so a failed poll is detected, not swallowed by `|| true`.
+  if ! states="$(ssh_cluster "sacct -j '$idcsv' -X -n --format=JobID%20,State%20" 2>&1)"; then
+    FAILS=$((FAILS + 1))
+    log "sacct poll failed (${FAILS}/${MAX_FAILS}): ${states:-<no output>}"
+    scan_quota "$states"
+    if [ "$FAILS" -ge "$MAX_FAILS" ]; then
+      require_master  # exits AUTH_DEAD if the socket is gone (the expected cause)
+      die "sacct on $CLUSTER failed ${FAILS}x but the master socket is alive — investigate (sacct/slurmdbd outage?)" 7
+    fi
+    sleep "$POLL"; continue
+  fi
+  FAILS=0
   scan_quota "$states"
   all_done=1
   for id in "${IDS[@]}"; do

@@ -14,6 +14,10 @@ discrete env).
   95%+ GPU util after the D-041 perf fix). Provenance: feat/motion-prediction @ d5cef58, EXP-024.
 - Produces on the node: `runs/gridworld-tok-v2/tokenizer.pt` (per-epoch saved) + `recon.png`
   (reconstruction strips). W&B run `gridworld-tok-v2` in project `transformer-C-tokenizer`.
+- **Completion watcher ARMED:** `wait_for_jobs.sh --cluster ferranti 405629 --poll 60` is running as a
+  background task → the harness wakes me on terminal state (0=COMPLETED, 7=failed/crash, 3=AUTH_DEAD).
+  This is now the standard pattern after every submit (HOWTO/cluster.md "Get notified when a cluster
+  job finishes"); wait_for_jobs.sh hardened to exit AUTH_DEAD on mid-wait socket death instead of hanging.
 
 ## HOW TO OPERATE THE CLUSTER (read before touching it)
 - **All `scripts/` verbs run in WSL**, NOT Git Bash (shared ssh-socket namespace — D-036). Invoke:
