@@ -1,0 +1,5 @@
+# Shell scripts MUST stay LF — they run in Git Bash / on the cluster; CRLF breaks
+# bash (`$'\r': command not found`) and the sbatch shebang. (T-003 / D-035)
+*.sh        text eol=lf
+*.sbatch    text eol=lf
+scripts/**  text eol=lf

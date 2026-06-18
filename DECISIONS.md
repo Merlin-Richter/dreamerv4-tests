@@ -1034,3 +1034,33 @@ as provenance of what the paths WERE.
 Would change my mind: if a frozen experiment rerun needs the old root path, pass it explicitly (the
 artifact is external/gitignored; D-031 checkout-to-rerun semantics unaffected by logic).
 Spawns: T-021 (done).
+
+## D-035 | 2026-06-18
+Context: Merlin: "Its time to work on the cluster interface scripts." This is the long-deferred T-003
+(BOARD "Deferred until H3 needs heavy training"; protocol §6 defines 9 wrapper verbs as the ONLY
+sanctioned cluster interface). Now needed: the GridWorld pipeline (tokenizer+vanilla dynamics on the
+full 6.9GB set) is overnight/OOM territory on the 4070 (~25h local for a 10-ep tokenizer) → cluster.
+This implicitly resolves ESC-016 Q2 (compute tier = cluster). Discovery: NO ssh config, NO cluster
+host aliases, NO ControlMaster socket, NO checked-in sbatch script, NO lockfile — all cluster access
+has been manual by Merlin, so site specifics must come from him.
+Decision: Build `scripts/` per §6 — a single connection helper `_common.sh` (ssh over a Merlin-
+authenticated ControlMaster socket; machine-parseable first-stderr-line error contract AUTH_DEAD/
+QUOTA/BAD_REF/BAD_CONFIG; NEVER re-auth), all site specifics isolated into one `scripts/cluster.env`
+(two stanzas), an sbatch template with a venv-by-sha256(requirements.txt) prologue, and the 9 verbs
+(sync_code, submit_job, job_status, fetch_logs, wait_for_jobs, pull_results, cancel_job [refuses ids
+not in EXPERIMENTS.md], cluster_health [reports BOTH clusters], clean_run [restricted to runs/ subtree]).
+Merlin's answers (2026-06-18): NO default cluster — two named clusters **feranti (H100)** and
+**galvani (A100)**, `--cluster` REQUIRED (choice depends on his live fairshare+queue); code sync =
+remote git fetch + checkout from origin. Strategy: the config file IS the question — build the whole
+scaffold now (touches nothing on the cluster), Merlin fills cluster.env + opens the socket, then test
+Phase 1 (read-only verbs) live before anything mutating.
+Alternatives rejected: raw ssh/sbatch ad hoc (violates §6, the wrappers ARE the sandboxed interface);
+rsync-push code sync (Merlin chose remote fetch+checkout — cleaner SHA provenance); a hardcoded default
+cluster (Merlin: pick depends on live load).
+Expected outcome: a complete, committed `scripts/` layer; `cluster_health.sh` + `job_status.sh` run
+clean against the live socket once Merlin fills cluster.env and authenticates; first real job = the
+GridWorld tokenizer on the chosen cluster.
+Would change my mind: if the actual login flow is NOT a reusable ControlMaster socket (e.g. a token
+that must be minted per-command, or a jump host that breaks multiplexing) — then the connection helper
+needs rework and I escalate before building on it.
+Spawns: T-003 build (Phase 1 read-only verbs → Phase 2 submit/sync → Phase 3 fetch/wait/pull/cancel/clean).
