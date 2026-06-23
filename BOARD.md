@@ -5,13 +5,14 @@ Updated: 2026-06-18 (cleanup pass: completed/historical entries moved to `BOARD-
 > Live task state only: in-progress / next / awaiting-Merlin / parked / blocked.
 > Completed, superseded, and dropped work lives in `BOARD-archive.md` (grep there for history).
 
-## HALT — tokenizer EXP-024 FAILED (ball dropped)
-- **GridWorld tokenizer EXP-024 — FAT FAIL (job 405629 COMPLETED but unusable).** Aggregate metrics
-  healthy-looking, but recon drops the ball entirely (background-only; sparse-target local optimum).
-  Latents carry no ball info → blocks all downstream memory work. Evidence: `experiments/gridworld-tok-v2/`
-  recon.png + _block0/_block2.png. NOT frozen; checkpoints/gridworld/ stays empty.
-- **NEXT (aligning fix with Merlin):** foreground-weighted recon loss (upweight ball/non-bg pixels) + add a
-  ball-region recon metric to W&B (never trust aggregate MSE for a sparse object again) → retrain on cluster.
+## IN FLIGHT — EXP-025 tokenizer v3 (job 408737, ferranti)
+- **GridWorld tokenizer v3 (D-043), W&B gridworld-tok-v3, branch @ 725a988.** Fixes EXP-024, which was
+  re-diagnosed (from its W&B curve) as a **loss explosion** (val/mse 6e-4@ep9 → 62×@ep10, recovered worse;
+  single-ckpt overwrite discarded the good ep9 model) — NOT sparse-target collapse.
+- **Fix:** adam-beta2 0.95 + grad-spike skip 5× + per-step grad-norm logging + best-checkpoint by
+  val/fg_mse + modest --fg-weight 10. Background completion watcher running; ETA ~1.5–2h.
+- **Gate (Merlin):** report success ONLY when recon strips VISIBLY show the colored square (right cell +
+  colour ≠ bg) — do NOT trust low MSE. Then freeze → checkpoints/gridworld/tokenizer.pt.
 
 ## Next (after a working tokenizer exists)
 - **Grad-clip fix for train_dynamics.py** (unclipped at lines 466–468; tokenizer+LM already clip at

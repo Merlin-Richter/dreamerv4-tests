@@ -1,27 +1,27 @@
 # ORIENT.md
 
-Rewritten: 2026-06-18 (cold-start-ready: cluster live, GridWorld tokenizer training in flight).
+Rewritten: 2026-06-23 (EXP-025 GridWorld tokenizer v3 IN FLIGHT on ferranti, job 408737).
 
 ## What we're doing right now and why
 Building the **GridWorld discrete-memory pipeline on the cluster**. The cluster interface (T-003) is
-built + validated end-to-end; the env was reworked to a 6×6 anti-overfit geometry (D-038); the recall
-eval is built (D-040). **First real cluster training is IN FLIGHT** (the GridWorld tokenizer), which
-becomes the frozen backbone for the GridWorld dynamics model (the H2/H3 memory work, now on the clean
-discrete env).
+built + validated; env reworked to a 6×6 anti-overfit geometry (D-038); recall eval built (D-040).
+Getting a USABLE frozen tokenizer (one whose latents encode the moving square, not background-only)
+is the gate to the GridWorld dynamics / H2-H3 memory work. EXP-024 failed; EXP-025 is the fixed retry.
 
-## HALT — tokenizer run (ferranti) FAILED: ball dropped (sparse-target collapse)
-- **Job 405629** `gridworld-tok-v2` COMPLETED 0:0, 1:23:05, EXP-024 — but it is a **FAT FAIL**, NOT a
-  usable backbone. Aggregate metrics looked healthy (val MSE 0.00364, latent_cos 0.217, pred_std 0.362,
-  LPIPS 0.013), but the recon **drops the ball entirely**: background+grid perfect, blue ball absent in
-  every recon frame, all bg colors (evidence: experiments/gridworld-tok-v2/_block0.png, _block2.png).
-- **Root cause:** ball ≈1/36 cells (~1% of pixels) → per-pixel MSE+LPIPS has near-zero gradient for it,
-  so the tokenizer found the trivial local optimum of reconstructing only the static background. The
-  aggregate MSE metric is BLIND to this (I wrongly read it as success; Merlin caught it visually). The
-  latents therefore encode NO ball position/color — every downstream memory experiment would be on sand.
-- **Fix direction (to align with Merlin):** foreground-weighted reconstruction loss (upweight the moving
-  ball / non-background pixels) + ADD a ball-region recon metric to W&B so aggregate MSE can never mislead
-  again. Then retrain. Do NOT freeze; checkpoints/gridworld/ stays empty.
-- **Completion watcher pattern VALIDATED end-to-end** (woke me on exit 0; that part worked).
+## IN FLIGHT — EXP-025 tokenizer v3 (job 408737, ferranti, W&B gridworld-tok-v3)
+- D-043 fix for the EXP-024 failure. **Re-diagnosis (from EXP-024's W&B curve 5d38b2nc): it was a LOSS
+  EXPLOSION, not sparse-target collapse.** val/mse fell to 6.1e-4 @ep9 (ball WAS being learned;
+  latent_cos 0.29) → **exploded @ep10 (val/mse 62×)** → recovered only to a worse ~0.0037 plateau it
+  never escaped. The single-checkpoint overwrite discarded the good ep9 model; the "dropped ball" recon
+  was from the post-explosion ep29 ckpt. Mechanism: Adam 2nd-moment shrinks at the loss min → one batch
+  lands an oversized step; clip_grad_norm(1.0) clips the grad, not the Adam step, so it doesn't catch it.
+- **Fix shipped (725a988):** adam-beta2 0.95 (mechanistic) + grad-spike skip 5× (backstop) + per-step
+  grad-norm/loss W&B logging (explosion now VISIBLE) + best-checkpoint by val/fg_mse (canonical
+  tokenizer.pt = best ball-encoding model; explosion can't discard it) + modest --fg-weight 10 (nudge,
+  not the fix). Else identical to EXP-024 (datagen 3000×200 → 30ep bs64 lr3e-4 LPIPS-vgg → recon strips).
+- **Merlin's gate: report success ONLY when the recon strips VISIBLY show the colored square at the
+  right cell+colour, distinct from background — do NOT trust low MSE.** Then it can be frozen.
+- ETA ~1.5–2h (EXP-024 train was 1:23). Background completion watcher running.
 
 ## HOW TO OPERATE THE CLUSTER (read before touching it)
 - **All `scripts/` verbs run in WSL**, NOT Git Bash (shared ssh-socket namespace — D-036). Invoke:
@@ -34,10 +34,11 @@ discrete env).
   cluster field misbehaves, suspect a reconstructed value.
 
 ## NEXT ACTIONS (in order)
-1. **When 405629 finishes:** `job_status`/`fetch_logs` confirm COMPLETED → `pull_results --cluster
-   ferranti gridworld-tok-v2 --what checkpoints` (gets tokenizer.pt + recon.png) → review the recon
-   strips → **present-then-stop** (this is the frozen GridWorld tokenizer; check recon quality + no
-   latent collapse: val MSE was ~0.004, latent_cos healthy in the cancelled twin).
+1. **When 408737 finishes:** confirm COMPLETED → `pull_results --cluster ferranti gridworld-tok-v3`
+   (tokenizer.pt + recon.png) + fetch W&B curve (grad_norm bounded? no explosion? val/fg_mse dropped?
+   val/mse < ep9's 6e-4?). **VERIFY the ball is visibly reconstructed (right cell + a colour ≠ bg) — do
+   NOT trust low MSE.** If good → report to Merlin (he asked to be told when it works) + freeze to
+   checkpoints/gridworld/tokenizer.pt. If it exploded again or ball still dropped → see D-043 tripwires.
 2. **Then: vanilla GridWorld dynamics on the cluster** (record a decision first). Uses the frozen
    tokenizer. `train_dynamics.py` is perf-fixed (D-041) BUT **re-profile its batch size** — it trains
    in latent space (frozen-tokenizer encode per step), a different compute profile than the LPIPS

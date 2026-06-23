@@ -1226,3 +1226,55 @@ Would change my mind / tripwires: if even high alpha can't bring the ball back, 
 or MAE-mask is the constraint, not the loss → revisit capacity/MAE (less likely — capacity easily fits
 bg(4)+ballcolor(4)+ballcell(36)). If fg mask is dominated by the curtain/occlusion rather than the ball,
 tighten thresh or restrict to reveal frames. Spawns: train_tokenizer.py changes + local validation EXP.
+
+## D-043 | 2026-06-23
+Context: Merlin reported (from watching the W&B dashboard) that the failed GridWorld tokenizer had a
+LOSS EXPLOSION mid-training — loss went really low, then exploded, then recovered to a WORSE final
+value. I pulled the EXP-024 W&B curve (run 5d38b2nc) and it confirms + RE-DIAGNOSES the D-042 failure:
+  epoch  8: val/mse 0.00226, latent_cos 0.37
+  epoch  9: val/mse 0.000613, latent_cos 0.29   <- BEST; latents becoming content-bearing (the ball)
+  epoch 10: val/mse 0.0380 (62x), train/mse 0.0387 (17x), pred_std 0.37->0.25   <- EXPLOSION
+  epoch 11-12: partial recovery (val back to ~0.004 by ep12)
+  epoch 13-29: plateau at val/mse ~0.0037, NEVER returns below the ep9 0.0006  <- recovered worse
+The "dropped ball" recon strips were rendered from the POST-explosion ep29 checkpoint. So the EXP-024
+read ("pure sparse-target gradient collapse, plateaued ~ep3") was WRONG: plain MSE+LPIPS WAS learning
+the ball (val/mse fell 6x below the background-only floor by ep9), an instability destroyed it, and the
+single-checkpoint OVERWRITE threw the good ep9 model away. Mechanism (textbook): at the loss minimum the
+Adam 2nd-moment v shrinks, so the effective step lr/sqrt(v) grows until one batch lands an oversized
+update -> blowup. clip_grad_norm_(1.0) (already on, line 681) does NOT catch this — it clips the
+gradient, not the Adam-scaled step. Grounded in code: optimizer was AdamW default betas (0.9, 0.999);
+logging was per-EPOCH only (step=epoch) with grad-norm never logged; checkpoint overwritten every epoch.
+Decision (fix = stability + observability + safety net; foreground weighting kept but DEMOTED to a nudge):
+  (1) STABILITY (mechanistic): AdamW beta2 -> 0.95 (faster-adapting v, the direct fix for the
+      low-loss blowup; passed explicitly for this run, arg default left 0.999 so frozen
+      bouncing/occluded reproducibility is untouched). eps arg exposed (default 1e-8) as a secondary
+      knob if needed.
+  (2) STABILITY (backstop): --grad-spike-mult (=5.0 this run): capture the pre-clip grad norm; skip
+      opt.step() (zero_grad, advance scheduler) when the norm is non-finite or exceeds 5x its running
+      EMA after the warmup grace. Catches the spike-shaped manifestation; beta2 catches the cause.
+  (3) SAFETY NET (directly fixes Merlin's pain): best-checkpoint by val/fg_mse (the ball-region recon
+      guard, D-042) -> canonical --checkpoint holds the BEST ball-encoding model; a _last.pt holds the
+      last. An explosion can never again discard the good model (we'd have kept ep9).
+  (4) OBSERVABILITY: per-step W&B logging (--log-every 50) of train/step_mse, train/step_loss,
+      train/grad_norm(+ema), cumulative skips — so an intra-epoch explosion is VISIBLE (30 epoch points
+      could not show it). Switched tokenizer W&B logging to auto-step with explicit global_step/epoch
+      fields (per-step + per-epoch share one monotonic axis).
+  (5) FOREGROUND WEIGHTING kept but MODEST (--fg-weight 10, was going to be 30): the ep9 evidence shows
+      plain MSE already encoded the ball, so fg-weighting is a nudge toward the 1%-of-pixels ball, not
+      the load-bearing fix. val/fg_mse + val/bg_mse logged regardless (validity guard).
+  (6) COMPUTE: cluster (ferranti), per Merlin "do even the tests on the cluster, it's faster" + always
+      W&B. Same pipeline as EXP-024 (datagen 3000x200 -> tokenizer 30ep bs64 lr3e-4 LPIPS-vgg --fresh
+      -> recon strips), + the above flags. EXP-025.
+Expected outcome: NO loss explosion (grad_norm stays bounded; if a spike occurs it is skipped and
+logged); val/mse continues BELOW the ep9 0.0006 and keeps improving; val/fg_mse drops substantially
+(ball reconstructed); recon strips VISIBLY show the colored square at the right cell+colour, distinct
+from background. The canonical checkpoint is the best-fg_mse model.
+Would change my mind / tripwires:
+  - If it explodes AGAIN despite beta2=0.95 + spike-skip -> the cause is not Adam-v (e.g. bf16, a bad
+    batch, LPIPS-scale drift); next: raise eps to 1e-6, inspect the logged grad_norm spike + the batch.
+  - If NO explosion but the ball is STILL dropped (val/fg_mse stays ~background-only, recon has no ball)
+    -> sparse gradient IS the binding constraint after all; raise --fg-weight and/or revisit
+    bottleneck(4x64)/MAE-mask. (Less likely given ep9.)
+  - If best-fg_mse keeps selecting a very early epoch (fg_mse never really improves) -> fg mask is
+    dominated by the curtain not the ball; restrict the metric to revealed frames.
+Spawns: train_tokenizer.py stability/logging changes; sync+submit EXP-025 on ferranti; EXP-025 row.
