@@ -10,6 +10,47 @@
 
 ---
 
+## ESC-017 | 2026-06-23 | OPEN — EXP-025 GridWorld tokenizer WORKS (present-then-stop, recommend freeze)
+Context: you flagged the failed tokenizer had a LOSS EXPLOSION (loss went really low, then exploded,
+recovered worse) and asked for logging + a fix, run on the cluster with W&B, and to report back when
+the tokenizer actually encodes the colored square (not fooled by low MSE). I pulled EXP-024's W&B curve
+— it confirmed the explosion and RE-DIAGNOSED the failure (D-043): val/mse hit 6e-4 @ep9 (ball being
+learned) → exploded @ep10 (62×) → recovered to a worse plateau; the single-checkpoint overwrite
+discarded the good ep9 model. So the failure was instability, NOT sparse-target collapse. Fix shipped
+(adam-beta2 0.95 + grad-spike skip + best-checkpoint by val/fg_mse + per-step grad-norm logging + modest
+fg-weight). One pre-existing DataLoader bug (persistent_workers caching a stale per-epoch index) crashed
+the first launch at ep2; fixed (persistent_workers=False) and rerun.
+
+### The result (decisive read)
+**Success — we have a usable GridWorld tokenizer.** EXP-025 (job 408760, run 70k76148) trained the full
+30 epochs with NO explosion: val/mse decreased monotonically 0.0056 → 4.7e-6 (130× below EXP-024's
+pre-explosion peak), latent_cos 0.08–0.11 (no collapse), grad_norm bounded (the spike-guard caught &
+skipped ~6 spike steps — the EXP-024 failure mode, now neutralised). The reconstruction strips VISIBLY
+show the colored square at the correct cell in a colour distinct from the background (blue/red/green
+balls on red/purple/blue grids), tracking ball position AND colour — not a background-only cheat. The
+corrected diagnosis is vindicated: with training stable, the ball is learned easily.
+Honest caveat: the foreground mask flags ~32% of pixels (it catches the moving curtain, not just the
+~1% ball), so val/fg_mse is a curtain-diluted ball guard — the recon VISUAL is the real confirmation,
+and it's unambiguous. Not blocking; flagged for the record.
+
+### Access points
+- **Recon strips (open first):** `experiments/gridworld-tok-v3/recon.png` — GT (top of each pair) vs
+  reconstruction (bottom); colored square present + correct colour in the recon rows.
+- **W&B run:** transformer-C-tokenizer / gridworld-tok-v3 (id 70k76148) — val/mse, val/fg_mse,
+  grad_norm_epoch, skipped_epoch, latent_cos curves.
+- Checkpoints staged: `experiments/gridworld-tok-v3/{tokenizer.pt (best=ep29), tokenizer_last.pt}`.
+- Full reconciliation: `experiments/EXP-025/NOTES.md`; decision `D-043`.
+
+### The questions for you
+1. Agree this is a usable tokenizer (ball position + colour encoded, no collapse, no explosion)?
+2. **FREEZE it as the GridWorld backbone** → `checkpoints/gridworld/tokenizer.pt` (provenance run
+   70k76148 @ f1e3d6c)? (I've staged it locally; not copied to the frozen path until you bless it.)
+3. Then the next phase is the vanilla GridWorld dynamics — which also needs **ESC-016 Q1** resolved
+   (formally freeze the recall eval + decide periodicity handling + where the during-training W&B eval
+   lives). Want to settle Q1 now so the dynamics run is unblocked?
+Urgency: present-then-stop per §5 — I am NOT freezing or starting the dynamics until you weigh in.
+Nothing in flight; cluster idle.
+
 ## ESC-014 | 2026-06-14 | OPEN — relay-training credit design (V-T014 REFUTES pure detach) — present-then-stop
 Context: you specified Mode B (op-3 relay) with the memory carry DETACHED ("can and should be detached"). I
 wrote it up (T-014) and ran it past critical-claim-verifier, which built a decisive synthetic probe. This

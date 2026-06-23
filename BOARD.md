@@ -5,14 +5,12 @@ Updated: 2026-06-18 (cleanup pass: completed/historical entries moved to `BOARD-
 > Live task state only: in-progress / next / awaiting-Merlin / parked / blocked.
 > Completed, superseded, and dropped work lives in `BOARD-archive.md` (grep there for history).
 
-## IN FLIGHT — EXP-025 tokenizer v3 (job 408737, ferranti)
-- **GridWorld tokenizer v3 (D-043), W&B gridworld-tok-v3, branch @ 725a988.** Fixes EXP-024, which was
-  re-diagnosed (from its W&B curve) as a **loss explosion** (val/mse 6e-4@ep9 → 62×@ep10, recovered worse;
-  single-ckpt overwrite discarded the good ep9 model) — NOT sparse-target collapse.
-- **Fix:** adam-beta2 0.95 + grad-spike skip 5× + per-step grad-norm logging + best-checkpoint by
-  val/fg_mse + modest --fg-weight 10. Background completion watcher running; ETA ~1.5–2h.
-- **Gate (Merlin):** report success ONLY when recon strips VISIBLY show the colored square (right cell +
-  colour ≠ bg) — do NOT trust low MSE. Then freeze → checkpoints/gridworld/tokenizer.pt.
+## AWAITING MERLIN — EXP-025 tokenizer SUCCEEDED (ESC-017)
+- **GridWorld tokenizer v3 done (job 408760, W&B 70k76148).** D-043 fix worked: val/mse→4.7e-6 (no
+  explosion), latent_cos 0.08–0.11 (no collapse), recon shows the colored square at right cell+colour≠bg.
+- **Blocked on ESC-017:** (Q1) agree usable? (Q2) freeze → checkpoints/gridworld/tokenizer.pt (staged in
+  experiments/gridworld-tok-v3/, not yet copied)? (Q3) settle ESC-016 Q1 eval-freeze so vanilla GridWorld
+  dynamics is unblocked? NOT freezing or starting dynamics until he weighs in.
 
 ## Next (after a working tokenizer exists)
 - **Grad-clip fix for train_dynamics.py** (unclipped at lines 466–468; tokenizer+LM already clip at

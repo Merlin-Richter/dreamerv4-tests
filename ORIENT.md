@@ -8,20 +8,15 @@ built + validated; env reworked to a 6×6 anti-overfit geometry (D-038); recall 
 Getting a USABLE frozen tokenizer (one whose latents encode the moving square, not background-only)
 is the gate to the GridWorld dynamics / H2-H3 memory work. EXP-024 failed; EXP-025 is the fixed retry.
 
-## IN FLIGHT — EXP-025 tokenizer v3 (job 408737, ferranti, W&B gridworld-tok-v3)
-- D-043 fix for the EXP-024 failure. **Re-diagnosis (from EXP-024's W&B curve 5d38b2nc): it was a LOSS
-  EXPLOSION, not sparse-target collapse.** val/mse fell to 6.1e-4 @ep9 (ball WAS being learned;
-  latent_cos 0.29) → **exploded @ep10 (val/mse 62×)** → recovered only to a worse ~0.0037 plateau it
-  never escaped. The single-checkpoint overwrite discarded the good ep9 model; the "dropped ball" recon
-  was from the post-explosion ep29 ckpt. Mechanism: Adam 2nd-moment shrinks at the loss min → one batch
-  lands an oversized step; clip_grad_norm(1.0) clips the grad, not the Adam step, so it doesn't catch it.
-- **Fix shipped (725a988):** adam-beta2 0.95 (mechanistic) + grad-spike skip 5× (backstop) + per-step
-  grad-norm/loss W&B logging (explosion now VISIBLE) + best-checkpoint by val/fg_mse (canonical
-  tokenizer.pt = best ball-encoding model; explosion can't discard it) + modest --fg-weight 10 (nudge,
-  not the fix). Else identical to EXP-024 (datagen 3000×200 → 30ep bs64 lr3e-4 LPIPS-vgg → recon strips).
-- **Merlin's gate: report success ONLY when the recon strips VISIBLY show the colored square at the
-  right cell+colour, distinct from background — do NOT trust low MSE.** Then it can be frozen.
-- ETA ~1.5–2h (EXP-024 train was 1:23). Background completion watcher running.
+## AWAITING MERLIN — EXP-025 tokenizer WORKS (ESC-017, present-then-stop)
+- **EXP-025 (job 408760, W&B 70k76148) SUCCEEDED.** D-043 stability fix worked: val/mse monotone
+  0.0056→**4.7e-6** (NO explosion; 130× below EXP-024's pre-explosion peak), latent_cos 0.08–0.11 (no
+  collapse), grad_norm bounded (spike-guard skipped ~6 steps), and the **recon strips visibly show the
+  colored square at the right cell + colour ≠ bg** (experiments/gridworld-tok-v3/recon.png). Confirms the
+  corrected diagnosis: EXP-024 failed from a LOSS EXPLOSION, not sparse-target collapse.
+- Checkpoints staged: experiments/gridworld-tok-v3/{tokenizer.pt(best=ep29), tokenizer_last.pt}. NOT yet
+  copied to checkpoints/gridworld/ — awaiting Merlin's freeze blessing (ESC-017 Q2).
+- Caveat logged: fg_frac~0.32 (mask catches the curtain) → judge ball by recon visual, not fg_mse alone.
 
 ## HOW TO OPERATE THE CLUSTER (read before touching it)
 - **All `scripts/` verbs run in WSL**, NOT Git Bash (shared ssh-socket namespace — D-036). Invoke:
