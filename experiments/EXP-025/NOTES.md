@@ -41,6 +41,23 @@ colour, distinct from the background — confirm one square is a different colou
 Cross-check: val/fg_mse dropped substantially (not background-only); grad_norm stayed bounded
 (no explosion, or spikes were skipped & logged); val/mse went BELOW the ep9 0.0006.
 
+## Run history
+- job 408737 @ 725a988: CRASHED at the epoch-2 boundary — `IndexError` in
+  `ChunkClipDataset.__getitem__`. Pre-existing bug (NOT from D-043): per-epoch
+  `set_start_offset` changes clips/episode, but `persistent_workers=True` (D-041) cached the
+  epoch-1 index; a longer epoch-2 over-indexed the workers' stale `_pairs`. EXP-024 dodged it by
+  luck (unseeded random offset drew its longest index first). Fixed f1e3d6c: `persistent_workers=False`.
+  **Epoch 1 of 408737 VALIDATED the D-043 fix:** grad_norm 0.248 (bounded, no explosion), 0 skips,
+  best-ckpt saved; val/mse 0.0057, val/fg_mse 0.0124, latent_cos 0.407 after 1 epoch.
+- job 408760 @ f1e3d6c: resubmit with the DataLoader fix (current).
+
+## Caveat to check at reconciliation
+fg_frac was **0.32** at ep1 — the foreground mask (temporal-median deviation) is catching the
+moving CURTAIN, not just the ~1% ball, so `--fg-weight` is curtain-diluted and val/fg_mse is
+curtain-dominated (a weaker pure-ball guard than intended). Not fatal (ep9 of EXP-024 showed plain
+MSE already learns the ball). If the ball is still dropped, restrict the fg mask to the ball
+(exclude curtain) — do NOT trust val/fg_mse alone; the recon strips are the real ball check.
+
 ## Reconciliation
 (pending — fill on completion)
 Expected: <from D-043> no explosion; val/mse < 6e-4 and improving; val/fg_mse low; ball visible.
