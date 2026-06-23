@@ -1278,3 +1278,18 @@ Would change my mind / tripwires:
   - If best-fg_mse keeps selecting a very early epoch (fg_mse never really improves) -> fg mask is
     dominated by the curtain not the ball; restrict the metric to revealed frames.
 Spawns: train_tokenizer.py stability/logging changes; sync+submit EXP-025 on ferranti; EXP-025 row.
+
+## D-044 | 2026-06-23
+Context: EXP-025 produced a usable GridWorld tokenizer (val/mse→4.7e-6, no explosion, no
+collapse; recon strips show the colored square at the right cell + colour ≠ bg). Presented
+present-then-stop (ESC-017). Merlin: "We now have the working tokenizer." = acceptance.
+Decision: FREEZE it as the GridWorld backbone. Copied experiments/gridworld-tok-v3/tokenizer.pt
+(best=ep29) → checkpoints/gridworld/tokenizer.pt. Provenance: W&B run 70k76148 @ f1e3d6c (EXP-025).
+This is the frozen latent space all GridWorld dynamics / recall work builds on.
+Alternatives rejected: train a 2nd seed first (no instability signal warranting it; ball clearly
+encoded — defer multi-seed unless a downstream result looks tokenizer-limited).
+Expected outcome: dynamics + recall pipeline can now be built against a stable latent space.
+Would change my mind: if the tokenizer-roundtrip recall ceiling (next experiment) shows the
+latents do NOT preserve enough position/colour to read out at reveal frames → tokenizer is the
+bottleneck, revisit (e.g. more latents / bottleneck_dim / fg-weight) before any dynamics run.
+Spawns: ESC-017 resolved; next = tokenizer-roundtrip recall ceiling check, then model adapter.

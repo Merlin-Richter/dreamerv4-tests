@@ -1,22 +1,19 @@
 # ORIENT.md
 
-Rewritten: 2026-06-23 (EXP-025 GridWorld tokenizer v3 IN FLIGHT on ferranti, job 408737).
+Rewritten: 2026-06-23 (tokenizer FROZEN; Merlin redirected to nailing down the recall eval).
 
 ## What we're doing right now and why
-Building the **GridWorld discrete-memory pipeline on the cluster**. The cluster interface (T-003) is
-built + validated; env reworked to a 6×6 anti-overfit geometry (D-038); recall eval built (D-040).
-Getting a USABLE frozen tokenizer (one whose latents encode the moving square, not background-only)
-is the gate to the GridWorld dynamics / H2-H3 memory work. EXP-024 failed; EXP-025 is the fixed retry.
+Building the **GridWorld discrete-memory pipeline on the cluster**. Cluster interface (T-003) built +
+validated; env at 6×6 anti-overfit geometry (D-038); recall eval core built (D-040). **Tokenizer now
+FROZEN** (EXP-025 → checkpoints/gridworld/tokenizer.pt, D-044). Merlin's steer: "lets get the eval
+down" → focus is the GridWorld recall eval: freeze its design + wire the model adapter so it can score
+a dynamics rollout, the gate to H2/H3 memory work.
 
-## AWAITING MERLIN — EXP-025 tokenizer WORKS (ESC-017, present-then-stop)
-- **EXP-025 (job 408760, W&B 70k76148) SUCCEEDED.** D-043 stability fix worked: val/mse monotone
-  0.0056→**4.7e-6** (NO explosion; 130× below EXP-024's pre-explosion peak), latent_cos 0.08–0.11 (no
-  collapse), grad_norm bounded (spike-guard skipped ~6 steps), and the **recon strips visibly show the
-  colored square at the right cell + colour ≠ bg** (experiments/gridworld-tok-v3/recon.png). Confirms the
-  corrected diagnosis: EXP-024 failed from a LOSS EXPLOSION, not sparse-target collapse.
-- Checkpoints staged: experiments/gridworld-tok-v3/{tokenizer.pt(best=ep29), tokenizer_last.pt}. NOT yet
-  copied to checkpoints/gridworld/ — awaiting Merlin's freeze blessing (ESC-017 Q2).
-- Caveat logged: fg_frac~0.32 (mask catches the curtain) → judge ball by recon visual, not fg_mse alone.
+## Tokenizer FROZEN (ESC-017 resolved)
+- EXP-025 (job 408760, W&B 70k76148 @ f1e3d6c) → checkpoints/gridworld/tokenizer.pt (best=ep29, D-044).
+- Caveat logged: fg_frac~0.32 (mask catches the curtain) → ball judged by recon visual, not fg_mse alone.
+- Tripwire (D-044): if the tokenizer-roundtrip recall CEILING (next exp) can't read out position/colour
+  at reveal frames, the latent is the bottleneck — revisit tokenizer before any dynamics run.
 
 ## HOW TO OPERATE THE CLUSTER (read before touching it)
 - **All `scripts/` verbs run in WSL**, NOT Git Bash (shared ssh-socket namespace — D-036). Invoke:
@@ -28,20 +25,22 @@ is the gate to the GridWorld dynamics / H2-H3 memory work. EXP-024 failed; EXP-0
   was reconstructed this session (D-041 turn) after I deleted it; verified via cluster_health — if a
   cluster field misbehaves, suspect a reconstructed value.
 
-## NEXT ACTIONS (in order)
-1. **When 408737 finishes:** confirm COMPLETED → `pull_results --cluster ferranti gridworld-tok-v3`
-   (tokenizer.pt + recon.png) + fetch W&B curve (grad_norm bounded? no explosion? val/fg_mse dropped?
-   val/mse < ep9's 6e-4?). **VERIFY the ball is visibly reconstructed (right cell + a colour ≠ bg) — do
-   NOT trust low MSE.** If good → report to Merlin (he asked to be told when it works) + freeze to
-   checkpoints/gridworld/tokenizer.pt. If it exploded again or ball still dropped → see D-043 tripwires.
-2. **Then: vanilla GridWorld dynamics on the cluster** (record a decision first). Uses the frozen
-   tokenizer. `train_dynamics.py` is perf-fixed (D-041) BUT **re-profile its batch size** — it trains
-   in latent space (frozen-tokenizer encode per step), a different compute profile than the LPIPS
-   tokenizer's bs64. Watch util on the first run.
-3. **Then: wire the eval model-adapter.** `src/evals/gridworld/recall.py` is frame-source based
-   (oracle/copy-last built); add a dynamics-rollout frame source → run recall curves (graded position
-   + ball/bg color) vs occlusion k → compare to copy-last/oracle. Then decide the periodic-W&B-during-
-   training eval with Merlin.
+## NEXT ACTIONS (in order) — focus: NAIL DOWN THE EVAL
+0. **Tokenizer-roundtrip recall CEILING (cheap, do first).** Feed encode→decode of TRUE frames as a
+   frame source into the existing recall scorer → upper bound on what ANY GridWorld dynamics model can
+   recall through this frozen latent. Directly exercises the new tokenizer; de-risks the pipeline
+   (D-044 tripwire). No model needed; just add a tokenizer-roundtrip frame source to recall.py.
+1. **Eval-design FREEZE (Merlin's call — ESC-016 Q1).** Core BUILT (D-040): graded position_score +
+   exact acc + ball/bg colour + per-k SE + reflection split, self-validated (oracle 1.0, copy-last
+   decays, random≈chance). Open for him: (a) bless + FREEZE the design (§8 freeze before method exps);
+   (b) periodicity handling (period-10 → copy-last spikes to 1.0 at k≡9 mod10 → judge per-k; periodic
+   W&B eval uses off-grid k {3,6,12,16}); (c) where the during-training W&B eval lives (flatten_for_wandb
+   exists, hook into train_dynamics TBD).
+2. **Wire the model adapter** — add a dynamics-rollout frame source (rollout → decode → score) + the
+   matched-horizon open-rollout control (docstring says it lives in the adapter). Then recall curves vs k
+   vs copy-last/oracle. Needs a trained dynamics model.
+3. **Vanilla GridWorld dynamics on the cluster** (record a decision first; grad-clip fix at
+   train_dynamics.py:466–468 first; RE-PROFILE batch — latent-space compute ≠ tokenizer bs64).
 
 ## EVAL (D-040) — built + validated, NOT frozen
 Headline = graded `position_score` (exact=1.0, adjacent=0.25, →0 by Chebyshev d=3) + `position_acc`

@@ -5,20 +5,18 @@ Updated: 2026-06-18 (cleanup pass: completed/historical entries moved to `BOARD-
 > Live task state only: in-progress / next / awaiting-Merlin / parked / blocked.
 > Completed, superseded, and dropped work lives in `BOARD-archive.md` (grep there for history).
 
-## AWAITING MERLIN — EXP-025 tokenizer SUCCEEDED (ESC-017)
-- **GridWorld tokenizer v3 done (job 408760, W&B 70k76148).** D-043 fix worked: val/mse→4.7e-6 (no
-  explosion), latent_cos 0.08–0.11 (no collapse), recon shows the colored square at right cell+colour≠bg.
-- **Blocked on ESC-017:** (Q1) agree usable? (Q2) freeze → checkpoints/gridworld/tokenizer.pt (staged in
-  experiments/gridworld-tok-v3/, not yet copied)? (Q3) settle ESC-016 Q1 eval-freeze so vanilla GridWorld
-  dynamics is unblocked? NOT freezing or starting dynamics until he weighs in.
+## In progress — NAIL DOWN THE EVAL (Merlin: "lets get the eval down")
+- Tokenizer FROZEN → checkpoints/gridworld/tokenizer.pt (EXP-025, D-044, ESC-017 resolved).
+- **Tokenizer-roundtrip recall ceiling (do first, cheap):** add an encode→decode frame source to
+  recall.py → upper bound on recall through the frozen latent (D-044 tripwire). No model needed.
+- **Eval model adapter (the real gap):** add a dynamics-rollout frame source + matched-horizon
+  open-rollout control to `recall.py`. Needs a trained dynamics model.
 
-## Next (after a working tokenizer exists)
+## Next
 - **Grad-clip fix for train_dynamics.py** (unclipped at lines 466–468; tokenizer+LM already clip at
   max_norm=1.0). Apply before the dynamics cluster run. (Open question to Merlin from this session.)
 - **Vanilla GridWorld dynamics on the cluster** (record a decision first). Frozen tokenizer; train_dynamics
   perf-fixed (D-041) but RE-PROFILE batch (latent-space compute profile ≠ tokenizer bs64).
-- **Wire the eval model-adapter** (`src/evals/gridworld/recall.py` is frame-source based; add a
-  dynamics-rollout source) → recall curves (graded position + ball/bg colour) vs k → vs copy-last/oracle.
 
 ## Awaiting Merlin
 - **ESC-016 Q1 — GridWorld eval sign-off / freeze.** Refined eval BUILT (D-040): graded position_score

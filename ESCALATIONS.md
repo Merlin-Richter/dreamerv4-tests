@@ -10,7 +10,12 @@
 
 ---
 
-## ESC-017 | 2026-06-23 | OPEN — EXP-025 GridWorld tokenizer WORKS (present-then-stop, recommend freeze)
+## ESC-017 | 2026-06-23 | RESOLVED — EXP-025 GridWorld tokenizer WORKS (present-then-stop, recommend freeze)
+RESOLUTION (Merlin, 2026-06-23): "We now have the working tokenizer. Lets get the eval down."
+= accepts the tokenizer (Q1 yes) and the freeze (Q2). I copied it → checkpoints/gridworld/tokenizer.pt
+(D-044, provenance run 70k76148 @ f1e3d6c). He redirected to nailing down the eval next; the eval-
+design freeze + periodicity + W&B-wiring questions remain his call under ESC-016 Q1 (still open).
+
 Context: you flagged the failed tokenizer had a LOSS EXPLOSION (loss went really low, then exploded,
 recovered worse) and asked for logging + a fix, run on the cluster with W&B, and to report back when
 the tokenizer actually encodes the colored square (not fooled by low MSE). I pulled EXP-024's W&B curve

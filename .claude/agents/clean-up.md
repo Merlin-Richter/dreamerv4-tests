@@ -1,6 +1,6 @@
 ---
 name: clean-up
-description: "Mechanical state-file housekeeping. Invoke when the live state files (ESCALATIONS.md, BOARD.md) have accumulated enough resolved/completed entries that cold-start reads are getting heavy. The agent relocates resolved/done entries verbatim into their `-archive.md` counterparts so the live files hold only open/forward-looking work — keeping cold-start cost roughly constant regardless of project age. It moves, never deletes; the full audit trail and git history are preserved. Not for research judgement, not for editing the substance of any entry."
+description: "Mechanical state-file housekeeping. Cleans up the stateful files and archives old information. Run this if there is downtime and you have nothing to do anyway, like when waiting for a training run."
 model: haiku
 color: gray
 ---
