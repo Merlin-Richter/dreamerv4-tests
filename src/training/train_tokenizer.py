@@ -535,9 +535,18 @@ def main():
     pin = torch.cuda.is_available()
     loader_kw = dict(num_workers=nw, pin_memory=pin)
     if nw > 0:
-        loader_kw.update(persistent_workers=True, prefetch_factor=4)
+        # persistent_workers MUST be False here: each epoch mutates the train dataset's start
+        # offset (set_start_offset), which changes the number of clips per episode ((T-o)//L).
+        # Persistent workers cache the epoch-1 dataset and never see the rebuilt index, so when a
+        # later epoch's offset yields MORE clips the sampler over-indexes their stale _pairs ->
+        # "IndexError: list index out of range" at the epoch boundary (EXP-025 job 408737 crash;
+        # EXP-024 only survived by drawing its longest index first, by luck). Non-persistent workers
+        # are re-pickled from the current dataset each epoch, so they always see the fresh index.
+        # We keep the real D-041 throughput wins (background workers + prefetch + pinned memory);
+        # the only cost is ~seconds of per-epoch worker respawn (negligible vs ~2.5 min/epoch).
+        loader_kw.update(persistent_workers=False, prefetch_factor=4)
     print(f"DataLoader: num_workers={nw} pin_memory={pin}"
-          + (f" prefetch_factor=4 persistent_workers=True" if nw > 0 else ""))
+          + (f" prefetch_factor=4 persistent_workers=False" if nw > 0 else ""))
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, drop_last=True, **loader_kw)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, **loader_kw)
     device = "cuda" if torch.cuda.is_available() else "cpu"
