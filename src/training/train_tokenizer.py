@@ -382,6 +382,13 @@ def main():
     )
     parser.add_argument("--val-fraction", type=float, default=0.05)
     parser.add_argument(
+        "--max-episodes",
+        type=int,
+        default=None,
+        help="Train on only the first N episodes of --frames (fast local validation on a subset). "
+        "Default: use all episodes.",
+    )
+    parser.add_argument(
         "--fresh",
         action="store_true",
         help="Ignore any existing --checkpoint and train from random init (useful after architecture changes).",
@@ -421,6 +428,39 @@ def main():
         help="Per-pixel deviation-from-static-scene threshold (L1 summed over RGB, [0,1] scale) "
         "for the foreground mask used by --fg-weight and the val/fg_mse validity metric.",
     )
+    parser.add_argument(
+        "--adam-beta2",
+        type=float,
+        default=0.999,
+        help="AdamW beta2 (D-043). The torch default 0.999 keeps a long second-moment memory; when the "
+        "recon loss gets very low (the sparse ball has been learned) the second moment shrinks and a "
+        "single odd batch produces an oversized Adam step -> loss explosion (observed EXP-024 ep10: "
+        "val/mse 6e-4 -> 3.8e-2, never fully recovered). Lower (e.g. 0.95) makes v adapt faster and is "
+        "the mechanistic fix; recommended for the sparse GridWorld ball.",
+    )
+    parser.add_argument(
+        "--adam-eps",
+        type=float,
+        default=1e-8,
+        help="AdamW epsilon (D-043). Raising it (e.g. 1e-6) also caps the per-parameter step lr/(sqrt(v)+eps) "
+        "when the second moment is tiny; a secondary stability knob.",
+    )
+    parser.add_argument(
+        "--grad-spike-mult",
+        type=float,
+        default=0.0,
+        help="Gradient-spike backstop (D-043). If >0, skip the optimizer step (zero grads, still advance "
+        "the LR schedule) when the pre-clip grad norm is non-finite or exceeds this multiple of its "
+        "running EMA (after the warmup grace). Catches the spike-shaped manifestation of the explosion; "
+        "0 = clip-only (old behaviour). Recommended ~5.0.",
+    )
+    parser.add_argument(
+        "--log-every",
+        type=int,
+        default=50,
+        help="Log per-step train MSE/loss + grad norm to W&B every N optimizer steps (D-043). The "
+        "epoch-only curve (30 points) is too coarse to see an intra-epoch loss explosion.",
+    )
     wlog.add_args(parser)
     args = parser.parse_args()
     # Enable TF32 for any fp32 matmuls that remain outside the bf16 autocast region (free on H100).
@@ -441,6 +481,10 @@ def main():
         raise ValueError(f"Expected (N, T, H, W, 3), got {raw.shape}")
 
     n, t, h, w, c = raw.shape
+    if args.max_episodes is not None and args.max_episodes < n:
+        raw = raw[: args.max_episodes]   # lazy mmap slice
+        n = args.max_episodes
+        print(f"--max-episodes: training on first {n} episodes only")
     if n < 2:
         raise ValueError(
             f"Temporal training splits by episode; need at least 2 episodes, got n={n}."
@@ -563,7 +607,13 @@ def main():
     # accurately describes the architecture wandb.config will record.
     wlog.init(args, cfg, project="transformer-C-tokenizer")
 
-    opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    # betas[1]=--adam-beta2 (D-043): 0.95 makes the 2nd moment adapt faster so it can't go stale-tiny
+    # at the loss minimum and amplify one batch into a destructive step (the EXP-024 ep10 explosion).
+    opt = torch.optim.AdamW(
+        model.parameters(), lr=args.lr, betas=(0.9, args.adam_beta2), eps=args.adam_eps
+    )
+    print(f"AdamW: lr={args.lr} betas=(0.9, {args.adam_beta2}) eps={args.adam_eps}"
+          + (f" | grad-spike skip at {args.grad_spike_mult}x EMA" if args.grad_spike_mult > 0 else ""))
     # Per-STEP warmup -> constant -> late-cosine-cooldown. The latent-collapse escape is a
     # saddle-point plateau that only ignites after ~2k steps and needs SUSTAINED lr to complete;
     # a plain CosineAnnealingLR over few epochs decays through the escape window and freezes the
@@ -605,6 +655,13 @@ def main():
     use_amp = device == "cuda"
 
     args.checkpoint.parent.mkdir(parents=True, exist_ok=True)
+    last_ckpt = args.checkpoint.with_name(args.checkpoint.stem + "_last" + args.checkpoint.suffix)
+
+    # Training-stability + safety-net state (D-043).
+    global_step = 0
+    gn_ema = None              # running EMA of the pre-clip grad norm (spike-skip reference)
+    best_fg = float("inf")     # best val/fg_mse seen -> the canonical checkpoint tracks the BEST
+                               # ball-encoding model, so a loss explosion can't discard it (EXP-024).
 
     epoch_bar = tqdm(range(args.epochs), desc="Epochs", position=0, mininterval=1.0)
     for epoch in epoch_bar:
@@ -624,6 +681,8 @@ def main():
         train_loss = 0.0
         train_lpips = 0.0
         n_train_samples = 0
+        epoch_grad_norm = 0.0   # sum of finite pre-clip grad norms this epoch (D-043)
+        epoch_skipped = 0       # steps skipped by the spike guard this epoch
         train_t0 = time.perf_counter()
         for batch_x, _ in tqdm(
             train_loader,
@@ -666,11 +725,42 @@ def main():
             # Gradient clipping: without it, a single large-gradient batch under bf16 can land a
             # destructive update that spikes the loss and knocks the model back into the latent-
             # collapse basin (observed as lat_cos jumping ~0.36 -> ~0.99 mid-training). Standard
-            # transformer safeguard; keeps the escape monotonic.
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            opt.step()
+            # transformer safeguard; keeps the escape monotonic. clip_grad_norm_ returns the PRE-clip
+            # total norm — the observability + spike-skip signal (D-043).
+            gn = float(torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0))
+            # Spike guard (D-043): skip the update on a non-finite norm, or (when --grad-spike-mult>0)
+            # a norm far above its running EMA past the warmup grace. Note: this catches the
+            # spike-SHAPED explosion; the Adam-2nd-moment CAUSE is handled by --adam-beta2.
+            spike = (not np.isfinite(gn)) or (
+                args.grad_spike_mult > 0
+                and gn_ema is not None
+                and global_step > warmup_steps
+                and gn > args.grad_spike_mult * gn_ema
+            )
+            if spike:
+                opt.zero_grad(set_to_none=True)
+                epoch_skipped += 1
+            else:
+                opt.step()
+                gn_ema = gn if gn_ema is None else 0.98 * gn_ema + 0.02 * gn
+                if np.isfinite(gn):
+                    epoch_grad_norm += gn
             scheduler.step()
+            global_step += 1
             train_loss += mse_raw  # log raw reconstruction MSE, not the LPIPS-augmented total
+            # Per-step W&B logging so an intra-epoch loss explosion is visible (auto-step axis; carries
+            # global_step/epoch for the x-axis). Cheap relative to the bf16 forward/backward (D-043).
+            if global_step % args.log_every == 0:
+                wlog.log({
+                    "train/step_mse": mse_raw,
+                    "train/step_loss": float(loss.detach().item()),
+                    "train/grad_norm": gn,
+                    "train/grad_norm_ema": gn_ema if gn_ema is not None else 0.0,
+                    "train/skipped_cumulative": epoch_skipped,
+                    "lr": opt.param_groups[0]["lr"],
+                    "global_step": global_step,
+                    "epoch": epoch,
+                })
 
         train_time = time.perf_counter() - train_t0
         samples_per_s = n_train_samples / train_time if train_time > 0 else 0.0
@@ -698,6 +788,8 @@ def main():
 
         train_mse = train_loss / len(train_loader)
         val_mse = val_loss / len(val_loader)
+        n_stepped = max(1, len(train_loader) - epoch_skipped)
+        grad_norm_mean = epoch_grad_norm / n_stepped   # mean pre-clip grad norm over stepped batches
         n_val = len(val_loader)
         val_fg_mse /= n_val   # recon MSE on ball/moving pixels — THE validity guard: stays high if
         val_bg_mse /= n_val   # the ball is dropped even while val/mse looks healthy (background-only)
@@ -716,8 +808,11 @@ def main():
             f"Epoch {epoch + 1} | train MSE: {train_mse:.6f} | val MSE: {val_mse:.6f} "
             f"| val fg_mse: {val_fg_mse:.6f} bg_mse: {val_bg_mse:.6f} (fg_frac {val_fg_frac:.3f}) "
             f"| latent_cos: {lat_cos:.3f} (<0.7=escaped) | pred_std: {pred_std:.4f} (>0.04=content) "
+            f"| grad_norm: {grad_norm_mean:.3f} (skipped {epoch_skipped}/{len(train_loader)}) "
             f"| train_clip_offset={train_off} | lr: {current_lr:.2e}"
         )
+        # Auto-step axis (D-043): no explicit step=, so this shares one monotonic W&B step with the
+        # per-step logs above; global_step/epoch are carried as fields for use as the x-axis.
         wlog.log(
             {
                 "train/mse": train_mse,
@@ -725,9 +820,14 @@ def main():
                 "val/fg_mse": val_fg_mse,   # recon MSE on ball/moving pixels — validity guard (D-042)
                 "val/bg_mse": val_bg_mse,   # recon MSE on static background pixels
                 "val/fg_frac": val_fg_frac, # fraction of pixels flagged foreground
+                "val/best_fg_mse": min(best_fg, val_fg_mse),  # best ball-recon so far (canonical ckpt)
                 "latent_cos": lat_cos,  # <0.7 == escaped collapse
                 "pred_std": pred_std,   # >0.04 == rendering real content
                 "lr": current_lr,
+                "train/grad_norm_epoch": grad_norm_mean,   # mean pre-clip grad norm (stability)
+                "train/skipped_epoch": epoch_skipped,      # spike-guard skips this epoch
+                "global_step": global_step,
+                "epoch": epoch,
                 "train_clip_offset": train_off,
                 "perf/train_time_s": train_time,        # wall-clock of the train loop only
                 "perf/samples_per_s": samples_per_s,    # training throughput (clips/sec)
@@ -740,14 +840,19 @@ def main():
                     else {}
                 ),
             },
-            step=epoch,
         )
 
-        torch.save(
-            {"model_state_dict": model.state_dict(), "config": asdict(cfg)},
-            args.checkpoint,
-        )
-        tqdm.write(f"Saved checkpoint to {args.checkpoint}")
+        # Safety net (D-043): the canonical --checkpoint tracks the BEST val/fg_mse (best ball recon),
+        # so a later loss explosion can never discard the good model (the EXP-024 mistake). _last.pt
+        # always holds the most recent epoch for resume/inspection.
+        payload = {"model_state_dict": model.state_dict(), "config": asdict(cfg)}
+        torch.save(payload, last_ckpt)
+        if val_fg_mse < best_fg:
+            best_fg = val_fg_mse
+            torch.save(payload, args.checkpoint)
+            tqdm.write(f"new best val/fg_mse {best_fg:.6f} -> saved {args.checkpoint}")
+        else:
+            tqdm.write(f"val/fg_mse {val_fg_mse:.6f} >= best {best_fg:.6f}; kept best in {args.checkpoint} (last -> {last_ckpt.name})")
 
     wlog.finish()
 
