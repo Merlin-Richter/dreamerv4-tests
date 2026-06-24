@@ -401,9 +401,14 @@ def main():
     pin = torch.cuda.is_available()
     loader_kw = dict(num_workers=nw, pin_memory=pin)
     if nw > 0:
-        loader_kw.update(persistent_workers=True, prefetch_factor=4)
+        # persistent_workers MUST stay False: train_ds.set_start_offset() rebuilds self._pairs with a
+        # DIFFERENT length every epoch (shifting clip boundaries), so persistent workers would keep a
+        # stale _pairs from epoch 0 and crash with IndexError once the new epoch's __len__ grows (the
+        # same bug fixed in the tokenizer dataset @ f1e3d6c — only reproduces with num_workers>0, i.e.
+        # on the cluster, not local Windows smokes where nw=0).
+        loader_kw.update(persistent_workers=False, prefetch_factor=4)
     print(f"DataLoader: num_workers={nw} pin_memory={pin}"
-          + (" prefetch_factor=4 persistent_workers=True" if nw > 0 else ""))
+          + (" prefetch_factor=4 persistent_workers=False" if nw > 0 else ""))
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, drop_last=True, **loader_kw)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, **loader_kw)
 
