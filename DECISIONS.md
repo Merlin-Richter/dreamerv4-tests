@@ -1314,3 +1314,28 @@ are comparable against fixed oracle/copy-last/chance references.
 Would change my mind: if a downstream result exposes a scoring flaw (e.g. readout mis-snaps a colour,
 or graded credit hides a real effect) → logged decision to amend, re-run affected comparisons.
 Spawns: ESC-016 Q1 resolved; EXP-026 tokenizer-roundtrip recall ceiling.
+
+## D-046 | 2026-06-24
+Context: GridWorld tokenizer frozen (D-044), recall eval frozen (D-045), latent ceiling == oracle
+(EXP-026 → latent not the bottleneck). Merlin approved (ESC-018) proceeding to the vanilla dynamics
+baseline. §8: baselines are sacred — the unmodified DreamerV4-style model runs through the identical
+frozen probe suite under identical provenance, and future GridWorld memory methods reuse this budget.
+Decision: train the UNMODIFIED vanilla dynamics model (no ff7/ff9/multistep; all memory objectives
+off) on gridworld.npy with the frozen GridWorld tokenizer, on ferranti. Config: n_actions=2 (curtain
+up/down, auto-detected), context-length 16 (= tokenizer window), bs64, lr3e-4, epochs 80, seed 0,
+grad-clip max_norm=1.0 (just added — train_dynamics was unclipped; tokenizer/LM already clip). W&B on.
+Output → checkpoints/gridworld/dynamics_vanilla.pt + experiments/EXP-027/.
+Alternatives rejected: memory model first (must establish the no-memory floor first); local training
+(3000×200 too slow on the 4070 — smoke validated the pipeline, cluster does the real run); higher bs
+(start bs64 known-safe = tokenizer budget; bump only if util shows headroom — re-profile on run 1).
+Expected outcome: stable training (grad-clip prevents the tokenizer-style explosion). On the recall
+eval: position recalled WITHIN the 16-frame window, then cliffing toward copy-last/chance for k beyond
+the window (vanilla has no memory carrier); colour retained within window, likely lost past it. This is
+the baseline curve memory methods must beat per-k.
+Would change my mind / tripwires:
+  - Vanilla recalls position ≈oracle well PAST its window even OFF-period → env/eval too easy or
+    leakage → HALT (also the D-038 too-easy tripwire). Escalate.
+  - Vanilla fails position even WITHIN window or in the clear (matched-horizon open-rollout control) →
+    a tokenizer-latent or training-budget problem, NOT a memory finding → diagnose before comparisons.
+  - Training diverges despite grad-clip → investigate (don't resubmit same config >2×).
+Spawns: EXP-027 (vanilla GridWorld dynamics baseline); then dynamics-rollout frame source in adapter.py.

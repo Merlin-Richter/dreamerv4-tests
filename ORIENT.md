@@ -25,16 +25,18 @@ a dynamics rollout, the gate to H2/H3 memory work.
   was reconstructed this session (D-041 turn) after I deleted it; verified via cluster_health — if a
   cluster field misbehaves, suspect a reconstructed value.
 
-## AWAITING MERLIN — EXP-026 ceiling cleared (ESC-018, present-then-stop)
-- Eval CORE FROZEN (D-045, ESC-016 fully resolved): per-k judging + off-grid k {3,6,12,16} for W&B.
-- **EXP-026: tokenizer-roundtrip recall == oracle == 1.0000 at every k** (500 eps, ~13k reveal events).
-  Frozen latent is NOT the bottleneck (D-044 tripwire cleared). KEY: position is the ONLY memory metric
-  in GridWorld (copy-last already gets color/bg=1.0). View: experiments/EXP-026/headline.png.
+## NOW: training the vanilla GridWorld dynamics baseline (ESC-018 resolved; D-046)
+- Eval CORE FROZEN (D-045, ESC-016 resolved): per-k judging + off-grid k {3,6,12,16} for W&B.
+- EXP-026: tokenizer-roundtrip recall == oracle == 1.0 at every k → frozen latent NOT the bottleneck
+  (D-044 tripwire cleared). View: experiments/EXP-026/headline.png.
+- **Metric semantics (Merlin's correction):** BOTH colour and position are memory tests — colour =
+  static retention (failable; copy-last passes it trivially but a model can hallucinate), position =
+  memory + reasoning (retain + simulate the bounce under occlusion). Report both; position is the
+  harder headline. (memory: project_gridworld_metric_semantics)
 
-## NEXT ACTIONS (in order) — after Merlin's EXP-026 verdict
-1. **Vanilla GridWorld dynamics on the cluster** (record a decision first). Frozen tokenizer +
-   frozen eval. Apply grad-clip fix at train_dynamics.py:466–468 first; RE-PROFILE batch (latent-space
-   compute ≠ tokenizer bs64).
+## NEXT ACTIONS (in order)
+1. **Vanilla GridWorld dynamics on the cluster (IN PROGRESS, D-046).** Frozen tokenizer + frozen eval.
+   Grad-clip fix at train_dynamics.py:466–468 first; RE-PROFILE batch (latent-space compute ≠ bs64).
 2. **Wire the dynamics-rollout frame source** into adapter.py (rollout → decode → score) + the
    matched-horizon open-rollout control → real recall curves vs k vs the EXP-026 oracle/copy-last ref.
 3. Decide where the during-training W&B recall eval hooks in (flatten_for_wandb ready; off-grid k).

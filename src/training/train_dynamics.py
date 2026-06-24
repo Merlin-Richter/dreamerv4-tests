@@ -465,8 +465,10 @@ def main():
                                          return_parts=True)
             opt.zero_grad()
             loss.backward()
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             opt.step()
             train_loss += loss.item()
+            train_parts["grad_norm"] = train_parts.get("grad_norm", 0.0) + float(grad_norm)
             for name, value in parts.items():
                 train_parts[name] = train_parts.get(name, 0.0) + value.item()
 

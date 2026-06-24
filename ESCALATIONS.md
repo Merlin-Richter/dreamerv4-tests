@@ -10,7 +10,17 @@
 
 ---
 
-## ESC-018 | 2026-06-24 | OPEN — EXP-026 tokenizer-roundtrip recall CEILING (present-then-stop)
+## ESC-018 | 2026-06-24 | RESOLVED — EXP-026 tokenizer-roundtrip recall CEILING (present-then-stop)
+RESOLUTION (Merlin, 2026-06-24): "Yes this all makes perfect sense." Ceiling accepted (latent not the
+bottleneck → build dynamics on the frozen tokenizer); proceed to training the vanilla dynamics baseline.
+IMPORTANT CORRECTION to my framing: **colour DOES require memory** (static retention through occlusion —
+a model can still hallucinate the wrong colour, so it's a real, if easy, memory test), while **position
+requires reasoning INSIDE memory** (retain + simulate the bounce forward through hidden steps). So it's
+NOT "position is the only memory metric": colour = static-retention memory, position = memory+reasoning.
+Report BOTH (see memory project_gridworld_metric_semantics). Next: vanilla GridWorld dynamics baseline
+on the cluster (D-046). Q1/Q2/Q3 all = yes.
+
+## ESC-018-superseded-framing | 2026-06-24 | (kept for the record)
 Context: you approved freezing the eval (D-045) + running the ceiling check. EXP-026 ran the FROZEN
 recall core on tokenizer encode→decode of the TRUE frames — the upper bound on what any dynamics model
 on this frozen latent can recall (it predicts latents decoded the same way). 500 episodes, ~13k reveal
