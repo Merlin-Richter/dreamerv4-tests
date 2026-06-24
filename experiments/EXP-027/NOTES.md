@@ -50,11 +50,16 @@ position curve RIGHT (extend the horizon past k=15) and UP.
 - High-k tail (k>22) has 1–2 events/bin → noisy; headline x-capped at 24, full data in results.json.
 - The cluster job "FAILED" only on a final `import matplotlib` (not in the cluster venv); results.json
   was already written. Fixed: _plot wrapped non-fatal (eval.py); plotting is done locally.
-- Checkpoint NOT yet archived under experiments/EXP-027/ (the staging `cp` was skipped by set -e after
-  the matplotlib crash). It lives on ferranti at checkpoints/gridworld/dynamics_vanilla.pt. TODO: stage
-  it (fold into the next dynamics job or a tiny pull) for D-031 provenance.
+- Checkpoint archived: experiments/EXP-027/dynamics_vanilla.pt (staged via the sheet job 409595 cp;
+  gitignored like all .pt, kept locally). Still on ferranti at checkpoints/gridworld/dynamics_vanilla.pt.
+- run.sh convention fix still pending: training run.sh should save the checkpoint INTO the run dir
+  (runs/<name>/) so pull_results reaches it without the eval/sheet-job staging workaround.
 
 ## Files
 - headline.png (open first): position graded/exact + ball/bg colour vs k; model vs control vs copy-last
   vs oracle; purple line = window edge (k=15).
+- sheet_normal.png: free-run rollout (curtain up), GT top / rollout bottom, columns = timesteps.
+- sheet_occlusion.png: rollout through occlusion — TOP true underlying square, BOTTOM model belief
+  (curtain-up peek each step), orange = blind columns. The qualitative memory view.
 - results.json: full per-k curves + SE + n_by_k for all 4 sources.
+- dynamics_vanilla.pt: the trained baseline (gitignored, local archive).
