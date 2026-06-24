@@ -60,12 +60,12 @@ self-sufficient), while the temporal memory channel relays it forward untouched.
 ## Decided knobs (Merlin, 2026-06-24)
 - **Warmup the rollout mode 0% → ~50%, by WALL-CLOCK time** (not step count). Memory tokens first learn
   to *contain* state, then to *propagate* it.
-- **Hide latents PER-STEP, not per-rollout** (Merlin, 2026-06-24). At each rollout step independently,
-  hide that step's latent or not (some probability). Visible steps re-inject ground truth and
-  **re-anchor the rollout to truth**, so the model can get back on track; a fully-latent-hidden rollout
-  lets a single wrong guess compound forever with no correction. The hidden steps still give the
-  memory-only gradient; the visible steps keep it calibrated and corrected. (Also the incremental probe
-  for the **memory-only imagination** north star below.)
+- **Hide latents PER-LOSS-STEP, all-or-nothing** (Merlin, 2026-06-24, clarified). The masking unit is
+  the WHOLE context's latents for one loss computation: at each step, with some probability, hide ALL
+  latents (memory-only for that loss) — otherwise ALL visible. So across the rollout some steps are
+  memory-only and some are fully visible (NOT a per-token / per-frame independent mask). The memory-only
+  steps give the memory-carry gradient; the visible steps re-anchor to ground truth so a wrong guess
+  can't compound forever. (Also the incremental probe for the **memory-only imagination** north star.)
 - **Use GROUND-TRUTH samples (teacher-force context latents)** — feed real latents, held near-clean, so
   the only rolled-out recurrent element is the memory tokens (isolate the memory relay from open-loop
   latent drift), and so the loss compares against the true trajectory.
