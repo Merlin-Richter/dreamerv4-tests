@@ -25,10 +25,15 @@ a dynamics rollout, the gate to H2/H3 memory work.
   was reconstructed this session (D-041 turn) after I deleted it; verified via cluster_health — if a
   cluster field misbehaves, suspect a reconstructed value.
 
-## IN FLIGHT: EXP-027 vanilla GridWorld dynamics baseline — ferranti job 409479 (D-046)
-(job 409473 crashed ep3 — persistent_workers stale-offset IndexError in train_dynamics' dataset, same
-bug as the tokenizer; fixed 03a2f71 persistent_workers=False; tokenizer was present + 2 epochs healthy.)
-Resubmitted @ 03a2f71, --hours 3. Self-provisioning run.sh: locates frozen tokenizer
+## EXP-027 vanilla baseline TRAINED (job 409479 COMPLETED) — recall eval next (D-046)
+Training clean: val diffusion 0.0146→0.00139 monotone over 80 ep, no explosion (grad-clip 1.0 works).
+(409473 crashed ep3 on the persistent_workers stale-offset bug, same as the tokenizer; fixed 03a2f71.)
+Checkpoint at CLUSTER checkpoints/gridworld/dynamics_vanilla.pt — NOT in the run dir so pull_results
+can't reach it (run.sh saved to the wrong place; the tokenizer correctly saved into runs/). Plan: stage
+it into the run dir inside the eval job, then pull. NEXT BUILD (genuinely hard → verify before trusting):
+the dynamics-rollout frame source (autoregressive open-loop through occlusion → decode → score) +
+matched-horizon control, run recall on the 150 held-out val episodes vs EXP-026 oracle/copy-last.
+Test the adapter locally on /tmp/gw_dyn_smoke.pt (plumbing) before the real cluster eval. Self-provisioning run.sh: locates frozen tokenizer
 (runs/gridworld-tok-v3/tokenizer.pt, fallback checkpoints/gridworld/; fail-fast if absent), regens
 seed-42 gridworld data if absent, trains vanilla (bs64 lr3e-4 80ep seed0, grad-clip 1.0, n_actions=2)
 → checkpoints/gridworld/dynamics_vanilla.pt. WATCH: (1) tokenizer found on node? (2) no grad explosion
