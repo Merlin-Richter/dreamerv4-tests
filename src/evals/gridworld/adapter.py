@@ -91,12 +91,39 @@ def dynamics_rollout_frames(model, tokenizer, frames_u8: np.ndarray, curtain: np
         act = torch.from_numpy(cur_np[a:t + 1]).unsqueeze(0).to(device).clone()  # (1, T_ctx + n_gen)
         if control_curtain_up:
             act[:, ctx.shape[1]:] = 0                            # matched-horizon control: curtain UP
-        gen = model.generate_cached(ctx, n_gen, K=K, action_idx=act)  # (1, n_gen, n_lat, dim)
+        # memory models (FF9 full-state / FF7 register) need generate() so it dispatches to the
+        # memory-aware rollout; vanilla uses generate_cached (bit-identical, faster). V-EXP027 audited
+        # the action-slicing, which is identical across paths.
+        use_mem = (getattr(model.config, "use_full_state_memory", False)
+                   or getattr(model.config, "use_register_memory", False))
+        gen_fn = model.generate if use_mem else model.generate_cached
+        gen = gen_fn(ctx, n_gen, K=K, action_idx=act)           # (1, n_gen, n_lat, dim)
         full = torch.cat((ctx, gen), dim=1)
         win = full[:, -max_T:]                                   # temporal window ending at the reveal
         dec = tokenizer.decoder(win)[0].clamp(0, 1).cpu().float().numpy()  # (w, H, W, 3)
         out[t] = (dec[-1] * 255.0).round().astype(np.uint8)
     return out
+
+
+def gen_recall_episode(seed: int, n_ctx: int, k: int):
+    """ENV-DIRECT controlled recall scenario (Merlin: evals drive the env, not the dataset). n_ctx
+    revealed context frames (model observes the square move) → exactly k occluded frames → 1 reveal.
+    Returns (frames[n_ctx+k+1], states, colors[bg_idx,sq_idx] PALETTE-order, curtain). The single reveal
+    event has occlusion length k with last_visible = n_ctx-1, so the frozen scorer + dynamics_rollout_
+    frames pick it up unchanged."""
+    import sys as _sys
+    from pathlib import Path as _P
+    _sys.path.insert(0, str(_P(__file__).resolve().parents[2]))
+    from envs.gridworld import PALETTE, GridWorldEnv
+    env = GridWorldEnv().reset(seed)
+    frames, states = [], []
+    sched = [0] * n_ctx + [1] * k + [0]
+    for a in sched:
+        f, s = env.step(a)
+        frames.append(f); states.append(s)
+    names = list(PALETTE.keys())
+    colors = np.array([names.index(env.bg_name), names.index(env.color_name)], dtype=np.int64)
+    return np.array(frames), np.array(states, np.float32), colors, np.array(sched, np.int64)
 
 
 def load_tokenizer(checkpoint: str, device: str):
