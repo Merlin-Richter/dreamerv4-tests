@@ -32,10 +32,10 @@ Checkpoint at CLUSTER checkpoints/gridworld/dynamics_vanilla.pt — NOT in the r
 can't reach it (run.sh saved to the wrong place; the tokenizer correctly saved into runs/). Plan: stage
 it into the run dir inside the eval job, then pull. RECALL EVAL BUILT: dynamics_rollout_frames (adapter.py, faithful per-event open-loop rollout +
 matched-horizon control) + experiments/EXP-027/{eval.py,eval_run.sh,recall_design.md}. Plumbing
-validated locally on the smoke ckpt (oracle self-test=1.0). **critical-claim-verifier auditing the
-rollout protocol** (action alignment / reveal-frame decode / context-leak). WHEN it clears: submit
-eval_run.sh to ferranti (--name gridworld-vanilla-s0-eval; stages dynamics_vanilla.pt back for pull),
-then present recall curves (present-then-stop). Smoke ckpt at C:/Users/richt/AppData/Local/Temp/gw_dyn_smoke.pt. Self-provisioning run.sh: locates frozen tokenizer
+validated locally on the smoke ckpt (oracle self-test=1.0). Protocol AUDITED by critical-claim-verifier → SUPPORTED (a/b/c, no bug; V-EXP027). **Eval IN FLIGHT:
+ferranti job 409559** (@ f3ea659, gridworld-vanilla-s0-eval; stages dynamics_vanilla.pt back). When
+done: pull results.json + headline.png + checkpoint, reconcile vs D-046 tripwires, present recall
+curves (present-then-stop). Smoke ckpt at C:/Users/richt/AppData/Local/Temp/gw_dyn_smoke.pt. Self-provisioning run.sh: locates frozen tokenizer
 (runs/gridworld-tok-v3/tokenizer.pt, fallback checkpoints/gridworld/; fail-fast if absent), regens
 seed-42 gridworld data if absent, trains vanilla (bs64 lr3e-4 80ep seed0, grad-clip 1.0, n_actions=2)
 → checkpoints/gridworld/dynamics_vanilla.pt. WATCH: (1) tokenizer found on node? (2) no grad explosion
