@@ -60,12 +60,21 @@ self-sufficient), while the temporal memory channel relays it forward untouched.
 ## Decided knobs (Merlin, 2026-06-24)
 - **Warmup the rollout mode 0% → ~50%, by WALL-CLOCK time** (not step count). Memory tokens first learn
   to *contain* state, then to *propagate* it.
-- **Hide latents on a FRACTION** (both for the memory write and the next-latent flow loss), not always —
-  the mixture keeps inference calibration (latents present near-clean) while giving strong memory-only
-  gradient. This fraction is also the incremental probe for the **memory-only imagination** north star
-  below.
-- **Teacher-force context latents at first** (feed real latents, held near-clean), so the only rolled-out
-  recurrent element is the memory tokens — isolate the memory relay from open-loop latent drift.
+- **Hide latents PER-STEP, not per-rollout** (Merlin, 2026-06-24). At each rollout step independently,
+  hide that step's latent or not (some probability). Visible steps re-inject ground truth and
+  **re-anchor the rollout to truth**, so the model can get back on track; a fully-latent-hidden rollout
+  lets a single wrong guess compound forever with no correction. The hidden steps still give the
+  memory-only gradient; the visible steps keep it calibrated and corrected. (Also the incremental probe
+  for the **memory-only imagination** north star below.)
+- **Use GROUND-TRUTH samples (teacher-force context latents)** — feed real latents, held near-clean, so
+  the only rolled-out recurrent element is the memory tokens (isolate the memory relay from open-loop
+  latent drift), and so the loss compares against the true trajectory.
+- **Don't over-punish butterfly effects** (Merlin, 2026-06-24). In a stochastic env the model can make a
+  VALID but wrong guess at a genuinely random branch; penalising the whole downstream rollout for that
+  is wrong signal. Teacher-forcing GT + per-step re-anchoring keeps the rollout on the true trajectory
+  so the loss measures memory preservation, not unrecoverable divergence from one random branch. (Design
+  question for method-architect: the right way to credit/curve this — e.g. loss only where the context
+  determines the answer; re-anchor cadence.)
 - **Stability guardrails** (norm / small projection on the relayed memory activation; detach-on-overflow;
   gate on a deep-hop metric, not within-window loss) — it relays a final-layer activation into layer-0
   input over many hops (drift risk, V-T014 / op-3 note).
