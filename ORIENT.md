@@ -25,8 +25,10 @@ a dynamics rollout, the gate to H2/H3 memory work.
   was reconstructed this session (D-041 turn) after I deleted it; verified via cluster_health — if a
   cluster field misbehaves, suspect a reconstructed value.
 
-## IN FLIGHT: EXP-027 vanilla GridWorld dynamics baseline — ferranti job 409473 (D-046)
-Submitted 2026-06-24 @ 3f04834, --hours 3. Self-provisioning run.sh: locates frozen tokenizer
+## IN FLIGHT: EXP-027 vanilla GridWorld dynamics baseline — ferranti job 409479 (D-046)
+(job 409473 crashed ep3 — persistent_workers stale-offset IndexError in train_dynamics' dataset, same
+bug as the tokenizer; fixed 03a2f71 persistent_workers=False; tokenizer was present + 2 epochs healthy.)
+Resubmitted @ 03a2f71, --hours 3. Self-provisioning run.sh: locates frozen tokenizer
 (runs/gridworld-tok-v3/tokenizer.pt, fallback checkpoints/gridworld/; fail-fast if absent), regens
 seed-42 gridworld data if absent, trains vanilla (bs64 lr3e-4 80ep seed0, grad-clip 1.0, n_actions=2)
 → checkpoints/gridworld/dynamics_vanilla.pt. WATCH: (1) tokenizer found on node? (2) no grad explosion
