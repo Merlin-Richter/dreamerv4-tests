@@ -36,6 +36,17 @@ NEXT (proposed to Merlin, ESC-020): critical-claim-verifier on the corrected inf
 headline; regen FF9 sheets with plain inference; then op-3 for the long-horizon decay OR consolidate FF9.
 LESSON saved: memory-model inference dispatch is subtle — verify the inference path matches training.
 
+## FF9 ROLLOUT-TRAINING design reviewed (ESC-021) — AWAITING MERLIN
+method-architect reviewed FF9_IDEA.md (note: experiments/EXP-029-design/method_architect.md). Key:
+diagnosis = CREDIT-ASSIGNMENT not architecture (_ff9_loss:576 placeholder → "write mem←mem" un-gradiented).
+Build order OVERTURNS my doc: C1 (extend _ff9_loss with a real TBPTT-k memory chain) > C2 (my doc's
+cached-grad streaming scheme — same gradient, higher risk, build later) > C3 (cheap tbptt-2 control).
+Don't hard-code 4·N — MEASURE min k. Gating probe P1 (written+smoke-tested,
+experiments/EXP-029-design/probe_dynamic_relay.py): dynamic-secret tbptt-k sweep → settles capacity-vs-
+credit (if full BPTT fails on dynamic state, M=4 too small → widen memory, not a credit fix) AND fixes k.
+RECOMMENDED next (both cheap, present-then-stop): run P1 + close ESC-020 Q2 (2nd seed + verifier), THEN a
+C1 build decision at measured k for sign-off. Not building/running until Merlin weighs in.
+
 ## (resolved) EXP-028 FF9 v2 memory method — ferranti job 409625 (D-047)
 Vanilla baseline ACCEPTED (ESC-019). FF9 v2 (full-state memory token, n_memory=4, ff9_k=3) training,
 budget-matched to EXP-027. Expected: colour retained PAST the 16-window (beats vanilla cliff); position

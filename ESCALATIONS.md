@@ -10,6 +10,46 @@
 
 ---
 
+## ESC-021 | 2026-06-24 | OPEN — FF9 rollout-training design review (method-architect) + gating probe
+Context: you agreed to a method-architect design pass on FF9_IDEA.md (op-3 / memory→memory training).
+It's back, code-grounded, and productively DISAGREES with my doc on build order. Design note:
+experiments/EXP-029-design/method_architect.md; gating probe (written + smoke-tested):
+experiments/EXP-029-design/probe_dynamic_relay.py.
+
+### The findings (my decisive read: I agree on all major points)
+1. DIAGNOSIS (high confidence): the deficit is CREDIT-ASSIGNMENT, not architecture. _ff9_loss
+   (dynamics_model.py:576) fills the intermediate frames with the learned-init placeholder, so the
+   "write mem_{t+1} ← mem_t" map is on NO gradient path. The relay is representable + the info is
+   present; the loss simply never trains it. EXP-028's decay-to-chance is the production echo of the
+   V-T014 untrained-carry drift.
+2. BUILD ORDER (overturns my doc): rank C1 > C2 > C3.
+   - C1 (recommended): extend _ff9_loss to run the intermediate memory chain for REAL (model writes
+     each intermediate memory token), retain graph k hops (TBPTT-k). Same gradient as my doc's scheme,
+     far less surface area. One knob: depth k (measured, not guessed).
+   - C2 = my doc's cached-grad streaming scheme. Same gradient IN KIND but high correctness risk
+     (grad through RoPE-rotated K/V while evicting; must assert latent K/V detached). It's the
+     implementation you GRADUATE to for open-ended training, not the first build.
+   - C3 = cheap tbptt-2 patch to _ff9_loss as a control/floor (likely insufficient per V-T014, but free).
+3. OPEN QUESTIONS: newest-frame-only flow loss (agree; older frames are teacher-forced near-clean →
+   trivially low, dilutive). Per-step Bernoulli(p≈0.5) latent-hiding, mixture not all-hidden (re-anchor).
+   DON'T hard-code 4·N — MEASURE min k. Butterfly = non-issue in deterministic GridWorld (an asset);
+   defer credit-curving to stochastic envs.
+4. GATING EXPERIMENT (P1): extend the V-T014 harness to a DYNAMIC secret (position+velocity, integrate
+   each hop) + tbptt-k sweep. Settles the two things that gate the whole build, in ~30–60 min, NO
+   GridWorld training: (Q1) can ANY trained relay carry dynamic state — if even full BPTT fails, it's a
+   CAPACITY problem (M=4 too small) → pivot to widening memory, NOT a credit fix; (Q2) the minimum k =
+   C1's truncation horizon. Script ready + smoke-tested.
+5. DEPENDENCY FLAG: the diagnosis premise (FF9 carries dynamic position in-window) rests on EXP-028's
+   corrected inference, whose 2nd-seed + verifier pass is ESC-020 Q2 (still open).
+
+### Recommendation (mine)
+Two cheap, independent de-risks BEFORE any GridWorld build, both present-then-stop:
+- Run P1 (dynamic-secret tbptt-k probe) → capacity-vs-credit + the depth k.
+- Close ESC-020 Q2 (2nd FF9 seed + critical-claim-verifier on the corrected inference) → firm the premise.
+Then a build decision = C1 at the measured k (newest-only flow + per-step Bernoulli hide + wall-clock
+warmup), for your sign-off. I am NOT building or running until you weigh in.
+Urgency: present-then-stop. Nothing in flight; cluster idle.
+
 ## ESC-020 | 2026-06-24 | OPEN — EXP-028 FF9 v2 memory method on GridWorld [CORRECTED] (present-then-stop)
 Context: you said train FF9. Trained budget-matched to vanilla (job 409625); env-direct recall A/B vs
 vanilla, frozen scorer (D-045), N=64/k. CORRECTION: my first read ran FF9 through the FROZEN-snapshot

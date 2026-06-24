@@ -27,6 +27,16 @@ H3 = force D to carry hidden/global state past the N-frame context window. Outco
   preservation** — that metric misleads. Only keeping >=1 hop of gradient (TBPTT-1) partially
   helps; train at the deepest eval horizon, don't extrapolate.
 
+- **FF9 op-3 (memory→memory relay, EXP-029 design, 2026-06-24):** `_ff9_loss` injects real memory_t
+  at frame 0 but fills frames 1..k with `self.memory_tokens` (learned init, line 576) — so the
+  "write memory_{t+1} from memory_t" map is on NO gradient path. EXP-028 recall decays to chance by
+  k≈28 = the production echo of V-T014 drift. Diagnosis: identifiability/credit (links 3+6), NOT
+  architecture (temporal attn is position-wise => relay representable; readout R²=0.96 => info
+  present). Fix family = put REAL memory chains on the gradient path w/ TBPTT-k. Recommended: C1 =
+  unroll the FF9 window so intermediate memory is real + keep graph k hops (k from a sweep, NOT 4·N).
+  Cheapest control: C3 = tbptt-2 patch to `_ff9_loss` (1 extra hop). GridWorld is DETERMINISTIC given
+  actions => butterfly-effect credit-curving is a non-issue (asset); defer it to stochastic envs.
+
 **Taste notes:**
 - The sophisticated-looking "consistency loss + detached relay" was vacuous past the trained
   horizon. The minimal intervention that actually moved the metric was just *adding a

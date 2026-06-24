@@ -25,6 +25,13 @@ existing checkpoint + the frozen probe at commit 5503e75; no training needed):
 - **2-frame vs N-frame velocity probe.** Linear-probe (dx,dy) from last-1 / last-2 / full
   window latents to see if velocity needs >1 frame and whether the model's state carries it.
 
+- **Dynamic-state relay credit + tbptt-k sweep (EXP-029, `experiments/EXP-029-design/probe_dynamic_relay.py`).**
+  Extends the V-T014 static-secret harness to a DYNAMIC secret (1-D bounce that must be INTEGRATED
+  each hop, like GridWorld position). Arms: no_relay / tbptt-{1,2,4,8,16} / bptt. Settles BEFORE any
+  big run: (Q1) does ANY relay carry dynamic state — if even full BPTT fails it's capacity (M=4) not
+  credit, REORDER to widen memory; (Q2) min tbptt-k that extrapolates = the truncation horizon for
+  the FF9 rollout loss. Run before building op-3 rollout training. ~30-60 min, no GridWorld training.
+
 **Why:** these are the calibrated instruments the H3 line already validated; reaching for them
 first avoids guessing and avoids building architecture for a downstream (objective) problem.
 
