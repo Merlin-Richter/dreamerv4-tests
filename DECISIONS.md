@@ -1339,3 +1339,27 @@ Would change my mind / tripwires:
     a tokenizer-latent or training-budget problem, NOT a memory finding → diagnose before comparisons.
   - Training diverges despite grad-clip → investigate (don't resubmit same config >2×).
 Spawns: EXP-027 (vanilla GridWorld dynamics baseline); then dynamics-rollout frame source in adapter.py.
+
+## D-047 | 2026-06-24
+Context: vanilla GridWorld baseline floor established (EXP-027): memory exactly to the 16-frame window,
+hard cliff past it (position AND static colour). FF9 v2 (full-state memory token) was validated for
+STATIC hidden state on the occluded line (EXP-017: colour held flat past window; position not). Merlin:
+"Now lets train FF9." First memory method on the clean GridWorld bench.
+Decision: train FF9 v2 (use_full_state_memory, n_memory=4, ff9_k=3, lambda_ff9=1.0) on the frozen
+GridWorld tokenizer, BUDGET-MATCHED to the EXP-027 vanilla (bs64, lr3e-4, 80ep, seed0, ctx16,
+n_actions=2, grad-clip 1.0) for a fair A/B. On ferranti. Output checkpoints/gridworld/dynamics_ff9.pt
+(+ staged into the run dir for pull). EXP-028.
+Alternatives rejected: FF7 first (FF9 v2 is the validated static-memory line and Merlin chose it);
+EXP-017's 100ep/bs32 budget (match the GridWorld vanilla budget, not the occluded one, for the A/B).
+Expected outcome: FF9 extends memory PAST the window for STATIC hidden state — colour recall stays high
+beyond k=16 where vanilla cliffs to chance. Dynamic POSITION likely still cliffs (EXP-017: the frozen
+snapshot can't integrate motion; that needs the op-3 relay). So predicted A/B: colour past-window FF9 ≫
+vanilla; position past-window ≈ both poor.
+Would change my mind / tripwires:
+  - FF9 colour ALSO cliffs at the window like vanilla → memory token not learning on GridWorld → debug
+    (check memory is load-bearing, inference dispatch to generate_full_state_memory).
+  - FF9 ALSO retains POSITION past window → surprising win (dynamic state without op-3) → investigate.
+Note: FF9 recall eval needs MEMORY-AWARE inference (generate dispatches to generate_full_state_memory);
+the current dynamics_rollout_frames uses generate_cached (vanilla path) — must add the memory path for
+the EXP-028 eval (handle at eval time, after the eval-data-source question is settled with Merlin).
+Spawns: EXP-028 (FF9 GridWorld); FF9-aware recall adapter.
