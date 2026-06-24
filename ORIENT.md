@@ -25,7 +25,16 @@ a dynamics rollout, the gate to H2/H3 memory work.
   was reconstructed this session (D-041 turn) after I deleted it; verified via cluster_health — if a
   cluster field misbehaves, suspect a reconstructed value.
 
-## AWAITING MERLIN — EXP-027 vanilla baseline DONE (ESC-019, present-then-stop)
+## IN FLIGHT: EXP-028 FF9 v2 memory method on GridWorld — ferranti job 409625 (D-047)
+Vanilla baseline ACCEPTED (ESC-019). FF9 v2 (full-state memory token, n_memory=4, ff9_k=3) training,
+budget-matched to EXP-027. Expected: colour retained PAST the 16-window (beats vanilla cliff); position
+likely still cliffs (dynamic state → op-3). When done: build FF9-AWARE recall adapter (generate dispatches
+to generate_full_state_memory — current dynamics_rollout_frames uses generate_cached/vanilla path) and
+eval vs vanilla. TWO open eval-method items from Merlin: (1) convert the recall eval to ENV-DIRECT
+generation (headline.png used the val SET; memory: evals-use-env-directly) — re-run vanilla under it for a
+matched A/B; (2) sheets already env-direct. window-8 demo is in-distribution (causal masking), not OOD.
+
+## (resolved) EXP-027 vanilla baseline DONE (ESC-019)
 The GridWorld no-memory FLOOR is established. Recall (150 held-out val eps, job 409559): position_acc
 model 0.573 in-window (vs copy-last 0.118) → 0.015 past window (k≥16); matched-horizon control flat
 ~0.70 at all k (→ the cliff is MEMORY LOSS, not weak dynamics); even static colour →chance past window.

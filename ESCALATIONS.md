@@ -10,7 +10,15 @@
 
 ---
 
-## ESC-019 | 2026-06-24 | OPEN — EXP-027 vanilla GridWorld dynamics baseline recall (present-then-stop)
+## ESC-019 | 2026-06-24 | RESOLVED — EXP-027 vanilla GridWorld dynamics baseline recall (present-then-stop)
+RESOLUTION (Merlin, 2026-06-24): baseline ACCEPTED ("we will use this as baseline for now. Maybe later
+a longer trained one. But for now this is already very good"). Also corrected my window-8 caveat: a
+shorter inference context is IN-distribution for a causally-masked transformer (memory:
+causal-prefix-in-distribution). Directed: (1) train FF9 next → D-047/EXP-028 (job 409625, in flight);
+(2) raised that evals should use the env directly, not the val set (headline.png used the val set) →
+to convert (memory: evals-use-env-directly). Sheets accepted after the env-based occlusion rework.
+
+## ESC-019-orig | 2026-06-24 | (superseded by resolution above)
 Context: you green-lit training the vanilla baseline + building the rollout-recall adapter. Trained
 (job 409479, val diffusion 0.0146→0.00139, stable). Rollout protocol audited by critical-claim-verifier
 → SUPPORTED on action-alignment / reveal-decode / no-leak (V-EXP027). Recall run (job 409559) on the
