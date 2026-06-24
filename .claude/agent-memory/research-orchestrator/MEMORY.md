@@ -6,6 +6,7 @@
 - [GridWorld metric semantics](project_gridworld_metric_semantics.md) — colour=static memory (still failable), position=memory+reasoning; both are memory tests, not just position
 - [Ground ML claims in code](feedback_ground_claims_in_code.md) — verify architecture/gradient claims against the module (cite file:line) before asserting; don't reason from priors
 - [Causal prefix is in-distribution](feedback_causal_prefix_in_distribution.md) — shorter inference context than train length is IN-distribution for causally-masked transformers; don't call it OOD
+- [Verify the inference path matches training](feedback_verify_inference_path.md) — memory/arch models: confirm eval inference reproduces training token-flow; near-zero k=1 recall = wrong path, not a result
 - [Evals should use the env directly](feedback_evals_use_env_directly.md) — generate eval data from the env (controlled scenarios), not the fixed dataset/val set
 - [Sequence subobjectives, keep the end-goal visible](feedback_sequence_subobjectives.md) — finish one subobjective in isolation before the next, but don't scrub the big-picture goal when narrowing scope
 - [Use idle overnight GPU](feedback_overnight_gpu.md) — when wrapping up late, launch a relevant low-risk overnight run (even a known-imperfect method); don't rush a bug-prone build

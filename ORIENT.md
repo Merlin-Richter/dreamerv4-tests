@@ -25,13 +25,16 @@ a dynamics rollout, the gate to H2/H3 memory work.
   was reconstructed this session (D-041 turn) after I deleted it; verified via cluster_health — if a
   cluster field misbehaves, suspect a reconstructed value.
 
-## AWAITING MERLIN — EXP-028 FF9 result (ESC-020, present-then-stop)
-FF9 v2 trained + env-direct A/B vs vanilla done. **FF9 solves STATIC memory** (colour/bg flat 1.0 to
-k=32; vanilla cliffs at k≥16). **Dynamic position NOT retained** — frozen-snapshot: ~0 off-period,
-exact 1.0 at k=10/20 (bounce period 10); FF9 < vanilla in-window position (0.18 vs 0.52). Matches
-EXP-017 on the clean bench → dynamic position needs op-3. View: experiments/EXP-028/compare.png.
-Next (after Merlin): op-3 / sequential memory-update method (dynamic-state frontier) — proposal+decision
-before training. Loose end: FF9 sheets non-faithful (vanilla inference path) → redo via memory-carry rollout.
+## AWAITING MERLIN — EXP-028 FF9 result [CORRECTED] (ESC-020, present-then-stop)
+FF9 v2 trained + env-direct A/B vs vanilla. **CORRECTED inference** (normal rollout, memory tokens carried
+in window via temporal attn; generate_cached plain=True — NOT the frozen-snapshot generate_full_state_memory
+I wrongly used first, which gave k=1 pos=0 / period-10 spikes; Merlin flagged it). Result: **FF9 is a real
+DYNAMIC-memory win** — position in-window 0.94 vs vanilla 0.52, past-window(k≥16) 0.20 vs 0.05, SMOOTH decay
+to chance ~k28 (genuine motion integration, no snapshot periodicity). Colour/bg also beat vanilla past
+window (0.48/0.62 vs 0.30/0.26) but decay. View: experiments/EXP-028/compare.png.
+NEXT (proposed to Merlin, ESC-020): critical-claim-verifier on the corrected inference + 2nd seed before
+headline; regen FF9 sheets with plain inference; then op-3 for the long-horizon decay OR consolidate FF9.
+LESSON saved: memory-model inference dispatch is subtle — verify the inference path matches training.
 
 ## (resolved) EXP-028 FF9 v2 memory method — ferranti job 409625 (D-047)
 Vanilla baseline ACCEPTED (ESC-019). FF9 v2 (full-state memory token, n_memory=4, ff9_k=3) training,
