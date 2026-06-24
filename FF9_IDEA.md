@@ -48,6 +48,35 @@ rollouts so genuine relayed memory tokens are present in context to learn to wri
 Net effect: the memory tokens are trained not just to *contain* the state but to *preserve and re-write*
 it across many hops — the relay FF9 currently fakes at inference becomes a trained operation.
 
+## Architecture fact (how memory and latents wire — from the code, dynamics_model.py)
+The stack alternates two block types. **Spatial blocks** (within a frame) do full, *unmasked* self-
+attention over `[action | latents | registers | memory | shortcut]` → **memory ↔ latents is bidirectional,
+same layer**. **Temporal blocks** (every 4th) attend **position-wise per token slot, causally** → each
+memory slot is its own causal channel through time and does NOT see latents at other times directly.
+So latents and memory mix only *within a frame*; the temporal layers carry each channel forward. This is
+why **hiding the latents is clean**: within-frame the latent tokens carry no info (forcing memory to be
+self-sufficient), while the temporal memory channel relays it forward untouched.
+
+## Decided knobs (Merlin, 2026-06-24)
+- **Warmup the rollout mode 0% → ~50%, by WALL-CLOCK time** (not step count). Memory tokens first learn
+  to *contain* state, then to *propagate* it.
+- **Hide latents on a FRACTION** (both for the memory write and the next-latent flow loss), not always —
+  the mixture keeps inference calibration (latents present near-clean) while giving strong memory-only
+  gradient. This fraction is also the incremental probe for the **memory-only imagination** north star
+  below.
+- **Teacher-force context latents at first** (feed real latents, held near-clean), so the only rolled-out
+  recurrent element is the memory tokens — isolate the memory relay from open-loop latent drift.
+- **Stability guardrails** (norm / small projection on the relayed memory activation; detach-on-overflow;
+  gate on a deep-hop metric, not within-window loss) — it relays a final-layer activation into layer-0
+  input over many hops (drift risk, V-T014 / op-3 note).
+
+## Future direction — memory-only imagination (Merlin, 2026-06-24)
+North star: make the memory tokens the **recurrent world-state** (DreamerV4 h-state analogue) and run
+imagination + policy training purely in memory space, decoding latents only when pixels are needed. The
+hide-latents fraction above is the incremental test of whether memory is a *sufficient* state. Caveat:
+M=4 memory tokens is a small state (spatial detail currently lives in the latents), so full-scene
+memory-only imagination may need more memory capacity — an empirical knob, not a blocker.
+
 ## Open questions (to settle before / during the build)
 1. **Flow loss on the newest frame only?** Taking the latent flow loss on all frames in every window
    re-trains each frame ~(window-size) times — likely a harmful repeated/over-weighted signal, and the
