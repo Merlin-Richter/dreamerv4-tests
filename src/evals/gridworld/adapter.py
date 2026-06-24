@@ -92,20 +92,14 @@ def dynamics_rollout_frames(model, tokenizer, frames_u8: np.ndarray, curtain: np
         act = torch.from_numpy(cur_np[a:t + 1]).unsqueeze(0).to(device).clone()  # (1, T_ctx + n_gen)
         if control_curtain_up:
             act[:, ctx.shape[1]:] = 0                            # matched-horizon control: curtain UP
-        # inference path: "windowed" = base dynamics (generate_cached, dead-reckons from recent frames,
-        # no memory carry); "memory" = generate() -> memory-aware rollout (FF9 frozen snapshot / FF7
-        # register relay; NO dead-reckoning); "auto" = pick by model config. A memory model has BOTH a
-        # base path and a memory path — judge in-window position with "windowed", beyond-window static
-        # retention with "memory". (V-EXP027 audited the windowed action-slicing.)
-        if inference == "windowed":
-            gen_fn = model.generate_cached
-        elif inference == "memory":
-            gen_fn = model.generate
-        else:
-            use_mem = (getattr(model.config, "use_full_state_memory", False)
-                       or getattr(model.config, "use_register_memory", False))
-            gen_fn = model.generate if use_mem else model.generate_cached
-        gen = gen_fn(ctx, n_gen, K=K, action_idx=act)           # (1, n_gen, n_lat, dim)
+        # FF9 inference = the NORMAL sliding-window rollout with memory tokens carried in the window via
+        # temporal attention (generate_cached plain=True bypasses the frozen-snapshot dispatch; per-frame
+        # memory tokens are still present and chained across frames). This is the one intended FF9
+        # inference. "snapshot" = the generate_full_state_memory special case (kept only for reference).
+        if inference == "snapshot":
+            gen = model.generate(ctx, n_gen, K=K, action_idx=act)
+        else:  # "windowed"/"auto"/default — normal rollout (vanilla: no memory tokens; FF9: carried)
+            gen = model.generate_cached(ctx, n_gen, K=K, action_idx=act, plain=True)
         full = torch.cat((ctx, gen), dim=1)
         win = full[:, -max_T:]                                   # temporal window ending at the reveal
         dec = tokenizer.decoder(win)[0].clamp(0, 1).cpu().float().numpy()  # (w, H, W, 3)

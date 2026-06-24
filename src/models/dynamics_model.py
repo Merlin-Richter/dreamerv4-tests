@@ -774,17 +774,24 @@ class DynamicsModel(nn.Module):
 
     @torch.no_grad()
     def generate_cached(self, context: torch.Tensor, n_generate: int, K: int = None,
-                        action_idx: torch.Tensor = None) -> torch.Tensor:
+                        action_idx: torch.Tensor = None, plain: bool = False) -> torch.Tensor:
         """KV-cached rollout. Same signature/semantics as ``generate`` and bit-for-bit identical
         to it (given the same RNG state): the cache is rebuilt per generated frame, so each
         frame's window is re-noised exactly as in the uncached path. The saving is reusing the
         context window's K/V across the K shortcut substeps that denoise one frame (the context
         is constant + causal, so its K/V is identical every substep) — NOT cross-frame
         persistence and NOT anything within a frame's jointly-denoised tokens. The FF7
-        register-memory path is already window-1 (no cache benefit) and is dispatched unchanged."""
-        if getattr(self.config, "use_register_memory", False):
+        register-memory path is already window-1 (no cache benefit) and is dispatched unchanged.
+
+        ``plain=True`` runs the standard sliding-window rollout EVEN for memory models, skipping the
+        dispatch to generate_memory / generate_full_state_memory. The per-frame memory tokens are still
+        present (memory_in=None -> learned-init each frame) and are carried across frames via the
+        position-wise temporal attention / KV cache — i.e. the NORMAL rollout where memory tokens flow
+        in the window like the frame latents (the intended FF9 inference), NOT the frozen-snapshot
+        special case."""
+        if not plain and getattr(self.config, "use_register_memory", False):
             return self.generate_memory(context, n_generate, K, action_idx)
-        if getattr(self.config, "use_full_state_memory", False):
+        if not plain and getattr(self.config, "use_full_state_memory", False):
             return self.generate_full_state_memory(context, n_generate, K, action_idx)
         K = K or self.config.inference_steps
         max_ctx = self.config.max_temporal_length - 1
