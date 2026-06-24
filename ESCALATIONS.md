@@ -221,3 +221,8 @@ run in flight (job 405629). (a) Q1 PROGRESSED — Merlin gave a refined eval spe
 FREEZE the eval + decide periodicity handling (copy-last spikes to 1.0 at k≡9 mod 10 on the 6×6 env →
 judge per-k; periodic-W&B eval should use off-grid k like {3,6,12,16}) + where to wire the during-
 training W&B eval. Tokenizer training does not need this; the dynamics recall eval does.
+
+RESOLUTION — Q1 (2026-06-24): Merlin approved the freeze ("you can continue with that"). Eval CORE
+frozen (D-045): readout.py + scoring/aggregation/baselines in recall.py. Periodicity = judge PER-K,
+periodic W&B eval uses off-grid k {3,6,12,16}. Model-based frame sources go in a separate adapter that
+imports the frozen core. ESC-016 fully resolved (Q1 + Q2 both answered).

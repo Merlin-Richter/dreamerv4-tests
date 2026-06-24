@@ -1293,3 +1293,24 @@ Would change my mind: if the tokenizer-roundtrip recall ceiling (next experiment
 latents do NOT preserve enough position/colour to read out at reveal frames → tokenizer is the
 bottleneck, revisit (e.g. more latents / bottleneck_dim / fg-weight) before any dynamics run.
 Spawns: ESC-017 resolved; next = tokenizer-roundtrip recall ceiling check, then model adapter.
+
+## D-045 | 2026-06-24
+Context: Tokenizer frozen (D-044). Merlin: "lets get the eval down" then "Thats fine, you can
+continue with that" — approving (a) FREEZE the GridWorld recall eval design as specified, with
+per-k judging + off-grid k {3,6,12,16} for the periodic W&B eval, and (b) run the tokenizer-
+roundtrip recall ceiling check. Resolves ESC-016 Q1.
+Decision: FREEZE the GridWorld recall eval CORE — `src/evals/gridworld/readout.py` (exact
+read_square) + the scoring/aggregation/baselines in `recall.py` (score_episode, aggregate, graded
+position_score per D-040, oracle/copy-last/chance) — as a result-defining spine. Frozen as of this
+commit. Periodicity handling: the 6×6 bounce has period 10 → copy-last spikes to 1.0 at k≡9 (mod 10),
+so memory is judged PER-K (beat copy-last at each k), NEVER by a single averaged scalar; the periodic
+during-training W&B eval uses OFF-GRID k {3,6,12,16}. MODEL-based frame sources (tokenizer-roundtrip,
+dynamics-rollout, matched-horizon control) live in a SEPARATE adapter that imports the frozen core —
+they do not edit the frozen scorer. Future changes to the core are logged decisions (§8).
+Alternatives rejected: single averaged recall scalar (inflated by the period-10 copy-last spikes);
+keeping it unfrozen (method experiments would silently redefine prior results).
+Expected outcome: a stable yardstick; the tokenizer-roundtrip ceiling and all dynamics recall curves
+are comparable against fixed oracle/copy-last/chance references.
+Would change my mind: if a downstream result exposes a scoring flaw (e.g. readout mis-snaps a colour,
+or graded credit hides a real effect) → logged decision to amend, re-run affected comparisons.
+Spawns: ESC-016 Q1 resolved; EXP-026 tokenizer-roundtrip recall ceiling.
