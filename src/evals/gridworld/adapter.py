@@ -66,7 +66,8 @@ def load_dynamics(checkpoint: str, device: str):
 
 @torch.no_grad()
 def dynamics_rollout_frames(model, tokenizer, frames_u8: np.ndarray, curtain: np.ndarray,
-                            device: str, K: int = None, control_curtain_up: bool = False) -> np.ndarray:
+                            device: str, K: int = None, control_curtain_up: bool = False,
+                            inference: str = "auto") -> np.ndarray:
     """Faithful per-reveal-event rollout (see experiments/EXP-027/recall_design.md).
 
     For each reveal event (lv = last curtain-up, k occluded, reveal_t = lv+k+1): context = TRUE latents
@@ -91,12 +92,19 @@ def dynamics_rollout_frames(model, tokenizer, frames_u8: np.ndarray, curtain: np
         act = torch.from_numpy(cur_np[a:t + 1]).unsqueeze(0).to(device).clone()  # (1, T_ctx + n_gen)
         if control_curtain_up:
             act[:, ctx.shape[1]:] = 0                            # matched-horizon control: curtain UP
-        # memory models (FF9 full-state / FF7 register) need generate() so it dispatches to the
-        # memory-aware rollout; vanilla uses generate_cached (bit-identical, faster). V-EXP027 audited
-        # the action-slicing, which is identical across paths.
-        use_mem = (getattr(model.config, "use_full_state_memory", False)
-                   or getattr(model.config, "use_register_memory", False))
-        gen_fn = model.generate if use_mem else model.generate_cached
+        # inference path: "windowed" = base dynamics (generate_cached, dead-reckons from recent frames,
+        # no memory carry); "memory" = generate() -> memory-aware rollout (FF9 frozen snapshot / FF7
+        # register relay; NO dead-reckoning); "auto" = pick by model config. A memory model has BOTH a
+        # base path and a memory path — judge in-window position with "windowed", beyond-window static
+        # retention with "memory". (V-EXP027 audited the windowed action-slicing.)
+        if inference == "windowed":
+            gen_fn = model.generate_cached
+        elif inference == "memory":
+            gen_fn = model.generate
+        else:
+            use_mem = (getattr(model.config, "use_full_state_memory", False)
+                       or getattr(model.config, "use_register_memory", False))
+            gen_fn = model.generate if use_mem else model.generate_cached
         gen = gen_fn(ctx, n_gen, K=K, action_idx=act)           # (1, n_gen, n_lat, dim)
         full = torch.cat((ctx, gen), dim=1)
         win = full[:, -max_T:]                                   # temporal window ending at the reveal

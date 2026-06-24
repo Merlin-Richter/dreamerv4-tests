@@ -13,15 +13,17 @@ ap.add_argument("--dir", default=str(Path(__file__).resolve().parent))
 args = ap.parse_args()
 D = Path(args.dir)
 van = json.loads((D / "recall_env_vanilla.json").read_text())
-ff9 = json.loads((D / "recall_env_ff9.json").read_text())
+ff9w = json.loads((D / "recall_env_ff9_windowed.json").read_text())
+ff9m = json.loads((D / "recall_env_ff9_memory.json").read_text())
 ch = van["chance"]
 
 metrics = [("position_acc", "exact position (1/36)"), ("position_score", "graded position"),
            ("color_acc", "ball colour (1/4)"), ("bg_acc", "bg colour (1/4)")]
 fig, axes = plt.subplots(2, 2, figsize=(13, 8))
 for ax, (m, title) in zip(axes.ravel(), metrics):
-    series = [("vanilla model", van["model"], dict(c="tab:red", marker="o")),
-              ("FF9 model", ff9["model"], dict(c="tab:blue", marker="o")),
+    series = [("vanilla (windowed)", van["model"], dict(c="tab:red", marker="o")),
+              ("FF9 base (windowed)", ff9w["model"], dict(c="tab:green", marker="s")),
+              ("FF9 memory", ff9m["model"], dict(c="tab:blue", marker="o")),
               ("copy-last", van["copy_last"], dict(c="gray", ls=":", marker="x")),
               ("oracle", van["oracle"], dict(c="k", ls="--"))]
     for label, src, stl in series:

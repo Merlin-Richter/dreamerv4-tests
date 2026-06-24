@@ -36,21 +36,25 @@ def main():
     ap.add_argument("--n-ctx", type=int, default=8)
     ap.add_argument("--n-per-k", type=int, default=64)
     ap.add_argument("--tag", default="vanilla")
+    ap.add_argument("--inference", default="auto", choices=["auto", "windowed", "memory"],
+                    help="windowed=base dynamics (dead-reckon); memory=FF9 snapshot carry; auto=by config")
     args = ap.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     tok, _ = load_tokenizer(args.tokenizer, device)
     model, cfg = load_dynamics(args.dynamics, device)
-    print(f"[{args.tag}] env-direct recall: n_ctx={args.n_ctx} N/k={args.n_per_k} "
+    print(f"[{args.tag}] env-direct recall: n_ctx={args.n_ctx} N/k={args.n_per_k} inference={args.inference} "
           f"use_full_state_memory={getattr(cfg,'use_full_state_memory',False)}")
 
     recs = {"model": [], "control": [], "oracle": [], "copy_last": []}
     for k in KS:
         for i in range(args.n_per_k):
             f, st, co, cu = gen_recall_episode(seed=70000 + k * 1000 + i, n_ctx=args.n_ctx, k=k)
-            recs["model"] += score_episode(dynamics_rollout_frames(model, tok, f, cu, device), st, co, cu)
+            recs["model"] += score_episode(
+                dynamics_rollout_frames(model, tok, f, cu, device, inference=args.inference), st, co, cu)
             recs["control"] += score_episode(
-                dynamics_rollout_frames(model, tok, f, cu, device, control_curtain_up=True), st, co, cu)
+                dynamics_rollout_frames(model, tok, f, cu, device, control_curtain_up=True,
+                                        inference=args.inference), st, co, cu)
             recs["oracle"] += score_episode(oracle_frames(st, co, cu), st, co, cu)
             recs["copy_last"] += score_episode(copylast_frames(st, co, cu), st, co, cu)
         print(f"  k={k} done ({args.n_per_k} eps)")
