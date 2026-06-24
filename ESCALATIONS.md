@@ -10,6 +10,41 @@
 
 ---
 
+## ESC-020 | 2026-06-24 | OPEN — EXP-028 FF9 v2 memory method on GridWorld (present-then-stop)
+Context: you said train FF9. Trained budget-matched to vanilla (job 409625); evaluated with the new
+ENV-DIRECT recall A/B (job 409661, N=64/k, no dataset) — vanilla vs FF9, both through the frozen scorer,
+FF9 with memory-aware inference. §5 present-then-stop.
+
+### The result (decisive read)
+**FF9 cleanly SOLVES static hidden-state memory, and gives a textbook diagnosis of the remaining
+dynamic-state gap — exactly the predicted split (D-047 / occluded EXP-017), now on the clean bench.**
+1. STATIC state (colour + bg): FF9 holds **1.0 flat at every k out to 32**, where vanilla cliffs to
+   chance (~0.25) the instant k passes the 16-frame window. The memory token works — a written-once
+   attribute survives arbitrarily long occlusion. Clear win over the no-memory vanilla.
+2. DYNAMIC position: FF9 does NOT integrate motion. position_acc ~0 off-period but **exactly 1.000
+   (64/64) at k=10 and k=20** — the bounce period is 10, so a snapshot frozen at context-time is right
+   only when the true square cycles back. Unambiguous frozen-snapshot signature → dynamic position
+   needs a memory that UPDATES across steps (op-3 / sequential relay), not a static snapshot.
+3. Cost: FF9 even underperforms vanilla on position IN-window (0.18 vs 0.52) — it leans on the snapshot
+   instead of dead-reckoning. So FF9 is a static-memory specialist that trades away dynamic tracking.
+
+### Access points
+- compare.png (open first): experiments/EXP-028/compare.png — vanilla vs FF9 recall vs k, 4 panels.
+- Numbers: experiments/EXP-028/recall_env_{vanilla,ff9}.json. Reconciliation: experiments/EXP-028/NOTES.md.
+  Rows EXP-028. Eval = the new env-direct driver (recall_env.py) you asked for.
+- Caveat: FF9 rollout SHEETS from the job are NOT faithful (used the vanilla inference path; memory
+  bypassed) — not shown; faithful FF9 sheet is a follow-up (memory-carry rollout primitives).
+
+### The questions for you
+1. Accept the read — FF9 v2 solves static memory (colour past window) and the period-10 spikes pin the
+   dynamic-position gap as frozen-snapshot, motivating op-3?
+2. This reproduces the occluded H3 finding on the clean GridWorld bench (static colour ✓, dynamic
+   position ✗). Direction: build the op-3 / sequential memory-update method (the dynamic-state frontier)
+   next? I'd bring a method proposal + decision for sign-off before training. Or: first redo a faithful
+   FF9 sheet, and/or a 2nd seed to firm the A/B?
+Urgency: present-then-stop per §5 — not starting op-3 or further work until you weigh in. Nothing in
+flight; cluster idle.
+
 ## ESC-019 | 2026-06-24 | RESOLVED — EXP-027 vanilla GridWorld dynamics baseline recall (present-then-stop)
 RESOLUTION (Merlin, 2026-06-24): baseline ACCEPTED ("we will use this as baseline for now. Maybe later
 a longer trained one. But for now this is already very good"). Also corrected my window-8 caveat: a
