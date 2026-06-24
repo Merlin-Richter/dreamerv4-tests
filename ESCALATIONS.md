@@ -10,6 +10,48 @@
 
 ---
 
+## ESC-019 | 2026-06-24 | OPEN — EXP-027 vanilla GridWorld dynamics baseline recall (present-then-stop)
+Context: you green-lit training the vanilla baseline + building the rollout-recall adapter. Trained
+(job 409479, val diffusion 0.0146→0.00139, stable). Rollout protocol audited by critical-claim-verifier
+→ SUPPORTED on action-alignment / reveal-decode / no-leak (V-EXP027). Recall run (job 409559) on the
+150 held-out val episodes through the frozen recall core (D-045). §5 present-then-stop.
+
+### The result (decisive read)
+**The no-memory FLOOR is established, textbook-clean: vanilla retains hidden state exactly up to its
+16-frame temporal window and nothing beyond.** Three findings, all from one figure:
+1. REAL within-window memory+reasoning on POSITION: model exact-cell acc 0.573 (k≤14) vs copy-last
+   0.118 (~5× chance-adjusted) — it remembers the last-seen square AND dead-reckons the bounce through
+   up to ~14 hidden steps (imperfect: integrating motion blind is hard).
+2. HARD cliff at the window edge (k=15): past the window position → 0.015 (below chance AND below
+   copy-last 0.191 — it actively hallucinates), and even the STATIC colour collapses to chance (0.265)
+   while copy-last trivially holds it at 1.0. The cleanest possible "no memory past the window."
+3. The cliff is MEMORY LOSS, not weak dynamics: the matched-horizon control (curtain held UP) tracks
+   position ~0.70 FLAT at every k incl. past the window — the model CAN propagate motion arbitrarily
+   far given observations; it fails under occlusion only because it can't retain hidden state past the
+   window. Deficit cleanly isolated.
+Both D-046 tripwires clear (not ≈oracle past window → env not too easy; in-window+control good → no
+tokenizer/budget confound). oracle=1.0 (instrument valid).
+
+### Access points
+- headline.png (open first): experiments/EXP-027/headline.png — position graded/exact + ball/bg colour
+  vs k; model (blue) vs control (green, flat) vs copy-last (red, spiky) vs oracle; purple line=window edge.
+- Numbers: experiments/EXP-027/results.json. Reconciliation: experiments/EXP-027/NOTES.md. Rows EXP-027,
+  V-EXP027.
+
+### The questions for you
+1. Accept this as the GridWorld no-memory baseline floor (memory to the window, cliff past it, isolated
+   as memory loss by the control)?
+2. This is the H-gridworld milestone the whole pivot was building toward — the clean bench is live
+   (frozen tokenizer + frozen eval + audited rollout + vanilla floor). Ready to move to the MEMORY
+   method on GridWorld (the FF7/FF9/op-3 line, now on the clean discrete bench)? If so I'll bring a
+   method proposal + decision for your sign-off before training.
+3. Minor housekeeping for your awareness (not blocking): (a) dynamics_vanilla.pt not yet archived under
+   experiments/EXP-027/ (the staging cp was skipped when the job tripped on a missing-matplotlib at the
+   very end; it's safe on ferranti); (b) I'll fix the run.sh convention so checkpoints save into the
+   pullable run dir. Both folded into the next dynamics run.
+Urgency: present-then-stop per §5 — not starting the memory method until you weigh in. Nothing in flight;
+cluster idle.
+
 ## ESC-018 | 2026-06-24 | RESOLVED — EXP-026 tokenizer-roundtrip recall CEILING (present-then-stop)
 RESOLUTION (Merlin, 2026-06-24): "Yes this all makes perfect sense." Ceiling accepted (latent not the
 bottleneck → build dynamics on the frozen tokenizer); proceed to training the vanilla dynamics baseline.

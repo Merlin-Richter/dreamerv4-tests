@@ -87,7 +87,10 @@ def main():
             print(f"  k={int(k):>3} (n={nk:>4}): model={row['model']:.3f} ctrl={row['control']:.3f} "
                   f"copy={row['copy_last']:.3f} oracle={row['oracle']:.3f}")
 
-    _plot(res, out_dir / "headline.png")
+    try:
+        _plot(res, out_dir / "headline.png")
+    except Exception as e:  # matplotlib not in the cluster venv — results.json is the source of truth
+        print(f"[plot skipped: {e}] results.json written; plot locally with plot_results.py")
 
 
 def _plot(res, path):
@@ -108,8 +111,10 @@ def _plot(res, path):
                 ax.plot([int(k) for k in ks], [d[k] for k in ks], label=src, **stl)
         if m in ch:
             ax.axhline(ch[m], c="gray", ls=":", lw=1, label="chance")
-        ax.axvline(res["model"].get("_window", 15), c="purple", ls="-", lw=0.6, alpha=0.4)
+        ax.axvline(15, c="purple", ls="-", lw=0.8, alpha=0.5)  # tokenizer/dynamics window edge (k=15)
+        ax.text(15.2, 0.02, "window", color="purple", fontsize=6, alpha=0.7)
         ax.set_title(title); ax.set_xlabel("occlusion length k"); ax.set_ylabel(m)
+        ax.set_xlim(0, 24)  # past k=24 each bin has 1-2 events (noisy); full data in results.json
         ax.set_ylim(-0.02, 1.05); ax.grid(alpha=0.3); ax.legend(fontsize=7)
     fig.suptitle(f"EXP-027 vanilla GridWorld dynamics recall vs k  (n={res['n_val']} held-out val eps)")
     fig.tight_layout(); fig.savefig(path, dpi=110)

@@ -25,7 +25,17 @@ a dynamics rollout, the gate to H2/H3 memory work.
   was reconstructed this session (D-041 turn) after I deleted it; verified via cluster_health — if a
   cluster field misbehaves, suspect a reconstructed value.
 
-## EXP-027 vanilla baseline TRAINED (job 409479 COMPLETED) — recall eval next (D-046)
+## AWAITING MERLIN — EXP-027 vanilla baseline DONE (ESC-019, present-then-stop)
+The GridWorld no-memory FLOOR is established. Recall (150 held-out val eps, job 409559): position_acc
+model 0.573 in-window (vs copy-last 0.118) → 0.015 past window (k≥16); matched-horizon control flat
+~0.70 at all k (→ the cliff is MEMORY LOSS, not weak dynamics); even static colour →chance past window.
+Both D-046 tripwires clear; rollout protocol audited (V-EXP027). View: experiments/EXP-027/headline.png.
+The clean discrete bench is now LIVE end-to-end: frozen tokenizer + frozen eval + audited rollout +
+vanilla floor. NEXT (after Merlin): the MEMORY method on GridWorld (FF7/FF9/op-3 line on the clean
+bench) — bring a method proposal + decision for sign-off before training. Housekeeping: archive
+dynamics_vanilla.pt under experiments/EXP-027/ + fix run.sh to save checkpoints into the run dir.
+
+## EXP-027 vanilla baseline TRAINED (job 409479 COMPLETED) — recall eval done (D-046)
 Training clean: val diffusion 0.0146→0.00139 monotone over 80 ep, no explosion (grad-clip 1.0 works).
 (409473 crashed ep3 on the persistent_workers stale-offset bug, same as the tokenizer; fixed 03a2f71.)
 Checkpoint at CLUSTER checkpoints/gridworld/dynamics_vanilla.pt — NOT in the run dir so pull_results
