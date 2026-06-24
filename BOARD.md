@@ -5,12 +5,14 @@ Updated: 2026-06-18 (cleanup pass: completed/historical entries moved to `BOARD-
 > Live task state only: in-progress / next / awaiting-Merlin / parked / blocked.
 > Completed, superseded, and dropped work lives in `BOARD-archive.md` (grep there for history).
 
-## In progress — NAIL DOWN THE EVAL (Merlin: "lets get the eval down")
-- Tokenizer FROZEN → checkpoints/gridworld/tokenizer.pt (EXP-025, D-044, ESC-017 resolved).
-- **Tokenizer-roundtrip recall ceiling (do first, cheap):** add an encode→decode frame source to
-  recall.py → upper bound on recall through the frozen latent (D-044 tripwire). No model needed.
-- **Eval model adapter (the real gap):** add a dynamics-rollout frame source + matched-horizon
-  open-rollout control to `recall.py`. Needs a trained dynamics model.
+## AWAITING MERLIN — EXP-026 ceiling cleared (ESC-018)
+- Eval CORE FROZEN (D-045, ESC-016 resolved). Tokenizer FROZEN (D-044, ESC-017 resolved).
+- **EXP-026 tokenizer-roundtrip recall == oracle == 1.0 at every k** → latent not the bottleneck.
+  Present-then-stop; not starting dynamics until Merlin weighs in.
+
+## Next (eval adapter + dynamics)
+- **Wire the dynamics-rollout frame source** into `src/evals/gridworld/adapter.py` (rollout→decode→score)
+  + matched-horizon open-rollout control. Needs a trained dynamics model.
 
 ## Next
 - **Grad-clip fix for train_dynamics.py** (unclipped at lines 466–468; tokenizer+LM already clip at

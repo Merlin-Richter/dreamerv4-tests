@@ -10,6 +10,47 @@
 
 ---
 
+## ESC-018 | 2026-06-24 | OPEN — EXP-026 tokenizer-roundtrip recall CEILING (present-then-stop)
+Context: you approved freezing the eval (D-045) + running the ceiling check. EXP-026 ran the FROZEN
+recall core on tokenizer encode→decode of the TRUE frames — the upper bound on what any dynamics model
+on this frozen latent can recall (it predicts latents decoded the same way). 500 episodes, ~13k reveal
+events. This is the §5 present-then-stop for the experiment.
+
+### The result (decisive read)
+**The frozen tokenizer is NOT the bottleneck — its representational ceiling equals the oracle.**
+tokenizer-roundtrip recall == oracle == **1.0000 at EVERY k** for graded position, exact position
+(chance 1/36), ball colour, and bg colour; there is no (k, metric) where the roundtrip falls below the
+oracle. The square's exact cell + colour are read back bit-perfect from the recon at every reveal,
+even at k=42. So decode(z) is faithful for the true latent z — any downstream recall failure will be
+the dynamics model's MEMORY, not the tokenizer's capacity. D-044 tripwire cleared.
+
+Second, load-bearing finding: **in GridWorld, position is the ONLY memory metric.** copy-last (freeze
+last-seen square) already scores color_acc = bg_acc = 1.0 at every k because the square's colour is
+static — colour cannot discriminate memory here (it could in the occluded line, where colour was the
+hidden attribute). The position copy-last curve behaves exactly as predicted: spikes to 1.0 at k≡9
+(mod 10) and sits at chance otherwise → judge memory by beating copy-last PER-K (D-045). This
+vindicates D-033's position-first headline.
+
+Honest caveat: the ceiling proves the decoder faithfully renders a square the encoder SAW; it does not
+test whether the latent manifold is smooth/predictable enough for a dynamics model to hit the right z
+— that's a dynamics question, out of scope for a representational ceiling.
+
+### Access points
+- **Headline (open first):** experiments/EXP-026/headline.png — 4 panels (position graded/exact, ball
+  colour, bg colour) vs k; tokenizer line sits exactly on the oracle line, copy-last decays/spikes.
+- Numbers: experiments/EXP-026/results.json. Reconciliation: experiments/EXP-026/NOTES.md. Row EXP-026.
+
+### The questions for you
+1. Agree the latent ceiling is clear (roundtrip == oracle everywhere) → green-light building dynamics
+   on this frozen tokenizer without revisiting it?
+2. Agree that in GridWorld position is THE memory metric (colour/bg are static identity checks copy-last
+   already aces) → headline = position vs k beaten against copy-last per-k?
+3. Next phase = vanilla GridWorld dynamics baseline on the cluster (record a decision first; grad-clip
+   fix + batch re-profile), then wire the dynamics-rollout frame source + matched-horizon control into
+   the adapter and run real recall curves. Go?
+Urgency: present-then-stop per §5 — not starting the dynamics run until you weigh in. Nothing in flight;
+cluster idle.
+
 ## ESC-017 | 2026-06-23 | RESOLVED — EXP-025 GridWorld tokenizer WORKS (present-then-stop, recommend freeze)
 RESOLUTION (Merlin, 2026-06-23): "We now have the working tokenizer. Lets get the eval down."
 = accepts the tokenizer (Q1 yes) and the freeze (Q2). I copied it → checkpoints/gridworld/tokenizer.pt
