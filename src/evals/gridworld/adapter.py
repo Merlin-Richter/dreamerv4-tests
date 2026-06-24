@@ -51,6 +51,54 @@ def tokenizer_roundtrip(model, frames_u8: np.ndarray, L: int, device: str) -> np
     return out
 
 
+def load_dynamics(checkpoint: str, device: str):
+    """Load a trained dynamics model. Returns (model, config)."""
+    from dataclasses import fields
+    from models.dynamics_model import DynamicsModel, DynamicsModelConfig
+    payload = torch.load(checkpoint, map_location=device, weights_only=False)
+    allowed = {f.name for f in fields(DynamicsModelConfig)}
+    cfg = DynamicsModelConfig(**{k: v for k, v in payload["config"].items() if k in allowed})
+    model = DynamicsModel(cfg).to(device)
+    model.load_state_dict(payload["model_state_dict"])
+    model.eval()
+    return model, cfg
+
+
+@torch.no_grad()
+def dynamics_rollout_frames(model, tokenizer, frames_u8: np.ndarray, curtain: np.ndarray,
+                            device: str, K: int = None, control_curtain_up: bool = False) -> np.ndarray:
+    """Faithful per-reveal-event rollout (see experiments/EXP-027/recall_design.md).
+
+    For each reveal event (lv = last curtain-up, k occluded, reveal_t = lv+k+1): context = TRUE latents
+    ending at lv; autoregressively generate (reveal_t - lv) frames feeding the true curtain action ids;
+    decode the predicted reveal latent inside a temporal window; place that frame at reveal_t. Returns a
+    (T,H,W,3) uint8 BGR array that is the true frames with ONLY the reveal frames replaced by predictions
+    (score_episode reads exactly those indices). control_curtain_up=True forces curtain UP for the
+    generated frames (matched-horizon free-run-in-the-clear control).
+    """
+    from evals.gridworld.recall import find_reveal_events
+    max_T = model.config.max_temporal_length  # tokenizer & dynamics share this window (RoPE table size)
+    out = frames_u8.copy()
+    cur_np = np.asarray(curtain).astype(np.int64)
+
+    for ev in find_reveal_events(curtain):
+        lv, k, t = ev["last_visible_t"], ev["k"], ev["reveal_t"]
+        a = max(0, lv - (max_T - 1))                 # encode a <=max_T window of TRUE frames ending at lv
+        wf = frames_u8[a:lv + 1].astype(np.float32) / 255.0
+        fx = torch.from_numpy(wf).unsqueeze(0).to(device)        # (1, T_ctx, H, W, 3)
+        ctx = tokenizer.encoder(fx)                              # (1, T_ctx, n_lat, dim)
+        n_gen = t - lv                                           # k occluded + 1 reveal
+        act = torch.from_numpy(cur_np[a:t + 1]).unsqueeze(0).to(device).clone()  # (1, T_ctx + n_gen)
+        if control_curtain_up:
+            act[:, ctx.shape[1]:] = 0                            # matched-horizon control: curtain UP
+        gen = model.generate_cached(ctx, n_gen, K=K, action_idx=act)  # (1, n_gen, n_lat, dim)
+        full = torch.cat((ctx, gen), dim=1)
+        win = full[:, -max_T:]                                   # temporal window ending at the reveal
+        dec = tokenizer.decoder(win)[0].clamp(0, 1).cpu().float().numpy()  # (w, H, W, 3)
+        out[t] = (dec[-1] * 255.0).round().astype(np.uint8)
+    return out
+
+
 def load_tokenizer(checkpoint: str, device: str):
     """Load a frozen tokenizer checkpoint (mirrors train_tokenizer). Returns (model, L)."""
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
