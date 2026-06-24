@@ -8,11 +8,12 @@ FF9="checkpoints/gridworld/dynamics_ff9.pt"
 echo "=== tokenizer: $TOK ==="; ls -la "$TOK" "$VAN" "$FF9"
 OUT="runs/gridworld-recall-env"
 mkdir -p "$OUT"
-# vanilla (windowed=its only path); FF9 base/windowed (dead-reckon, no memory) AND FF9 memory (snapshot
-# carry). The fair A/B: in-window position from windowed arms; beyond-window static retention from memory.
-python -u experiments/EXP-028/recall_env.py --tokenizer "$TOK" --dynamics "$VAN" --tag vanilla      --inference windowed --out-dir "$OUT"
-python -u experiments/EXP-028/recall_env.py --tokenizer "$TOK" --dynamics "$FF9" --tag ff9_windowed --inference windowed --out-dir "$OUT"
-python -u experiments/EXP-028/recall_env.py --tokenizer "$TOK" --dynamics "$FF9" --tag ff9_memory   --inference memory   --out-dir "$OUT"
+# FF9 inference = NORMAL autoregressive rollout (memory tokens created each step + carried in the
+# sliding window via temporal attention, exactly like the frame latents). Single FF9 inference; same
+# rollout as vanilla, the only difference is FF9's trained memory tokens. (NOT generate_full_state_memory
+# — that frozen-snapshot special case can't dead-reckon and is not how FF9 is meant to run.)
+python -u experiments/EXP-028/recall_env.py --tokenizer "$TOK" --dynamics "$VAN" --tag vanilla --inference windowed --out-dir "$OUT"
+python -u experiments/EXP-028/recall_env.py --tokenizer "$TOK" --dynamics "$FF9" --tag ff9     --inference windowed --out-dir "$OUT"
 # FF9 qualitative sheets (occlusion belief + normal), env-based; needs gridworld.npy only for NORMAL.
 [ -f gridworld.npy ] || python -u src/datagen/generate_gridworld.py --n_episodes 3000 --n_frames 200 --out gridworld.npy
 python -u experiments/EXP-027/make_sheets.py --tokenizer "$TOK" --dynamics "$FF9" --out-dir "$OUT" --n-samples 6 || true
