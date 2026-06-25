@@ -1,6 +1,5 @@
 """
-Train the Dreamer 4 dynamics model on bouncing.npy, on top of the frozen causal tokenizer
-from the frozen tokenizer (`models.tokenizer`).
+Train the Dreamer-4 dynamics model on the frozen tokenizer's latents.
 
 Pipeline per step:
   frames (B, L, H, W, 3)
@@ -8,23 +7,15 @@ Pipeline per step:
     --shortcut forcing loss-->     train the dynamics transformer to denoise each frame from
                                    its causal history.
 
-The bouncing dataset has no actions, so the dynamics model is trained unconditionally (only
-the learned action embedding is used) -- the "unlabeled video" case from the paper.
+With `--ff9 K --n-memory M` the model also carries per-frame memory tokens and adds the FF9
+sufficiency loss (memory must encode the full env state so it survives past the latent window);
+without them it is the vanilla memory-free model. The dynamics model never sees pixels.
 
-Run from this folder:
-    python train_dynamics_model.py
-
-Or from repo root:
-    python src/training/train_dynamics.py
-
-Log metrics to Weights & Biases (opt-in; off by default):
-    python train_dynamics_model.py --wandb [--wandb-entity TEAM] [--wandb-name run1]
+Run from repo root:
+    python -u src/training/train_dynamics.py
 
 Visualize a rollout from a saved checkpoint (OpenCV window; needs a display):
-    python src/training/train_dynamics.py --test-checkpoint
-
-Interactive single-frame rollout (4-frame dynamics context, key 0/1 actions):
-    python src/interactive/play_dynamics.py
+    python -u src/training/train_dynamics.py --test-checkpoint
 """
 
 import argparse
@@ -43,6 +34,7 @@ from tqdm import tqdm
 
 # Put `src` on the path (where `wlog` and the `models` / `evals` packages live).
 _SRC = Path(__file__).resolve().parents[1]   # .../src
+_ROOT = _SRC.parent                           # repo root
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
@@ -128,34 +120,12 @@ def load_tokenizer(checkpoint: Path, device: str) -> AutoEncoder:
     return model
 
 
-def _tokenizer_window(tokenizer: AutoEncoder) -> int:
-    """The tokenizer's temporal window (its RoPE table length). It can only encode <= this many
-    frames at once (frozen). Cached on the object."""
-    w = getattr(tokenizer, "_enc_window", None)
-    if w is None:
-        w = 1 << 30
-        for m in tokenizer.modules():
-            cos = getattr(m, "cos", None)
-            if isinstance(cos, torch.Tensor) and cos.dim() >= 1:
-                w = min(w, cos.shape[0])
-        tokenizer._enc_window = w
-    return w
-
-
 @torch.no_grad()
 def encode_frames(tokenizer: AutoEncoder, frames: torch.Tensor) -> torch.Tensor:
     """frames: (B, T, H, W, 3) in [0,1] -> latents (B, T, n_latents, bottleneck_dim).
 
-    The frozen temporal tokenizer can only encode up to its own window W (its RoPE table). For
-    longer clips (FF9 deep rollout-training, T>W) encode in NON-OVERLAPPING W-frame windows — the
-    exact regime the tokenizer was trained on — and concatenate. Each frame's latent is taken from
-    its window; the dynamics relay runs per-frame (window-2), so tokenizer-window boundaries don't
-    matter. T<=W (the usual case) is a single pass -> byte-identical to before."""
-    T = frames.shape[1]
-    w = _tokenizer_window(tokenizer)
-    if T <= w:
-        return tokenizer.encoder(frames)
-    return torch.cat([tokenizer.encoder(frames[:, i:i + w]) for i in range(0, T, w)], dim=1)
+    A single frozen-tokenizer encode pass (clips are <= the model/tokenizer temporal window)."""
+    return tokenizer.encoder(frames)
 
 
 def run_test_checkpoint(args: argparse.Namespace) -> None:
@@ -260,13 +230,13 @@ def run_test_checkpoint(args: argparse.Namespace) -> None:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--frames", type=Path, default=_SRC.parent.parent / "bouncing.npy",
+    parser.add_argument("--frames", type=Path, default=_ROOT / "data" / "gridworld.npy",
                         help="Path to frames .npy (N, T, H, W, C) uint8.")
     parser.add_argument("--actions", type=Path, default=None,
                         help="Path to actions .npy (N, T) ints. Default: '<frames>_actions.npy' "
                              "if it exists, else unlabeled (no action conditioning).")
     parser.add_argument("--tokenizer", type=Path,
-                        default=_SRC.parent / "checkpoints" / "occluded" / "tokenizer.pt",
+                        default=_ROOT / "checkpoints" / "occluded" / "tokenizer.pt",
                         help="Frozen C tokenizer checkpoint (env-specific; pass --tokenizer for "
                              "the right env, e.g. checkpoints/gridworld/tokenizer.pt).")
     parser.add_argument("--epochs", type=int, default=20)
@@ -280,7 +250,7 @@ def main():
     )
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--checkpoint", type=Path,
-                        default=_SRC.parent / "checkpoints" / "bouncing" / "dynamics.pt",
+                        default=_ROOT / "checkpoints" / "bouncing" / "dynamics.pt",
                         help="Where to save weights + config (env-specific; pass --checkpoint, "
                              "e.g. checkpoints/gridworld/dynamics_vanilla.pt).")
     parser.add_argument("--test-checkpoint", action="store_true",
@@ -297,58 +267,12 @@ def main():
     parser.add_argument("--val-fraction", type=float, default=0.05)
     parser.add_argument("--fresh", action="store_true",
                         help="Ignore any existing --checkpoint and train from random init.")
-    parser.add_argument("--ff7", type=int, default=0, metavar="K",
-                        help="FF7 register-memory training (D-014): add the single-timestep-"
-                             "sufficiency loss with lookahead depth K (1-3 sensible; 0=off). "
-                             "Also sets use_register_memory in the saved config, so "
-                             "generate() carries register state at inference.")
-    parser.add_argument("--lambda-ff7", type=float, default=1.0,
-                        help="Weight of the FF7 loss term in the total (default 1.0).")
     parser.add_argument("--ff9", type=int, default=0, metavar="K",
-                        help="FF9 v2 memory-only-sufficiency training (D-024): adds the distinct "
-                             "MEMORY-token carrier + the memory-only-sufficiency loss with lookahead "
-                             "K (1-3 sensible; 0=off). Sets n_memory + use_full_state_memory in the "
-                             "saved config. Registers stay pure scratch (independent of --ff7).")
-    parser.add_argument("--lambda-ff9", type=float, default=1.0,
-                        help="Weight of the FF9 loss term in the total (default 1.0).")
+                        help="FF9 memory-sufficiency training: enable the per-frame memory tokens + "
+                             "the memory-only-sufficiency loss with lookahead K (1-3 sensible; 0=off, "
+                             "i.e. vanilla memory-free). Sets config.ff9_k.")
     parser.add_argument("--n-memory", type=int, default=4,
-                        help="Number of distinct MEMORY tokens when --ff9 > 0 (default 4).")
-    parser.add_argument("--multistep", type=int, default=0, metavar="H",
-                        help="C1 multi-step motion loss (D-027): add the time-axis DAgger term with "
-                             "self-rollout depth H (4 sensible; 0=off). Loss-only — does NOT change "
-                             "inference or add params. Fixes autoregressive compounding (EXP-018).")
-    parser.add_argument("--lambda-multistep", type=float, default=1.0,
-                        help="Peak weight of the C1 multi-step term (default 1.0).")
-    parser.add_argument("--multistep-warmup", type=int, default=0, metavar="EPOCHS",
-                        help="Linearly ramp lambda_multistep from 0 to its peak over the first EPOCHS "
-                             "epochs (mandatory mitigation for single-frame/multi-step capacity "
-                             "tension, V-T017-C1). 0 = no ramp (full weight from epoch 0).")
-    parser.add_argument("--ff9-rollout", type=int, default=0, metavar="H",
-                        help="FF9 rollout-training (D-048, EXP-029 C1): train the memory->memory relay "
-                             "(op-3) by rolling H differentiable memory hops and carrying the WRITTEN "
-                             "memory across them (TBPTT-k). Builds on the FF9 memory carrier — use with "
-                             "--ff9 (sets n_memory/use_full_state_memory). 0=off (byte-identical).")
-    parser.add_argument("--lambda-ff9-rollout", type=float, default=1.0,
-                        help="Peak weight of the FF9 rollout-training term (default 1.0).")
-    parser.add_argument("--ff9-rollout-tbptt", type=int, default=4, metavar="K",
-                        help="TBPTT truncation depth: detach the carried memory every K hops (default 4; "
-                             "set from the EXP-029 P1 sweep).")
-    parser.add_argument("--ff9-rollout-phide", type=float, default=0.5, metavar="P",
-                        help="Per-step prob the source latent is HIDDEN (memory-only step) vs near-clean "
-                             "GT re-anchor (default 0.5).")
-    parser.add_argument("--ff9-rollout-hide-mode", choices=["tail", "iid"], default="tail",
-                        help="How source latents are hidden during the rollout: 'tail' = a contiguous "
-                             "hidden run (mirrors the eval's occlusion; default) | 'iid' = Bernoulli "
-                             "per step (design-note re-anchoring default).")
-    parser.add_argument("--ff9-rollout-warmup", type=int, default=0, metavar="EPOCHS",
-                        help="Linearly ramp lambda_ff9_rollout from 0 to its peak over the first EPOCHS "
-                             "epochs (contain-then-propagate; design note). 0 = full weight from ep 0.")
-    parser.add_argument("--rollout-clip-len", type=int, default=None, metavar="N",
-                        help="DATASET clip length for the FF9 rollout term (decoupled from the model "
-                             "window --context-length). Set > context-length to train the memory relay "
-                             "to deeper hops than the window (P1: recall horizon ~ training depth). The "
-                             "model's temporal window stays --context-length; only the rollout uses the "
-                             "longer clip (window-2 internally, so RoPE is safe). Default = context-length.")
+                        help="Number of per-frame MEMORY tokens when --ff9 > 0 (default 4).")
     parser.add_argument("--seed", type=int, default=0,
                         help="Seed for torch/numpy/random (model init, tau/noise sampling).")
     parser.add_argument("--max-episodes", type=int, default=None,
@@ -410,18 +334,8 @@ def main():
     # Build dynamics config; tokenizer-tied dims come from the tokenizer checkpoint.
     base = DynamicsModelConfig()
     chunk_len = args.context_length if args.context_length is not None else base.max_temporal_length
-    # DATASET clip length: decoupled from the model window for FF9 deep rollout-training. The model's
-    # temporal window stays `chunk_len`; the dataset serves `data_clip_len` >= chunk_len so the rollout
-    # term can train the memory relay to deeper hops than the window (loss() windows the main terms to
-    # max_temporal_length, feeds the full clip only to the rollout term). Default = chunk_len.
-    data_clip_len = chunk_len
-    if args.rollout_clip_len is not None and args.rollout_clip_len > chunk_len:
-        if args.ff9_rollout <= 0:
-            raise ValueError("--rollout-clip-len only applies with --ff9-rollout > 0.")
-        data_clip_len = args.rollout_clip_len
-        print(f"[deep rollout] dataset clip={data_clip_len} frames; model window={chunk_len}.")
-    if t < data_clip_len:
-        raise ValueError(f"Episode length T={t} must be >= clip length L={data_clip_len}.")
+    if t < chunk_len:
+        raise ValueError(f"Episode length T={t} must be >= clip length L={chunk_len}.")
 
     # Read tokenizer dims from its loaded modules so the two models always agree.
     n_latents = tokenizer.encoder.n_latents
@@ -431,23 +345,15 @@ def main():
         n_latents=n_latents,
         bottleneck_dim=bottleneck_dim,
         n_actions=n_actions,
-        use_register_memory=args.ff7 > 0,
-        ff7_k=args.ff7,
-        n_memory=(args.n_memory if (args.ff9 > 0 or args.ff9_rollout > 0) else 0),
-        use_full_state_memory=(args.ff9 > 0 or args.ff9_rollout > 0),
+        n_memory=(args.n_memory if args.ff9 > 0 else 0),
         ff9_k=args.ff9,
-        multistep_h=args.multistep,
-        ff9_rollout_h=args.ff9_rollout,
-        ff9_rollout_tbptt=args.ff9_rollout_tbptt,
-        ff9_rollout_p_hide=args.ff9_rollout_phide,
-        ff9_rollout_hide_mode=args.ff9_rollout_hide_mode,
     )
 
-    train_ds = ChunkClipDataset(raw, train_idx, data_clip_len, start_offset=0, actions=actions)
-    val_ds = ChunkClipDataset(raw, val_idx, data_clip_len,
-                              start_offset=args.val_offset % (data_clip_len + 1), actions=actions)
+    train_ds = ChunkClipDataset(raw, train_idx, chunk_len, start_offset=0, actions=actions)
+    val_ds = ChunkClipDataset(raw, val_idx, chunk_len,
+                              start_offset=args.val_offset % (chunk_len + 1), actions=actions)
     if len(train_ds) == 0 or len(val_ds) == 0:
-        raise ValueError(f"No clips with L={data_clip_len}; try shorter clips or smaller --val-offset.")
+        raise ValueError(f"No clips with L={chunk_len}; try shorter clips or smaller --val-offset.")
 
     # DataLoader throughput (D-041): default num_workers=0 loads each batch synchronously on the main
     # thread (memmap read + uint8->float32) while the GPU idles. Background workers + pinned memory +
@@ -479,22 +385,9 @@ def main():
     if args.checkpoint.is_file() and not args.fresh:
         payload = torch.load(args.checkpoint, map_location=device, weights_only=False)
         cfg = _config_from_checkpoint(payload["config"], DynamicsModelConfig)
-        if args.ff7 > 0:  # resuming an older checkpoint into FF7 training: record the flags
-            cfg.use_register_memory = True
-            cfg.ff7_k = args.ff7
-        if args.ff9 > 0:  # resuming into FF9 training: add the memory-token carrier flags
+        if args.ff9 > 0:  # resuming an older checkpoint into FF9 training: add the memory carrier
             cfg.n_memory = args.n_memory
-            cfg.use_full_state_memory = True
             cfg.ff9_k = args.ff9
-        if args.multistep > 0:  # resuming into C1 training: record the lookahead (loss-only)
-            cfg.multistep_h = args.multistep
-        if args.ff9_rollout > 0:  # resuming into FF9 rollout-training: add memory carrier + knobs
-            cfg.n_memory = args.n_memory
-            cfg.use_full_state_memory = True
-            cfg.ff9_rollout_h = args.ff9_rollout
-            cfg.ff9_rollout_tbptt = args.ff9_rollout_tbptt
-            cfg.ff9_rollout_p_hide = args.ff9_rollout_phide
-            cfg.ff9_rollout_hide_mode = args.ff9_rollout_hide_mode
         model = DynamicsModel(cfg).to(device)
         result = model.load_state_dict(payload["model_state_dict"], strict=False)
         if result.missing_keys:
@@ -514,15 +407,6 @@ def main():
 
     epoch_bar = tqdm(range(args.epochs), desc="Epochs", position=0, mininterval=1.0)
     for epoch in epoch_bar:
-        # C1 lambda ramp (V-T017-C1): 0 -> peak over --multistep-warmup epochs.
-        lam_ms = args.lambda_multistep
-        if args.multistep > 0 and args.multistep_warmup > 0:
-            lam_ms = args.lambda_multistep * min(1.0, (epoch + 1) / args.multistep_warmup)
-        # FF9 rollout-training lambda ramp (D-048): 0 -> peak over --ff9-rollout-warmup epochs
-        # (contain-then-propagate: memory learns to CONTAIN state before being asked to PROPAGATE it).
-        lam_ff9r = args.lambda_ff9_rollout
-        if args.ff9_rollout > 0 and args.ff9_rollout_warmup > 0:
-            lam_ff9r = args.lambda_ff9_rollout * min(1.0, (epoch + 1) / args.ff9_rollout_warmup)
         train_off = random.randint(0, chunk_len)
         train_ds.set_start_offset(train_off)
         if len(train_ds) == 0:
@@ -540,14 +424,7 @@ def main():
             n_train_samples += batch_x.shape[0]
             with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
                 z1 = encode_frames(tokenizer, batch_x)  # frozen, no grad
-                loss, parts = model.loss(z1, batch_a, ff7_k=args.ff7, lambda_ff7=args.lambda_ff7,
-                                         ff9_k=args.ff9, lambda_ff9=args.lambda_ff9,
-                                         multistep_h=args.multistep, lambda_multistep=lam_ms,
-                                         ff9_rollout_h=args.ff9_rollout,
-                                         lambda_ff9_rollout=lam_ff9r,
-                                         ff9_rollout_tbptt=args.ff9_rollout_tbptt,
-                                         ff9_rollout_p_hide=args.ff9_rollout_phide,
-                                         return_parts=True)
+                loss, parts = model.loss(z1, batch_a, return_parts=True)
             opt.zero_grad()
             loss.backward()
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -568,14 +445,7 @@ def main():
                 batch_x, batch_a = _split_batch(batch, device)
                 with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
                     z1 = encode_frames(tokenizer, batch_x)
-                    loss, parts = model.loss(z1, batch_a, ff7_k=args.ff7, lambda_ff7=args.lambda_ff7,
-                                             ff9_k=args.ff9, lambda_ff9=args.lambda_ff9,
-                                             multistep_h=args.multistep, lambda_multistep=lam_ms,
-                                             ff9_rollout_h=args.ff9_rollout,
-                                             lambda_ff9_rollout=lam_ff9r,
-                                             ff9_rollout_tbptt=args.ff9_rollout_tbptt,
-                                             ff9_rollout_p_hide=args.ff9_rollout_phide,
-                                             return_parts=True)
+                    loss, parts = model.loss(z1, batch_a, return_parts=True)
                     val_loss += loss.item()
                     for name, value in parts.items():
                         val_parts[name] = val_parts.get(name, 0.0) + value.item()

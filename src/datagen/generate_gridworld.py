@@ -3,7 +3,7 @@ GridWorld occluded-memory dataset — generation, playback, and preview.
 
 Drives `GridWorldEnv` (src/envs/gridworld.py) to write the discrete memory dataset and to
 inspect it. The env (physics + rendering) lives in `src/envs/gridworld.py`; this module is the
-data-generation + viewer layer on top. Mirrors `generate_occluded.py`.
+data-generation + viewer layer on top.
 
 Outputs (saved under data/ by default; gitignored):
     data/gridworld.npy         (N, T, H, W, 3)  uint8    frames (BGR)
@@ -40,7 +40,7 @@ WINDOW_TITLE = "GridWorld [Q/ESC=quit  SPACE=pause]"
 
 
 # ---------------------------------------------------------------------------
-# Curtain schedule (identical policy to generate_occluded.py)
+# Curtain schedule (block sampler: see generate_gridworld.md)
 # ---------------------------------------------------------------------------
 
 def make_curtain_schedule(
