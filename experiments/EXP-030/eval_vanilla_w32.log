@@ -1,2 +1,43 @@
 [vanilla_w32] env-direct recall: n_ctx=8 N/k=64 inference=windowed n_memory=0 ks=[1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32]
   k=1 done
+  k=2 done
+  k=3 done
+  k=4 done
+  k=5 done
+  k=6 done
+Traceback (most recent call last):
+  File "C:\Users\richt\OneDrive\Desktop\Code\transformer\experiments\EXP-030\recall_relay.py", line 87, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\richt\OneDrive\Desktop\Code\transformer\experiments\EXP-030\recall_relay.py", line 62, in main
+    dynamics_rollout_frames(model, tok, f, cu, device, inference=args.inference), st, co, cu)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\richt\OneDrive\Desktop\Code\transformer\venv\Lib\site-packages\torch\utils\_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+  File "C:\Users\richt\OneDrive\Desktop\Code\transformer\src\evals\gridworld\adapter.py", line 110, in dynamics_rollout_frames
+    dec = tokenizer.decoder(win)[0].clamp(0, 1).cpu().float().numpy()  # (w, H, W, 3)
+          ~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\richt\OneDrive\Desktop\Code\transformer\venv\Lib\site-packages\torch\nn\modules\module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\richt\OneDrive\Desktop\Code\transformer\venv\Lib\site-packages\torch\nn\modules\module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "C:\Users\richt\OneDrive\Desktop\Code\transformer\src\models\tokenizer.py", line 294, in forward
+    x = block(x)
+  File "C:\Users\richt\OneDrive\Desktop\Code\transformer\venv\Lib\site-packages\torch\nn\modules\module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\richt\OneDrive\Desktop\Code\transformer\venv\Lib\site-packages\torch\nn\modules\module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "C:\Users\richt\OneDrive\Desktop\Code\transformer\src\models\tokenizer.py", line 176, in forward
+    x = x + self.att(self.ln1(x))
+            ~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\richt\OneDrive\Desktop\Code\transformer\venv\Lib\site-packages\torch\nn\modules\module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\richt\OneDrive\Desktop\Code\transformer\venv\Lib\site-packages\torch\nn\modules\module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "C:\Users\richt\OneDrive\Desktop\Code\transformer\src\models\tokenizer.py", line 120, in forward
+    q = torch.concat((q_first * self.cos[:T] + -q_second * self.sin[:T], q_second * self.cos[:T] + q_first * self.sin[:T]), dim=-1)
+                      ~~~~~~~~^~~~~~~~~~~~~~
+RuntimeError: The size of tensor a (17) must match the size of tensor b (16) at non-singleton dimension 3

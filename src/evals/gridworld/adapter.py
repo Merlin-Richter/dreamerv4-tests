@@ -64,6 +64,31 @@ def load_dynamics(checkpoint: str, device: str):
     return model, cfg
 
 
+def _tokenizer_window(tokenizer) -> int:
+    """The frozen tokenizer's temporal window (its RoPE table length). It can only encode/decode up to
+    this many frames at once. Cached on the object."""
+    w = getattr(tokenizer, "_tok_window", None)
+    if w is None:
+        w = 1 << 30
+        for m in tokenizer.modules():
+            cos = getattr(m, "cos", None)
+            if isinstance(cos, torch.Tensor) and cos.dim() >= 1:
+                w = min(w, cos.shape[0])
+        tokenizer._tok_window = w
+    return w
+
+
+@torch.no_grad()
+def _encode_windowed(tokenizer, fx: torch.Tensor, tok_w: int) -> torch.Tensor:
+    """Encode (1, T, H, W, 3) through the frozen tokenizer in <=tok_w-frame chunks (the tokenizer is
+    window-limited; dynamics models with a LARGER window — e.g. window-32 vanilla — feed T>tok_w
+    contexts). Non-overlapping chunks (the tokenizer's training regime); T<=tok_w is a single pass."""
+    T = fx.shape[1]
+    if T <= tok_w:
+        return tokenizer.encoder(fx)
+    return torch.cat([tokenizer.encoder(fx[:, i:i + tok_w]) for i in range(0, T, tok_w)], dim=1)
+
+
 @torch.no_grad()
 def dynamics_rollout_frames(model, tokenizer, frames_u8: np.ndarray, curtain: np.ndarray,
                             device: str, K: int = None, control_curtain_up: bool = False,
@@ -78,7 +103,8 @@ def dynamics_rollout_frames(model, tokenizer, frames_u8: np.ndarray, curtain: np
     generated frames (matched-horizon free-run-in-the-clear control).
     """
     from evals.gridworld.recall import find_reveal_events
-    max_T = model.config.max_temporal_length  # tokenizer & dynamics share this window (RoPE table size)
+    max_T = model.config.max_temporal_length     # the DYNAMICS window
+    tok_w = _tokenizer_window(tokenizer)          # the TOKENIZER window (<= max_T; may differ, e.g. w32 dyn)
     out = frames_u8.copy()
     cur_np = np.asarray(curtain).astype(np.int64)
 
@@ -87,7 +113,7 @@ def dynamics_rollout_frames(model, tokenizer, frames_u8: np.ndarray, curtain: np
         a = max(0, lv - (max_T - 1))                 # encode a <=max_T window of TRUE frames ending at lv
         wf = frames_u8[a:lv + 1].astype(np.float32) / 255.0
         fx = torch.from_numpy(wf).unsqueeze(0).to(device)        # (1, T_ctx, H, W, 3)
-        ctx = tokenizer.encoder(fx)                              # (1, T_ctx, n_lat, dim)
+        ctx = _encode_windowed(tokenizer, fx, tok_w)            # (1, T_ctx, n_lat, dim); chunked if T>tok_w
         n_gen = t - lv                                           # k occluded + 1 reveal
         act = torch.from_numpy(cur_np[a:t + 1]).unsqueeze(0).to(device).clone()  # (1, T_ctx + n_gen)
         if control_curtain_up:
@@ -106,7 +132,7 @@ def dynamics_rollout_frames(model, tokenizer, frames_u8: np.ndarray, curtain: np
         else:  # "windowed"/"auto"/default — normal rollout (vanilla: no memory tokens; FF9: carried)
             gen = model.generate_cached(ctx, n_gen, K=K, action_idx=act, plain=True)
         full = torch.cat((ctx, gen), dim=1)
-        win = full[:, -max_T:]                                   # temporal window ending at the reveal
+        win = full[:, -tok_w:]                                   # tokenizer-window ending at the reveal
         dec = tokenizer.decoder(win)[0].clamp(0, 1).cpu().float().numpy()  # (w, H, W, 3)
         out[t] = (dec[-1] * 255.0).round().astype(np.uint8)
     return out
