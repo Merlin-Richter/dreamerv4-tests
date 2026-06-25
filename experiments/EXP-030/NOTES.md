@@ -39,7 +39,51 @@ at the 16-window; FF9 decays to chance ~k28).
 - EXP-031 (job 409754): FF9+rollout h44 deep, clip48, tbptt16.
 - EXP-032 (job 409753): vanilla window-32 control.
 
-## Reconciliation (fill when results land)
-Expected (D-048): FF9+rollout under relay holds position past k=4 (clears the untrained-relay collapse)
-and past the 16-window; h44 reaches further than h24 (P1 horizon~depth); in-window (k<=8) NOT regressed.
-Observed: TBD. Surprise: TBD. Hypothesis impact: TBD. Tripwires: TBD. Next: TBD.
+## Reconciliation (EXP-030 h24; N=64/k, env-direct, frozen scorer)
+Expected (D-048): FF9+rollout under relay holds position past k=4 (clears the untrained-relay
+collapse) and past the 16-window; in-window (k<=8) NOT regressed.
+
+Observed (position_acc, chance 0.028):
+- FF9+rollout RELAY: k1-3 ~0.98-1.0, k4 0.83, k5 0.73, k6 0.52, k8 0.20, k12 0.14, k16 0.06 -> ~chance.
+- FF9-norollout RELAY (untrained B2): k3 0.17, k5 0.06, k6 0.02 -> chance by k4.
+  => ROLLOUT-TRAINING WORKS as designed: ~3-4x longer useful dynamic-position memory (k~3 -> k~8),
+     same inference. The credit-assignment fix is real and large. In-window (k<=4) near-PERFECT (1.0),
+     better than EXP-027 vanilla in-window (0.57) -> NO regression (D-048 tripwire clear).
+- BUT position decays to chance by k~12-16, SHORT of the h=24 training depth -> the continuous M=4
+  memory DRIFTS on dynamic state, exactly P1's (EXP-029) prediction for a continuous dynamic relay.
+
+Observed (color_acc, STATIC, chance 0.25) — the clean WIN:
+- FF9+rollout RELAY: 0.86/0.86/0.84/0.88/0.78 at k16/20/24/28/32 — FLAT, high, BEYOND the window.
+- FF9-windowed (EXP-028): 0.67/0.47/0.38/0.39/0.34 — decays past window.
+- FF9-norollout RELAY: ~0.28-0.31 — ~chance.
+  => The trained PERSISTENT relay carries STATIC hidden state flat beyond the window (the DreamerV4
+     h-state goal) where the latent-window inference decays and the untrained relay collapses.
+
+Cross-inference context (NOT a fair same-inference A/B; different carriers):
+- FF9-norollout WINDOWED holds position BEST to ~k16 (k12 0.81, k16 0.44, chance ~k28) because the
+  16-frame LATENT sequence carries it (open-loop), not a bounded memory. The relay (2-frame, pure
+  memory) is inherently weaker on position. Neither solves beyond-window (k>16) DYNAMIC position.
+- vanilla w32 (windowed): peaks ~0.58, decays to chance by ~k16 -> growing the window to 32 did NOT
+  beat blind dead-reckoning (the limit is dead-reckoning ~14-16 steps, not window size). The memory
+  method does not need to beat brute-force context here because brute-force context also fails.
+
+Surprise: mild. The relay-training win on dynamic position is real but smaller-horizon than the h24
+training (drift caps it ~k8-12); the STATIC-color beyond-window win is clean and strong. Consistent
+with the whole project (static retained, dynamic hard) + P1 (continuous dynamic relay drifts).
+
+Hypothesis impact (H3): SUPPORTED for STATIC hidden state via a trained bounded memory (carried flat
+beyond window). For DYNAMIC position: rollout-training is a real, large improvement over the untrained
+relay but does NOT achieve beyond-window retention -> the binding constraint is REPRESENTATION
+STABILITY (continuous memory drift), not credit. Next lever = DISCRETE / quantized memory (VQ: a
+finite-state memory can't drift continuously) or more memory capacity, NOT more credit. (See
+EXP-029-design/orchestrator_analysis.md idea 2.)
+
+Tripwires (D-048): in-window k<=8 NOT regressed (helped) ✓; training stable (val 0.081, rc=0) ✓;
+P1's "no free extrapolation for dynamic state" CONFIRMED on the real task (position decays well before
+h24). Not a HALT — favorable-leaning with a clear, honest limit + a principled next step.
+
+Next: (1) EXP-031 deep h44 relay (running) — does deeper training push the position knee right, or is
+it drift-capped regardless (P1 says capped)? (2) EXP-030 WINDOWED eval (does rollout help/hurt the
+windowed path vs EXP-028?). (3) Morning decision for Merlin: pursue DISCRETE memory (VQ) for dynamic
+position, OR consolidate the static-memory relay win + the negative dynamic result. Present-then-stop
+at the consolidated brief (ESC-022).

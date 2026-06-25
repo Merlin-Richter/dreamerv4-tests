@@ -41,14 +41,14 @@ fig, axes = plt.subplots(2, 2, figsize=(14, 9))
 for ax, (m, title) in zip(axes.ravel(), metrics):
     for label, j, color in series:
         d = j["model"].get(m, {})
-        ks = sorted(d, key=int)
+        ks = sorted([k for k in d if str(k).lstrip('-').isdigit()], key=int)
         if ks:
             ax.plot([int(k) for k in ks], [d[k] for k in ks], label=label, marker="o", ms=3, c=color)
     # references from the first series
     for nm, key, stl in [("copy-last", "copy_last", dict(c="gray", ls=":", marker="x", ms=3)),
                          ("oracle", "oracle", dict(c="k", ls="--", lw=1))]:
         d = ref.get(key, {})
-        ks = sorted(d, key=int)
+        ks = sorted([k for k in d if str(k).lstrip('-').isdigit()], key=int)
         if ks:
             ax.plot([int(k) for k in ks], [d[k] for k in ks], label=nm, **stl)
     if m in ch:
