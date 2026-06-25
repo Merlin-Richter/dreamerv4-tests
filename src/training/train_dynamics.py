@@ -128,10 +128,34 @@ def load_tokenizer(checkpoint: Path, device: str) -> AutoEncoder:
     return model
 
 
+def _tokenizer_window(tokenizer: AutoEncoder) -> int:
+    """The tokenizer's temporal window (its RoPE table length). It can only encode <= this many
+    frames at once (frozen). Cached on the object."""
+    w = getattr(tokenizer, "_enc_window", None)
+    if w is None:
+        w = 1 << 30
+        for m in tokenizer.modules():
+            cos = getattr(m, "cos", None)
+            if isinstance(cos, torch.Tensor) and cos.dim() >= 1:
+                w = min(w, cos.shape[0])
+        tokenizer._enc_window = w
+    return w
+
+
 @torch.no_grad()
 def encode_frames(tokenizer: AutoEncoder, frames: torch.Tensor) -> torch.Tensor:
-    """frames: (B, T, H, W, 3) in [0,1] -> latents (B, T, n_latents, bottleneck_dim)."""
-    return tokenizer.encoder(frames)
+    """frames: (B, T, H, W, 3) in [0,1] -> latents (B, T, n_latents, bottleneck_dim).
+
+    The frozen temporal tokenizer can only encode up to its own window W (its RoPE table). For
+    longer clips (FF9 deep rollout-training, T>W) encode in NON-OVERLAPPING W-frame windows — the
+    exact regime the tokenizer was trained on — and concatenate. Each frame's latent is taken from
+    its window; the dynamics relay runs per-frame (window-2), so tokenizer-window boundaries don't
+    matter. T<=W (the usual case) is a single pass -> byte-identical to before."""
+    T = frames.shape[1]
+    w = _tokenizer_window(tokenizer)
+    if T <= w:
+        return tokenizer.encoder(frames)
+    return torch.cat([tokenizer.encoder(frames[:, i:i + w]) for i in range(0, T, w)], dim=1)
 
 
 def run_test_checkpoint(args: argparse.Namespace) -> None:
