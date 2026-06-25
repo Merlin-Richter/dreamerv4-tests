@@ -299,6 +299,22 @@ def main():
                         help="Linearly ramp lambda_multistep from 0 to its peak over the first EPOCHS "
                              "epochs (mandatory mitigation for single-frame/multi-step capacity "
                              "tension, V-T017-C1). 0 = no ramp (full weight from epoch 0).")
+    parser.add_argument("--ff9-rollout", type=int, default=0, metavar="H",
+                        help="FF9 rollout-training (D-048, EXP-029 C1): train the memory->memory relay "
+                             "(op-3) by rolling H differentiable memory hops and carrying the WRITTEN "
+                             "memory across them (TBPTT-k). Builds on the FF9 memory carrier — use with "
+                             "--ff9 (sets n_memory/use_full_state_memory). 0=off (byte-identical).")
+    parser.add_argument("--lambda-ff9-rollout", type=float, default=1.0,
+                        help="Peak weight of the FF9 rollout-training term (default 1.0).")
+    parser.add_argument("--ff9-rollout-tbptt", type=int, default=4, metavar="K",
+                        help="TBPTT truncation depth: detach the carried memory every K hops (default 4; "
+                             "set from the EXP-029 P1 sweep).")
+    parser.add_argument("--ff9-rollout-phide", type=float, default=0.5, metavar="P",
+                        help="Per-step prob the source latent is HIDDEN (memory-only step) vs near-clean "
+                             "GT re-anchor (default 0.5).")
+    parser.add_argument("--ff9-rollout-warmup", type=int, default=0, metavar="EPOCHS",
+                        help="Linearly ramp lambda_ff9_rollout from 0 to its peak over the first EPOCHS "
+                             "epochs (contain-then-propagate; design note). 0 = full weight from ep 0.")
     parser.add_argument("--seed", type=int, default=0,
                         help="Seed for torch/numpy/random (model init, tau/noise sampling).")
     parser.add_argument("--max-episodes", type=int, default=None,
@@ -373,10 +389,13 @@ def main():
         n_actions=n_actions,
         use_register_memory=args.ff7 > 0,
         ff7_k=args.ff7,
-        n_memory=(args.n_memory if args.ff9 > 0 else 0),
-        use_full_state_memory=args.ff9 > 0,
+        n_memory=(args.n_memory if (args.ff9 > 0 or args.ff9_rollout > 0) else 0),
+        use_full_state_memory=(args.ff9 > 0 or args.ff9_rollout > 0),
         ff9_k=args.ff9,
         multistep_h=args.multistep,
+        ff9_rollout_h=args.ff9_rollout,
+        ff9_rollout_tbptt=args.ff9_rollout_tbptt,
+        ff9_rollout_p_hide=args.ff9_rollout_phide,
     )
 
     train_ds = ChunkClipDataset(raw, train_idx, chunk_len, start_offset=0, actions=actions)
@@ -424,6 +443,12 @@ def main():
             cfg.ff9_k = args.ff9
         if args.multistep > 0:  # resuming into C1 training: record the lookahead (loss-only)
             cfg.multistep_h = args.multistep
+        if args.ff9_rollout > 0:  # resuming into FF9 rollout-training: add memory carrier + knobs
+            cfg.n_memory = args.n_memory
+            cfg.use_full_state_memory = True
+            cfg.ff9_rollout_h = args.ff9_rollout
+            cfg.ff9_rollout_tbptt = args.ff9_rollout_tbptt
+            cfg.ff9_rollout_p_hide = args.ff9_rollout_phide
         model = DynamicsModel(cfg).to(device)
         result = model.load_state_dict(payload["model_state_dict"], strict=False)
         if result.missing_keys:
@@ -447,6 +472,11 @@ def main():
         lam_ms = args.lambda_multistep
         if args.multistep > 0 and args.multistep_warmup > 0:
             lam_ms = args.lambda_multistep * min(1.0, (epoch + 1) / args.multistep_warmup)
+        # FF9 rollout-training lambda ramp (D-048): 0 -> peak over --ff9-rollout-warmup epochs
+        # (contain-then-propagate: memory learns to CONTAIN state before being asked to PROPAGATE it).
+        lam_ff9r = args.lambda_ff9_rollout
+        if args.ff9_rollout > 0 and args.ff9_rollout_warmup > 0:
+            lam_ff9r = args.lambda_ff9_rollout * min(1.0, (epoch + 1) / args.ff9_rollout_warmup)
         train_off = random.randint(0, chunk_len)
         train_ds.set_start_offset(train_off)
         if len(train_ds) == 0:
@@ -467,6 +497,10 @@ def main():
                 loss, parts = model.loss(z1, batch_a, ff7_k=args.ff7, lambda_ff7=args.lambda_ff7,
                                          ff9_k=args.ff9, lambda_ff9=args.lambda_ff9,
                                          multistep_h=args.multistep, lambda_multistep=lam_ms,
+                                         ff9_rollout_h=args.ff9_rollout,
+                                         lambda_ff9_rollout=lam_ff9r,
+                                         ff9_rollout_tbptt=args.ff9_rollout_tbptt,
+                                         ff9_rollout_p_hide=args.ff9_rollout_phide,
                                          return_parts=True)
             opt.zero_grad()
             loss.backward()
@@ -490,6 +524,11 @@ def main():
                     z1 = encode_frames(tokenizer, batch_x)
                     loss, parts = model.loss(z1, batch_a, ff7_k=args.ff7, lambda_ff7=args.lambda_ff7,
                                              ff9_k=args.ff9, lambda_ff9=args.lambda_ff9,
+                                             multistep_h=args.multistep, lambda_multistep=lam_ms,
+                                             ff9_rollout_h=args.ff9_rollout,
+                                             lambda_ff9_rollout=lam_ff9r,
+                                             ff9_rollout_tbptt=args.ff9_rollout_tbptt,
+                                             ff9_rollout_p_hide=args.ff9_rollout_phide,
                                              return_parts=True)
                     val_loss += loss.item()
                     for name, value in parts.items():

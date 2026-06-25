@@ -92,6 +92,19 @@ class DynamicsModelConfig():
     # new params, inference/probe/FF7/FF9 untouched). Loss-only; verified V-T017-C1.
     multistep_h: int = 0            # provenance: C1 lookahead depth used in training (0 = off).
 
+    # FF9 rollout-training / memory->memory relay (op-3, D-048, EXP-029 design note). Trains the
+    # cross-window memory relay the FF9 v2 sufficiency loss leaves un-gradiented (_ff9_loss fills the
+    # intermediate frames with the learned-init placeholder -> "write mem_{t+1} <- mem_t" is on no
+    # gradient path; V-T014 / EXP-028 decay is the production echo). Seeds memory from a real near-clean
+    # prefix, then rolls h hops as differentiable 2-frame [source|new] windows mirroring the inference
+    # relay (full_state_rollout_step) — the WRITTEN memory at each hop is carried (injected) into the
+    # next, so the loss backprops through the memory-write chain TBPTT-k hops. Per step, prob p_hide the
+    # source latent is HIDDEN (tau=0 => memory is the ONLY scene carrier, the relay gradient); else the
+    # true latent near-clean (re-anchor). Provenance fields; the live knobs are loss() args.
+    ff9_rollout_h: int = 0          # rollout hops used in training (0 = off). 0 => no extra RNG/loss.
+    ff9_rollout_tbptt: int = 4      # detach the carried memory every k hops (TBPTT-k truncation depth).
+    ff9_rollout_p_hide: float = 0.5 # per-step prob the source latent is hidden (memory-only step).
+
 
 class Attention(nn.Module):
     """Block-causal attention. Space layers attend fully within a frame; temporal layers
@@ -406,6 +419,8 @@ class DynamicsModel(nn.Module):
     def loss(self, z1: torch.Tensor, action_idx: torch.Tensor = None, ff7_k: int = 0,
              lambda_ff7: float = 1.0, ff9_k: int = 0, lambda_ff9: float = 1.0,
              multistep_h: int = 0, lambda_multistep: float = 1.0,
+             ff9_rollout_h: int = 0, lambda_ff9_rollout: float = 1.0,
+             ff9_rollout_tbptt: int = None, ff9_rollout_p_hide: float = None,
              return_parts: bool = False) -> torch.Tensor:
         """Shortcut forcing loss over a clip of clean representations.
 
@@ -489,6 +504,16 @@ class DynamicsModel(nn.Module):
             parts["multistep"] = ms.detach()
             for j, v in enumerate(per_j, start=1):     # per-horizon, for the prior-emission monitor
                 parts[f"ms_h{j}"] = v
+        # FF9 rollout-training (D-048): memory->memory relay (op-3). Appended LAST -> all its RNG draws
+        # come after the existing ones, so ff9_rollout_h=0 is byte-identical to a pre-D-048 model.
+        if ff9_rollout_h > 0:
+            tbptt = ff9_rollout_tbptt if ff9_rollout_tbptt is not None else self.config.ff9_rollout_tbptt
+            p_hide = ff9_rollout_p_hide if ff9_rollout_p_hide is not None else self.config.ff9_rollout_p_hide
+            ff9r, per_h = self._ff9_rollout_loss(z1, actions, ff9_rollout_h, tbptt, p_hide)
+            total = total + lambda_ff9_rollout * ff9r
+            parts["ff9_rollout"] = ff9r.detach()
+            for j, v in enumerate(per_h, start=1):
+                parts[f"ff9r_h{j}"] = v
         if return_parts:
             return total, parts
         return total
@@ -599,6 +624,81 @@ class DynamicsModel(nn.Module):
         if self.config.ff9_ramp:
             flow = ((1 - self.config.ramp_min) * tau[:, 1:, 0, 0] + self.config.ramp_min) * flow
         return (flow * mask).sum() / mask.sum().clamp(min=1)
+
+    def _ff9_rollout_loss(self, z1: torch.Tensor, actions: torch.Tensor, h: int,
+                          tbptt_k: int, p_hide: float):
+        """FF9 rollout-training: train the memory->memory relay (op-3) — D-048, EXP-029 design (C1).
+
+        `_ff9_loss` credits writing memory_t from latents (op-1) and reading memory_t j hops later
+        (op-2) but fills the intermediate frames with the learned-init placeholder (line ~576), so the
+        cross-window WRITE "memory_{t+1} <- memory_t" is on NO gradient path. This loss puts a REAL
+        chain of memory writes on the gradient path:
+
+          * SEED: write an initial memory token from a real near-clean prefix window (frames 0..seed-1),
+            differentiable (also trains op-1).
+          * ROLL h hops. Hop j predicts true frame seed+j from a 2-frame [source|new] window that
+            MIRRORS inference (full_state_rollout_step): the carried memory injected at the SOURCE
+            frame, learned-init memory at the NEW frame (it reads the carry via the position-wise
+            temporal memory channel). The NEW frame's latent slot is pure noise (tau=0) and is the
+            x-prediction flow target (newest-frame flow / memory-sufficiency). Per (sample, hop) a
+            Bernoulli(p_hide) coin HIDES the source latent (tau=0, pure noise => memory is the ONLY
+            scene carrier -> the memory-only relay gradient) or shows the true source latent near-clean
+            (re-anchor to ground truth so a wrong guess can't compound forever). GT context is
+            teacher-forced (the source is the true previous frame) so memory is the only recurrent
+            element — isolating the relay from open-loop latent drift (V-T014 reader-anchor logic).
+          * CARRY: the WRITTEN memory at the new frame becomes the next hop's injected memory — this is
+            the op-3 relay, ON the gradient path. The carry is DETACHED every tbptt_k hops (TBPTT-k:
+            keep at most k hops of memory-write graph; k from the EXP-029 P1 sweep, not guessed).
+
+        Returns (mean_loss, per_hop detached). Deterministic GridWorld => a wrong prediction is always a
+        genuine error (no valid-but-wrong branch), so the full-downstream loss is correct signal
+        (design note 4: butterfly is a non-issue here). Requires n_memory>0; gated off by h=0.
+        """
+        assert self.n_memory > 0, "ff9_rollout requires n_memory > 0"
+        B, T, L, D = z1.shape
+        device = z1.device
+        maxctx = self.config.max_temporal_length - 1
+        seed = min(maxctx, 3)
+        assert seed >= 2 and seed + h <= T, \
+            f"clip length {T} too short for ff9_rollout_h={h} (need seed({seed})+h<=T)"
+        tau_ctx_idx = min(round(self.config.context_signal * self.K_max), self.K_max - 1)
+        d_fine = self.n_d - 1
+
+        # --- SEED: write the initial memory from the real near-clean prefix (differentiable) ---
+        win = z1[:, :seed]                                              # (B, seed, L, D)
+        w = win.shape[1]
+        tau_seed = torch.full((B, w), tau_ctx_idx, device=device, dtype=torch.long)
+        d_seed = torch.full((B, w), d_fine, device=device, dtype=torch.long)
+        act_seed = actions[:, :seed] if actions is not None else None
+        _, mem = self(self._noise_to_ctx(win), tau_seed, d_seed, act_seed, return_memory=True)
+        mem_carry = mem[:, -1:]                                        # (B, 1, M, E) initial state
+
+        # --- ROLL h hops, each a 2-frame [source|new] window with the carried memory injected ---
+        d2 = torch.full((B, 2), d_fine, device=device, dtype=torch.long)
+        zero_tau = torch.zeros(B, dtype=torch.long, device=device)
+        ctx_tau = torch.full((B,), tau_ctx_idx, dtype=torch.long, device=device)
+        hide = torch.rand(B, h, device=device) < p_hide               # per (sample, hop) hide coin
+        learned_mem = self.memory_tokens.expand(B, 1, -1, -1)
+        per_j = []
+        for jj in range(h):
+            tgt_pos = seed + jj
+            hcoin = hide[:, jj][:, None, None, None]
+            src_true = self._noise_to_ctx(z1[:, tgt_pos - 1:tgt_pos])  # true prev frame, near-clean
+            src = torch.where(hcoin, torch.randn_like(src_true), src_true)
+            tau_src = torch.where(hide[:, jj], zero_tau, ctx_tau)      # hidden=>0, visible=>near-clean
+            z1_new = z1[:, tgt_pos:tgt_pos + 1]
+            new_tilde = torch.randn_like(z1_new)                       # pure-noise target slot (tau=0)
+            inp = torch.cat((src, new_tilde), dim=1)                   # (B, 2, L, D)
+            tau2 = torch.stack((tau_src, zero_tau), dim=1)            # (B, 2)
+            mem_in = torch.cat((mem_carry, learned_mem), dim=1)       # (B, 2, M, E)
+            act2 = actions[:, tgt_pos - 1:tgt_pos + 1] if actions is not None else None
+            z_hat, mem_out = self(inp, tau2, d2, act2, memory_in=mem_in, return_memory=True)
+            per_j.append(((z_hat[:, -1:] - z1_new) ** 2).mean())      # newest-frame flow (tau=0)
+            mem_carry = mem_out[:, -1:]                                # op-3 relay: written mem -> next
+            if (jj + 1) % tbptt_k == 0:
+                mem_carry = mem_carry.detach()                        # TBPTT-k truncation
+        losses = torch.stack(per_j)                                   # (h,)
+        return losses.mean(), losses.detach()
 
     def _multistep_loss(self, z1: torch.Tensor, actions: torch.Tensor, h: int):
         """C1 (D-027): time-axis multi-step DAgger / scheduled-sampling loss.
