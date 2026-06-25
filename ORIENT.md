@@ -17,15 +17,19 @@ chance or worse (BPTT overshoots to 6.75 > 2x chance @d199). DICTATES: to recall
 rollout to depth >=D. CAVEAT: continuous-position probe is PESSIMISTIC for GridWorld's discrete/
 bounded/periodic state — the GridWorld A/B is the real test (-> discrete-memory/VQ if it still drifts).
 
-## IN FLIGHT — 3 ferranti jobs (submitted 02:32, branch feat/ff9-rollout-training @ 1a00ba6)
-- **EXP-030 job 409752** — FF9 rollout-training MODERATE (window16, clip28, h24, tbptt12, hide=tail,
-  +ff9 3, warmup20, 80ep). The clean demonstration: relay to ~24 hops should beat the EXP-027/028
-  16-window cliff.
-- **EXP-031 job 409754** — DEEP (clip48, h44, tbptt16). Tests P1's horizon==train-depth on the real
-  task; should recall further than EXP-030 if the discrete relay tracks.
-- **EXP-032 job 409753** — VANILLA window-32 control. The "just grow the window" baseline the relay
-  must beat.
-All PENDING at submit (ferranti busy: 46 run/18 pend, fairshare 0.27). Watch via job_status.
+## IN FLIGHT — 3 ferranti jobs (branch feat/ff9-rollout-training; training code == 1a00ba6, synced a4588b9)
+- **EXP-030 job 409752** — FF9 rollout MODERATE (window16, clip28, h24, tbptt12, tail, +ff9 3,
+  warmup20, 80ep). RUNNING (ep9 ~03:00, train0.10/val0.08, ETA ~06:40). Monitor: bg wait btxr1rma7.
+- **EXP-032 job 409753** — VANILLA window-32 control. RUNNING (~03:00, ETA ~04:30). Monitor: bg wait bkmep1943.
+- **EXP-031 job 409754** — DEEP (clip48, h44, tbptt16). PENDING (Resources) — may not finish by morning (bonus).
+Implementation + verifier (all 4 claims SUPPORTED) + eval tooling all DONE & committed. When a job lands:
+follow experiments/EXP-030/EVAL_RUNBOOK.md (pull -> recall_relay.py relay+windowed -> plot_rollout_compare).
+
+## BASELINE DONE this session (the "before" for the A/B)
+experiments/EXP-030/recall_env_ff9_norollout_relay.json — FF9 v2 (no rollout) under the UPDATING-memory
+relay inference: untrained B2 relay COLLAPSES by k~3 (pos 0.67->0.17->chance@k4; color->chance@k8).
+The bar FF9+rollout must clear under the same relay inference. See EXP-030/NOTES.md for inference
+semantics (relay = 2-frame pure-memory; windowed = EXP-028 sliding-window; don't conflate them).
 
 ## NEXT ACTIONS (in order)
 1. **Implement UPDATING-memory inference** (essential for eval — the trained relay is exercised ONLY
