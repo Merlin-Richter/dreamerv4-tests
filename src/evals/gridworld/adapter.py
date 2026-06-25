@@ -96,8 +96,13 @@ def dynamics_rollout_frames(model, tokenizer, frames_u8: np.ndarray, curtain: np
         # temporal attention (generate_cached plain=True bypasses the frozen-snapshot dispatch; per-frame
         # memory tokens are still present and chained across frames). This is the one intended FF9
         # inference. "snapshot" = the generate_full_state_memory special case (kept only for reference).
-        if inference == "snapshot":
-            gen = model.generate(ctx, n_gen, K=K, action_idx=act)
+        if inference == "relay":
+            # FF9 rollout-training inference (D-048): UPDATING memory carry (op-3 / B2). The trained
+            # cross-window relay — memory re-written each step from a pure-noise source (A1).
+            gen = model.generate_updating_memory(ctx, n_gen, K=K, action_idx=act)
+        elif inference == "snapshot":
+            # FF9 v2 frozen snapshot (B1): write memory once, carry it unchanged (static state only).
+            gen = model.generate_full_state_memory(ctx, n_gen, K=K, action_idx=act)
         else:  # "windowed"/"auto"/default — normal rollout (vanilla: no memory tokens; FF9: carried)
             gen = model.generate_cached(ctx, n_gen, K=K, action_idx=act, plain=True)
         full = torch.cat((ctx, gen), dim=1)
