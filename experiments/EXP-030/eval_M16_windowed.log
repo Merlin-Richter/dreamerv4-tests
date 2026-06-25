@@ -1,0 +1,7 @@
+[ff9roll_M16_windowed] env-direct recall: n_ctx=8 N/k=64 inference=windowed n_memory=16 ks=[1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32]
+  k=1 done
+  k=2 done
+  k=3 done
+  k=4 done
+  k=5 done
+  k=6 done

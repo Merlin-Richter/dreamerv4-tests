@@ -165,16 +165,15 @@ python -u src/training/train_dynamics.py --wandb --wandb-project my-project
 # the window via generate_memory, which is a thin loop over the reusable primitives
 # memory_rollout_init / memory_rollout_step (also driven by the interactive viewer):
 python -u src/training/train_dynamics.py --ff7 1 --lambda-ff7 1.0 --seed 0
-# FF9 ROLLOUT-TRAINING (D-048, op-3 memory->memory relay): trains the cross-window memory relay the
-# FF9 sufficiency loss (_ff9_loss) leaves un-gradiented (it fills intermediate frames with the
-# learned-init placeholder). Rolls h differentiable memory hops (TBPTT-k via --ff9-rollout-tbptt),
-# carrying the WRITTEN memory each hop; per-step source latents are hidden (--ff9-rollout-hide-mode
-# tail=contiguous occlusion-mirror | iid). --rollout-clip-len decouples the dataset clip from the
-# model window so the relay trains DEEPER than the window (P1/EXP-029: dynamic-state recall horizon ~
-# training rollout depth -> train to the eval depth). Combine with --ff9 (the sufficiency term that
-# makes memory CONTAIN state) + --ff9-rollout-warmup (contain-then-propagate). Eval with the
-# UPDATING-memory inference: model.generate_updating_memory (op-3/B2, memory re-written each step) via
-# the recall adapter inference='relay' (vs 'snapshot'=frozen B1, 'windowed'=plain sliding window).
+# FF9 ROLLOUT-TRAINING (D-048, op-3 memory->memory relay): a TRAINING loss (_ff9_rollout_loss) that
+# trains the within-window memory->memory relay the FF9 sufficiency loss (_ff9_loss) leaves
+# un-gradiented (it fills intermediate frames with the learned-init placeholder). Rolls h differentiable
+# memory hops (TBPTT-k via --ff9-rollout-tbptt), carrying the WRITTEN memory each hop; per-step source
+# latents are hidden (--ff9-rollout-hide-mode tail=contiguous occlusion-mirror | iid). --rollout-clip-len
+# decouples the dataset clip from the model window so the relay is trained over more hops than the window.
+# Combine with --ff9 (sufficiency term -> memory CONTAINS state) + --ff9-rollout-warmup. INFERENCE is the
+# ordinary sliding-window rollout (no special path): memory tokens live in the W-frame window and the
+# relay propagates them frame-to-frame via temporal attention as the window slides (they evict with it).
 python -u src/training/train_dynamics.py --ff9 3 --ff9-rollout 24 --ff9-rollout-tbptt 12 \
   --ff9-rollout-hide-mode tail --ff9-rollout-warmup 20 --context-length 16 --rollout-clip-len 28 --seed 0
 # Gate tests (run from src/tests/, CPU OK) — FF7 paths, KV cache, streaming cache, FF9 rollout:

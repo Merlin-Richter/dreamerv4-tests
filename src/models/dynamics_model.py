@@ -1148,67 +1148,6 @@ class DynamicsModel(nn.Module):
             generated.append(z)
         return torch.concat(generated, dim=1)
 
-    @torch.no_grad()
-    def generate_updating_memory(self, context: torch.Tensor, n_generate: int, K: int = None,
-                                 action_idx: torch.Tensor = None) -> torch.Tensor:
-        """FF9 rollout-training inference (D-048): the UPDATING memory relay (op-3 / B2), the
-        inference `_ff9_rollout_loss` actually trains. Like generate_full_state_memory (A1) the scene
-        comes ONLY from memory (source latent = pure noise, tau=0, matching the rollout-loss's hidden
-        steps), BUT the memory is RE-WRITTEN every step instead of frozen: after generating frame t the
-        new frame's written memory token becomes the carry for t+1. That is exactly the chain the
-        rollout loss puts on the gradient path, so a model trained with it should track DYNAMIC hidden
-        state past the window where the frozen snapshot (B1) only holds static state and the untrained
-        relay (V-T013-eval B2) drifts. Same signature/return as generate().
-
-        The memory carry is extracted at the tau=0 shortcut substep (new latent slot = pure noise),
-        which is the exact configuration the rollout loss writes memory from — so train and inference
-        write the carry identically. The frame itself is still denoised over the full K shortcut steps.
-        """
-        assert self.n_memory > 0, "generate_updating_memory requires n_memory > 0"
-        K = K or self.config.inference_steps
-        B, T_ctx, L, Dd = context.shape
-        device = context.device
-        d_idx_val = (K).bit_length() - 1
-        tau_ctx_idx = min(round(self.config.context_signal * self.K_max), self.K_max - 1)
-        max_ctx = self.config.max_temporal_length - 1
-        act_feat = self.action_features(action_idx) if action_idx is not None else None
-
-        # --- SEED the memory from the observed prefix window (near-clean), as in training's seed write
-        win = context[:, -max_ctx:]
-        w = win.shape[1]
-        act_win = act_feat[:, T_ctx - w:T_ctx] if act_feat is not None else None
-        tau_col = torch.full((B, w), tau_ctx_idx, device=device, dtype=torch.long)
-        d_col = torch.full((B, w), d_idx_val, device=device, dtype=torch.long)
-        _, mem = self(self._noise_to_ctx(win), tau_col, d_col, act_win, return_memory=True)
-        mem_carry = mem[:, -1:]                                        # (B, 1, M, E)
-
-        learned = self.memory_tokens.expand(B, 1, -1, -1)
-        d2 = torch.full((B, 2), d_idx_val, device=device, dtype=torch.long)
-        generated = []
-        for i in range(n_generate):
-            new_idx = T_ctx + i
-            act2 = act_feat[:, new_idx - 1:new_idx + 1] if act_feat is not None else None  # [prev, new]
-            mem_in = torch.cat((mem_carry, learned), dim=1)           # inject carry at SOURCE
-            src = torch.randn((B, 1, L, Dd), device=device)           # A1: source = pure noise (tau=0)
-            tau2 = torch.zeros((B, 2), device=device, dtype=torch.long)
-            z = torch.randn((B, 1, L, Dd), device=device)
-            new_mem = None
-            for kstep in range(K):
-                tau = kstep / K
-                tau2[:, -1] = round(tau * self.K_max)
-                if kstep == 0:                                        # tau=0 substep: write the carry
-                    z_hat1, mem_out = self(torch.cat((src, z), dim=1), tau2, d2, act2,
-                                           memory_in=mem_in, return_memory=True)
-                    z_hat1 = z_hat1[:, -1:]
-                    new_mem = mem_out[:, -1:]                         # new frame's written memory (op-3)
-                else:
-                    z_hat1 = self(torch.cat((src, z), dim=1), tau2, d2, act2, memory_in=mem_in)[:, -1:]
-                v = (z_hat1 - z) / (1 - tau)
-                z = z + v * (1.0 / K)
-            generated.append(z)
-            mem_carry = new_mem                                       # B2: UPDATE the carry each step
-        return torch.concat(generated, dim=1)
-
     # ----------------------------------------- cross-frame sliding-window KV cache (D-020, T-012)
     @staticmethod
     def _make_noise_fn(seed: int):

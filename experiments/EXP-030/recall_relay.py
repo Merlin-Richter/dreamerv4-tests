@@ -40,10 +40,6 @@ def main():
     ap.add_argument("--n-ctx", type=int, default=8)
     ap.add_argument("--n-per-k", type=int, default=64)
     ap.add_argument("--tag", required=True)
-    ap.add_argument("--inference", default="relay",
-                    choices=["relay", "windowed", "snapshot", "auto"],
-                    help="relay=updating-memory carry (C1's trained inference); windowed=plain "
-                         "sliding-window (EXP-028 corrected); snapshot=frozen FF9 v2 carry.")
     ap.add_argument("--max-k", type=int, default=None, help="cap KS (e.g. 32 to match baselines).")
     args = ap.parse_args()
 
@@ -52,22 +48,21 @@ def main():
     model, cfg = load_dynamics(args.dynamics, device)
     ks = [k for k in KS if args.max_k is None or k <= args.max_k]
     print(f"[{args.tag}] env-direct recall: n_ctx={args.n_ctx} N/k={args.n_per_k} "
-          f"inference={args.inference} n_memory={getattr(cfg,'n_memory',0)} ks={ks}")
+          f"n_memory={getattr(cfg,'n_memory',0)} ks={ks}")
 
     recs = {"model": [], "control": [], "oracle": [], "copy_last": []}
     for k in ks:
         for i in range(args.n_per_k):
             f, st, co, cu = gen_recall_episode(seed=70000 + k * 1000 + i, n_ctx=args.n_ctx, k=k)
             recs["model"] += score_episode(
-                dynamics_rollout_frames(model, tok, f, cu, device, inference=args.inference), st, co, cu)
+                dynamics_rollout_frames(model, tok, f, cu, device), st, co, cu)
             recs["control"] += score_episode(
-                dynamics_rollout_frames(model, tok, f, cu, device, control_curtain_up=True,
-                                        inference=args.inference), st, co, cu)
+                dynamics_rollout_frames(model, tok, f, cu, device, control_curtain_up=True), st, co, cu)
             recs["oracle"] += score_episode(oracle_frames(st, co, cu), st, co, cu)
             recs["copy_last"] += score_episode(copylast_frames(st, co, cu), st, co, cu)
         print(f"  k={k} done")
 
-    res = {"tag": args.tag, "inference": args.inference, "n_ctx": args.n_ctx,
+    res = {"tag": args.tag, "n_ctx": args.n_ctx,
            "n_per_k": args.n_per_k, "chance": chance_levels(),
            **{s: aggregate(r) for s, r in recs.items()}}
     out_dir = Path(args.out_dir); out_dir.mkdir(parents=True, exist_ok=True)

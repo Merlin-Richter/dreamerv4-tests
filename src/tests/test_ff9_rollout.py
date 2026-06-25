@@ -137,27 +137,6 @@ def test_p_hide_zero_no_leak_to_target_via_memory_only():
     assert hid >= vis, "hiding the source latent did not make the task harder -> latent path not removed"
 
 
-def test_updating_memory_inference_shape_and_influence():
-    """generate_updating_memory (the relay inference C1 trains) returns the right shape, is finite,
-    and the carried memory actually influences the rollout (perturbing the seeded memory changes the
-    output -> the read path the relay depends on exists)."""
-    torch.manual_seed(0)
-    cfg = _tiny_cfg(use_full_state_memory=True, ff9_rollout_h=4)
-    model = DynamicsModel(cfg).eval()
-    B, P, n_gen = 2, 4, 6
-    ctx = torch.randn(B, P, cfg.n_latents, cfg.bottleneck_dim)
-    act = torch.randint(0, cfg.n_actions, (B, P + n_gen))
-    out = model.generate_updating_memory(ctx, n_gen, K=4, action_idx=act)
-    assert out.shape == (B, n_gen, cfg.n_latents, cfg.bottleneck_dim), out.shape
-    assert torch.isfinite(out).all()
-    # memory must matter: zero the learned-init memory token and the rollout should change.
-    saved = model.memory_tokens.data.clone()
-    model.memory_tokens.data += 7.0
-    out2 = model.generate_updating_memory(ctx, n_gen, K=4, action_idx=act)
-    model.memory_tokens.data.copy_(saved)
-    assert not torch.allclose(out, out2, atol=1e-4), "rollout ignores the memory tokens"
-
-
 if __name__ == "__main__":
     fns = [v for n, v in sorted(globals().items()) if n.startswith("test_")]
     for fn in fns:
