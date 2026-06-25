@@ -1,122 +1,62 @@
 # ORIENT.md
 
-Rewritten: 2026-06-23 (tokenizer FROZEN; Merlin redirected to nailing down the recall eval).
+Rewritten: 2026-06-25 (overnight autonomous memory-training campaign, D-048).
 
 ## What we're doing right now and why
-Building the **GridWorld discrete-memory pipeline on the cluster**. Cluster interface (T-003) built +
-validated; env at 6×6 anti-overfit geometry (D-038); recall eval core built (D-040). **Tokenizer now
-FROZEN** (EXP-025 → checkpoints/gridworld/tokenizer.pt, D-044). Merlin's steer: "lets get the eval
-down" → focus is the GridWorld recall eval: freeze its design + wire the model adapter so it can score
-a dynamics rollout, the gate to H2/H3 memory work.
+**Autonomous overnight campaign (Merlin asleep, explicit instruction to run multiple memory-training
+ideas without the present-then-stop gate; D-048).** Frontier = FF9 memory tokens contain dynamic
+hidden state in-window (EXP-028: pos 0.94 in-window, decays to chance ~k28) but the memory->memory
+relay (op-3) is UNTRAINED. Tonight: implemented FF9 **rollout-training** (trains the relay on the
+gradient path, TBPTT-k) and launched a budget-matched A/B on the GridWorld bench.
 
-## Tokenizer FROZEN (ESC-017 resolved)
-- EXP-025 (job 408760, W&B 70k76148 @ f1e3d6c) → checkpoints/gridworld/tokenizer.pt (best=ep29, D-044).
-- Caveat logged: fg_frac~0.32 (mask catches the curtain) → ball judged by recon visual, not fg_mse alone.
-- Tripwire (D-044): if the tokenizer-roundtrip recall CEILING (next exp) can't read out position/colour
-  at reveal frames, the latent is the bottleneck — revisit tokenizer before any dynamics run.
+## P1 gating probe DONE (EXP-029) — the result that shaped the design
+Dynamic-secret relay credit probe (continuous 1-D bounce, integrate each hop). **For DYNAMIC state
+there is NO free extrapolation: recall horizon == training rollout depth.** Within train depth,
+tbptt-k carries to ~2k hops (tbptt16 ~= full BPTT to depth 31); beyond train depth ALL modes drift to
+chance or worse (BPTT overshoots to 6.75 > 2x chance @d199). DICTATES: to recall to k~D, train the
+rollout to depth >=D. CAVEAT: continuous-position probe is PESSIMISTIC for GridWorld's discrete/
+bounded/periodic state — the GridWorld A/B is the real test (-> discrete-memory/VQ if it still drifts).
 
-## HOW TO OPERATE THE CLUSTER (read before touching it)
-- **All `scripts/` verbs run in WSL**, NOT Git Bash (shared ssh-socket namespace — D-036). Invoke:
-  `wsl.exe -e bash -lc "cd /mnt/c/Users/richt/OneDrive/Desktop/Code/transformer && bash scripts/<verb> ..."`.
-- Two clusters, no default: `--cluster ferranti` (H100, in use) / `galvani` (A100, unconfigured).
-- Master socket is opened by Merlin in WSL; `ERROR: AUTH_DEAD` → ask him to re-run `open_master.sh`.
-- `submit_job` default `--cpus 8` (needed — else SLURM gives cpu=2 and starves the GPU). bf16+TF32 on.
-- Run-tuning recipe (batch/epochs/venv/W&B) in `HOWTO/cluster.md` "Run tuning notes". `scripts/cluster.env`
-  was reconstructed this session (D-041 turn) after I deleted it; verified via cluster_health — if a
-  cluster field misbehaves, suspect a reconstructed value.
-
-## AWAITING MERLIN — EXP-028 FF9 result [CORRECTED] (ESC-020, present-then-stop)
-FF9 v2 trained + env-direct A/B vs vanilla. **CORRECTED inference** (normal rollout, memory tokens carried
-in window via temporal attn; generate_cached plain=True — NOT the frozen-snapshot generate_full_state_memory
-I wrongly used first, which gave k=1 pos=0 / period-10 spikes; Merlin flagged it). Result: **FF9 is a real
-DYNAMIC-memory win** — position in-window 0.94 vs vanilla 0.52, past-window(k≥16) 0.20 vs 0.05, SMOOTH decay
-to chance ~k28 (genuine motion integration, no snapshot periodicity). Colour/bg also beat vanilla past
-window (0.48/0.62 vs 0.30/0.26) but decay. View: experiments/EXP-028/compare.png.
-NEXT (proposed to Merlin, ESC-020): critical-claim-verifier on the corrected inference + 2nd seed before
-headline; regen FF9 sheets with plain inference; then op-3 for the long-horizon decay OR consolidate FF9.
-LESSON saved: memory-model inference dispatch is subtle — verify the inference path matches training.
-
-## FF9 ROLLOUT-TRAINING design reviewed (ESC-021) — AWAITING MERLIN
-method-architect reviewed FF9_IDEA.md (note: experiments/EXP-029-design/method_architect.md). Key:
-diagnosis = CREDIT-ASSIGNMENT not architecture (_ff9_loss:576 placeholder → "write mem←mem" un-gradiented).
-Build order OVERTURNS my doc: C1 (extend _ff9_loss with a real TBPTT-k memory chain) > C2 (my doc's
-cached-grad streaming scheme — same gradient, higher risk, build later) > C3 (cheap tbptt-2 control).
-Don't hard-code 4·N — MEASURE min k. Gating probe P1 (written+smoke-tested,
-experiments/EXP-029-design/probe_dynamic_relay.py): dynamic-secret tbptt-k sweep → settles capacity-vs-
-credit (if full BPTT fails on dynamic state, M=4 too small → widen memory, not a credit fix) AND fixes k.
-RECOMMENDED next (both cheap, present-then-stop): run P1 + close ESC-020 Q2 (2nd seed + verifier), THEN a
-C1 build decision at measured k for sign-off. Not building/running until Merlin weighs in.
-
-## (resolved) EXP-028 FF9 v2 memory method — ferranti job 409625 (D-047)
-Vanilla baseline ACCEPTED (ESC-019). FF9 v2 (full-state memory token, n_memory=4, ff9_k=3) training,
-budget-matched to EXP-027. Expected: colour retained PAST the 16-window (beats vanilla cliff); position
-likely still cliffs (dynamic state → op-3). When done: build FF9-AWARE recall adapter (generate dispatches
-to generate_full_state_memory — current dynamics_rollout_frames uses generate_cached/vanilla path) and
-eval vs vanilla. TWO open eval-method items from Merlin: (1) convert the recall eval to ENV-DIRECT
-generation (headline.png used the val SET; memory: evals-use-env-directly) — re-run vanilla under it for a
-matched A/B; (2) sheets already env-direct. window-8 demo is in-distribution (causal masking), not OOD.
-
-## (resolved) EXP-027 vanilla baseline DONE (ESC-019)
-The GridWorld no-memory FLOOR is established. Recall (150 held-out val eps, job 409559): position_acc
-model 0.573 in-window (vs copy-last 0.118) → 0.015 past window (k≥16); matched-horizon control flat
-~0.70 at all k (→ the cliff is MEMORY LOSS, not weak dynamics); even static colour →chance past window.
-Both D-046 tripwires clear; rollout protocol audited (V-EXP027). View: experiments/EXP-027/headline.png.
-The clean discrete bench is now LIVE end-to-end: frozen tokenizer + frozen eval + audited rollout +
-vanilla floor. NEXT (after Merlin): the MEMORY method on GridWorld (FF7/FF9/op-3 line on the clean
-bench) — bring a method proposal + decision for sign-off before training. Housekeeping: archive
-dynamics_vanilla.pt under experiments/EXP-027/ + fix run.sh to save checkpoints into the run dir.
-
-## EXP-027 vanilla baseline TRAINED (job 409479 COMPLETED) — recall eval done (D-046)
-Training clean: val diffusion 0.0146→0.00139 monotone over 80 ep, no explosion (grad-clip 1.0 works).
-(409473 crashed ep3 on the persistent_workers stale-offset bug, same as the tokenizer; fixed 03a2f71.)
-Checkpoint at CLUSTER checkpoints/gridworld/dynamics_vanilla.pt — NOT in the run dir so pull_results
-can't reach it (run.sh saved to the wrong place; the tokenizer correctly saved into runs/). Plan: stage
-it into the run dir inside the eval job, then pull. RECALL EVAL BUILT: dynamics_rollout_frames (adapter.py, faithful per-event open-loop rollout +
-matched-horizon control) + experiments/EXP-027/{eval.py,eval_run.sh,recall_design.md}. Plumbing
-validated locally on the smoke ckpt (oracle self-test=1.0). Protocol AUDITED by critical-claim-verifier → SUPPORTED (a/b/c, no bug; V-EXP027). **Eval IN FLIGHT:
-ferranti job 409559** (@ f3ea659, gridworld-vanilla-s0-eval; stages dynamics_vanilla.pt back). When
-done: pull results.json + headline.png + checkpoint, reconcile vs D-046 tripwires, present recall
-curves (present-then-stop). Smoke ckpt at C:/Users/richt/AppData/Local/Temp/gw_dyn_smoke.pt. Self-provisioning run.sh: locates frozen tokenizer
-(runs/gridworld-tok-v3/tokenizer.pt, fallback checkpoints/gridworld/; fail-fast if absent), regens
-seed-42 gridworld data if absent, trains vanilla (bs64 lr3e-4 80ep seed0, grad-clip 1.0, n_actions=2)
-→ checkpoints/gridworld/dynamics_vanilla.pt. WATCH: (1) tokenizer found on node? (2) no grad explosion
-(clip should hold); (3) val diffusion decreasing. RISK if tokenizer absent on cluster → escalate
-(can't push artifacts via wrappers; fallback = retrain tokenizer, ~1.4h, deterministic).
-When done: pull dynamics_vanilla.pt, then wire dynamics-rollout frame source + run recall on HELD-OUT
-(val) episodes (NOT eps 0-499 which overlap train). present-then-stop.
-
-## NOW: training the vanilla GridWorld dynamics baseline (ESC-018 resolved; D-046)
-- Eval CORE FROZEN (D-045, ESC-016 resolved): per-k judging + off-grid k {3,6,12,16} for W&B.
-- EXP-026: tokenizer-roundtrip recall == oracle == 1.0 at every k → frozen latent NOT the bottleneck
-  (D-044 tripwire cleared). View: experiments/EXP-026/headline.png.
-- **Metric semantics (Merlin's correction):** BOTH colour and position are memory tests — colour =
-  static retention (failable; copy-last passes it trivially but a model can hallucinate), position =
-  memory + reasoning (retain + simulate the bounce under occlusion). Report both; position is the
-  harder headline. (memory: project_gridworld_metric_semantics)
+## IN FLIGHT — 3 ferranti jobs (submitted 02:32, branch feat/ff9-rollout-training @ 1a00ba6)
+- **EXP-030 job 409752** — FF9 rollout-training MODERATE (window16, clip28, h24, tbptt12, hide=tail,
+  +ff9 3, warmup20, 80ep). The clean demonstration: relay to ~24 hops should beat the EXP-027/028
+  16-window cliff.
+- **EXP-031 job 409754** — DEEP (clip48, h44, tbptt16). Tests P1's horizon==train-depth on the real
+  task; should recall further than EXP-030 if the discrete relay tracks.
+- **EXP-032 job 409753** — VANILLA window-32 control. The "just grow the window" baseline the relay
+  must beat.
+All PENDING at submit (ferranti busy: 46 run/18 pend, fairshare 0.27). Watch via job_status.
 
 ## NEXT ACTIONS (in order)
-1. **Vanilla GridWorld dynamics on the cluster (IN PROGRESS, D-046).** Frozen tokenizer + frozen eval.
-   Grad-clip fix at train_dynamics.py:466–468 first; RE-PROFILE batch (latent-space compute ≠ bs64).
-2. **Wire the dynamics-rollout frame source** into adapter.py (rollout → decode → score) + the
-   matched-horizon open-rollout control → real recall curves vs k vs the EXP-026 oracle/copy-last ref.
-3. Decide where the during-training W&B recall eval hooks in (flatten_for_wandb ready; off-grid k).
+1. **Implement UPDATING-memory inference** (essential for eval — the trained relay is exercised ONLY
+   by an updating memory carry, not plain sliding-window or the frozen snapshot). Mirror
+   full_state_rollout_step but UPDATE mem_carry each step from the written memory. Add a generate
+   dispatch + an eval adapter mode.
+2. **critical-claim-verifier** on _ff9_rollout_loss (correctness of the relay gradient path; runs in
+   parallel with training).
+3. When checkpoints land: env-direct recall A/B vs vanilla(EXP-027) + FF9(EXP-028), under BOTH
+   updating-memory and plain inference. Build comparison views. Present-then-stop deferred to a single
+   consolidated MORNING BRIEF (Merlin asked for autonomous overnight work).
+4. If the relay still drifts on GridWorld -> the discrete-memory (VQ) idea (see DECISIONS D-048 notes
+   / the morning escalation).
 
-## EVAL (D-040) — built + validated, NOT frozen
-Headline = graded `position_score` (exact=1.0, adjacent=0.25, →0 by Chebyshev d=3) + `position_acc`
-(exact, chance 1/36); ball + bg 4-way color via most-different-cell detection; per-k counts + SE.
-Self-validates (oracle 1.0, random≈analytic chance 0.086, copy-last decays). **KEY FINDING:** the 6×6
-bounce has period 2·(6−1)=**10**, so copy-last (no-memory) spikes to **1.0 at k≡9 (mod 10)**. ⇒ judge
-memory by beating copy-last *per k*; for the periodic W&B eval pick occlusion lengths OFF that grid
-(e.g. k∈{3,6,12,16}). A single averaged scalar would be inflated by the periodic spikes.
+## Implementation state (all on feat/ff9-rollout-training, committed)
+- `_ff9_rollout_loss` (dynamics_model.py): differentiable memory chain, TBPTT-k, hide_mode {tail,iid},
+  seed-write + h hops of 2-frame [source|new] windows; carry = written memory (op-3 relay). loss()
+  windows main terms to max_temporal_length, feeds full clip to rollout term. Identity-when-off.
+- train_dynamics flags: --ff9-rollout H --ff9-rollout-tbptt K --ff9-rollout-phide P
+  --ff9-rollout-hide-mode {tail,iid} --ff9-rollout-warmup E --rollout-clip-len N.
+- encode_frames chunks T>16 clips into 16-frame tokenizer windows (frozen tokenizer is window-16).
+- Tests: src/tests/test_ff9_rollout.py (6/6, incl. relay-Jacobian + TBPTT-depth + byte-identical-off).
+  FF7/KV/stream gates green. Local smoke (clip28/h24) trains+saves clean.
 
-## Open escalations / worries
-- **ESC-016 Q1 OPEN:** GridWorld eval design sign-off + freeze + periodicity handling + where to put
-  the periodic-W&B eval. (Q2 compute-tier = cluster, answered.) Merlin gave the refined spec (D-040);
-  awaiting his "freeze it / here's where to use it."
-- **Tripwire (D-038):** if periodic/ballistic extrapolation ≈ oracle on position even off-period, the
-  6×6 env is too easy → add cells/state.
-- Dynamics batch-size re-profile (above).
+## Open escalations / worries (for the morning brief)
+- ESC-020/021 still OPEN (FF9 corrected-inference 2nd-seed/verifier; rollout-training design sign-off).
+  Tonight's runs partly cover ESC-021 (built + running C1). Morning brief will consolidate.
+- The eval inference choice (updating-memory vs plain vs frozen-snapshot) is subtle and result-defining
+  — must be applied identically to baselines and documented. Verify before claiming any A/B.
+- P1's "no extrapolation for dynamic state" is the key risk: if GridWorld's discrete state behaves like
+  the continuous probe, rollout-training only extends recall to ~train depth (h), not arbitrarily.
 
 ## Parked (pre-pivot; resume only if Merlin redirects)
-- C1/motion (EXP-021 ckpt ~ep10), exposure-bias/open-loop compounding. ESC-014 op-3 relay open.
-- Occluded-line H3 (FF7 color SUPPORTED; FF9 v2 static-color SUPPORTED; position open). checkpoints/occluded/.
+- C1/motion (EXP-021), occluded-line H3 (FF7/FF9 static-color). See BOARD-archive / prior ORIENT.
