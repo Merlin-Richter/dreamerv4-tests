@@ -1,0 +1,6 @@
+treatment: C1 multistep_h=4 lambda=1.0 warmup=10, occluded.npy FULL 1000-ep (no --max-episodes),
+40 ep budget (interrupted overnight; periodic per-epoch ckpt), bs32, lr3e-4, seed0, fresh. code @ a07fdee.
+Purpose (D-029): confound-free open-loop COMPOUNDING test — does C1 trained on competent-regime data have
+gentler open-loop compounding than the competent reference set (vanilla_s0/ff7_k3/ff9v2, full-data,
+already probed in EXP-018) at matched TF-map quality? Resolves the EXP-020 weak-control (250-ep) confound.
+Eval: probe latest checkpoint with src/eval/motion (open_loop + teacher_forced) vs the reference set.

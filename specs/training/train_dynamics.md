@@ -1,0 +1,24 @@
+# train_dynamics.py — train the dynamics model on the frozen tokenizer's latents.
+
+Trains a `DynamicsModel` (vanilla or FF9-memory) on GridWorld frames encoded by the FROZEN tokenizer.
+Loss = shortcut forcing (+ FF9 sufficiency when `--ff9>0`). The dynamics model never touches pixels.
+
+## Interface
+- CLI: `--frames data/gridworld.npy --tokenizer <frozen .pt> --checkpoint <out.pt>`;
+  `--epochs --batch-size --lr --seed --context-length`; memory: `--ff9 K --n-memory M`;
+  `--wandb*`; `--test-checkpoint` (interactive rollout viz instead of training).
+- Produces `<checkpoint>.pt` = `{config, model_state_dict}`.
+
+## Behavior
+- Load frames (memmap) + actions; split train/val (fixed seed). Load + FREEZE the tokenizer; read its
+  `n_latents/bottleneck_dim` so the dynamics config matches. `n_actions` auto-detected from the actions.
+- `ChunkClipDataset`: yields `context-length`-frame clips (+ per-frame action ids). Each batch:
+  encode frames → latents with the frozen tokenizer (no grad), then `model.loss(z1, actions)`.
+- Optimiser AdamW; **gradient clipping at max_norm=1.0** (prevents the tokenizer-style blow-up). Per-epoch
+  val loss; checkpoint each epoch; W&B optional (loss parts).
+
+## Invariants
+- Tokenizer is frozen (eval, no grad) and its dims drive the dynamics config — they must agree.
+- Latents encoded per batch on the fly; dynamics trains only the transition, never the tokenizer.
+- `--ff9 K` ⇒ memory model (`n_memory=M>0`, FF9 sufficiency loss on); else vanilla. grad-clip stays on.
+- `context-length` = the model's temporal window. Run with `-u`.

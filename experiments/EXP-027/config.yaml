@@ -1,0 +1,26 @@
+# EXP-027 provenance — vanilla GridWorld dynamics baseline
+experiment: EXP-027
+title: Vanilla GridWorld dynamics baseline (sacred, no memory objectives)
+decision: D-046
+hypothesis: H-gridworld (baseline floor for memory methods)
+cluster: ferranti (H100)
+branch: feat/motion-prediction
+model: dynamics_model (vanilla; ff7=ff9=multistep=0)
+tokenizer: frozen GridWorld tokenizer (EXP-025, runs/gridworld-tok-v3/tokenizer.pt; W&B 70k76148 @ f1e3d6c)
+dataset: gridworld.npy 3000x200 (seed 42, == EXP-025/EXP-026 data; regenerated in-job if absent)
+n_actions: 2 (curtain up/down, auto-detected)
+context_length: 16 (= tokenizer window; DynamicsModelConfig default)
+batch_size: 64
+lr: 3.0e-4
+epochs: 80
+seed: 0
+grad_clip: 1.0 (added this session; train_dynamics was previously unclipped)
+output_checkpoint: checkpoints/gridworld/dynamics_vanilla.pt
+wandb: transformer-D-dynamics / gridworld-vanilla-s0
+runner: experiments/EXP-027/run.sh
+note_holdout: |
+  recall eval must run on HELD-OUT (val) episodes. The split is DETERMINISTIC and independent of
+  --seed (train_dynamics.py:353): g = torch.Generator().manual_seed(0); perm = torch.randperm(3000, g);
+  val_idx = perm[:150], train_idx = perm[150:]. So the EXP-027 recall eval runs on those 150 val
+  episodes (reproduce the exact perm). EXP-026 ceiling used eps 0..499 (overlaps train) — fine for a
+  representational ceiling, NOT for the memory comparison.

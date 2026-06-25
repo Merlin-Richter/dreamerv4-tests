@@ -1,0 +1,12 @@
+=== job gridworld-vanilla-s0-sheets on mlcbm006 | jobid 409595 | Wed Jun 24 14:49:13 CEST 2026 ===
+NVIDIA H100 80GB HBM3, 81559 MiB
+=== commit: e2858a4ce1b381e83faab5a843e2876faefc229a ===
+=== reusing cached venv /weka/martius/mot936/venvs/venv-b05c6eb3f672f99e ===
+=== running: bash experiments/EXP-027/sheet_run.sh ===
+=== tokenizer: runs/gridworld-tok-v3/tokenizer.pt | dynamics: checkpoints/gridworld/dynamics_vanilla.pt ===
+-rw-r--r--. 1 mot936 martius 27640123 Jun 24 12:52 checkpoints/gridworld/dynamics_vanilla.pt
+-rw-r--r--. 1 mot936 martius 55463051 Jun 23 15:00 runs/gridworld-tok-v3/tokenizer.pt
+wrote runs/gridworld-vanilla-s0-sheets/sheet_normal.png  (3102x2442)
+wrote runs/gridworld-vanilla-s0-sheets/sheet_occlusion.png  (3102x2442)
+=== sheets done ===
+=== done gridworld-vanilla-s0-sheets rc=0 Wed Jun 24 14:49:21 CEST 2026 ===

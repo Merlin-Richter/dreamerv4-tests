@@ -1,0 +1,23 @@
+
+[model] vanilla_s0 (EXP-012)  K=4
+    P1  h:        1      2      4      8     12     16     24
+    TF  err:    4.5    4.9    4.4    4.6    4.4    4.7    3.8
+    OL  err:    5.0    7.2   10.6   19.0   27.0   28.9   22.2
+    copylast:   3.2    6.3   12.2   21.6   29.0   33.2   30.4
+    P2 tau-context-sweep (TF 1-step err): 0.70:4.7  0.80:4.7  0.90:4.6  0.95:4.7
+
+[model] ff7_k3 (EXP-010)  K=4
+    P1  h:        1      2      4      8     12     16     24
+    TF  err:    1.0    0.9    0.9    1.0    1.0    1.1    0.9
+    OL  err:    0.9    1.9    4.8   10.3   14.6   18.9   20.8
+    copylast:   3.2    6.3   12.2   21.6   29.0   33.2   30.4
+    P2 tau-context-sweep (TF 1-step err): 0.70:1.0  0.80:1.1  0.90:1.0  0.95:1.0
+
+[model] ff9v2_s0 (EXP-017)  K=4
+    P1  h:        1      2      4      8     12     16     24
+    TF  err:    1.2    1.2    1.0    1.0    1.1    0.9    1.1
+    OL  err:    1.1    3.1    9.4   19.5   27.0   32.1   31.2
+    copylast:   3.2    6.3   12.2   21.6   29.0   33.2   30.4
+    P2 tau-context-sweep (TF 1-step err): 0.70:1.1  0.80:1.1  0.90:1.1  0.95:1.1
+
+wrote C:\Users\richt\OneDrive\Desktop\Code\transformer\experiments\EXP-018\diagnosis.json

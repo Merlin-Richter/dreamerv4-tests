@@ -1,0 +1,1 @@
+control: vanilla dynamics, occluded.npy, 250-ep subset, 40 ep, bs32, lr3e-4, seed0. Budget-matched A/B control for C1 (D-027). code @ a07fdee

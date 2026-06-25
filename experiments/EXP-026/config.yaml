@@ -1,0 +1,12 @@
+# EXP-026 provenance
+experiment: EXP-026
+title: GridWorld tokenizer-roundtrip recall ceiling
+decision: D-044 (tripwire), D-045 (frozen eval core)
+tokenizer_checkpoint: checkpoints/gridworld/tokenizer.pt
+tokenizer_provenance: EXP-025 / W&B 70k76148 @ f1e3d6c (best ep29)
+eval_core: src/evals/gridworld/{readout.py,recall.py} frozen @ D-045
+adapter: src/evals/gridworld/adapter.py (tokenizer_roundtrip)
+dataset: gridworld.npy (BGR), episodes 0..499 of 3000, 200 frames each
+window_L: 16
+compute: local 4070 (inference only), ~18 min for 500 episodes
+runner: experiments/EXP-026/run.py

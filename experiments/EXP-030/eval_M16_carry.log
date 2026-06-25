@@ -1,0 +1,54 @@
+[M16_carry] env-direct recall: n_ctx=8 N/k=64 n_memory=16 ks=[1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32]
+  k=1 done
+  k=2 done
+  k=3 done
+  k=4 done
+  k=5 done
+  k=6 done
+  k=8 done
+  k=10 done
+  k=12 done
+  k=14 done
+  k=16 done
+  k=18 done
+  k=20 done
+  k=24 done
+  k=28 done
+  k=32 done
+wrote C:\Users\richt\OneDrive\Desktop\Code\transformer\experiments\EXP-030\recall_env_M16_carry.json
+
+== position_acc (chance=0.028) ==
+  k=  1: model=0.953 ctrl=1.000 copy=0.141 oracle=1.000
+  k=  2: model=0.938 ctrl=0.938 copy=0.000 oracle=1.000
+  k=  3: model=0.891 ctrl=0.922 copy=0.188 oracle=1.000
+  k=  4: model=0.922 ctrl=0.984 copy=0.000 oracle=1.000
+  k=  5: model=0.953 ctrl=0.969 copy=0.031 oracle=1.000
+  k=  6: model=0.703 ctrl=0.844 copy=0.000 oracle=1.000
+  k=  8: model=0.797 ctrl=0.938 copy=0.000 oracle=1.000
+  k= 10: model=0.844 ctrl=0.906 copy=0.000 oracle=1.000
+  k= 12: model=0.766 ctrl=0.797 copy=0.000 oracle=1.000
+  k= 14: model=0.641 ctrl=0.828 copy=0.000 oracle=1.000
+  k= 16: model=0.500 ctrl=0.719 copy=0.000 oracle=1.000
+  k= 18: model=0.562 ctrl=0.781 copy=0.000 oracle=1.000
+  k= 20: model=0.562 ctrl=0.703 copy=0.000 oracle=1.000
+  k= 24: model=0.453 ctrl=0.703 copy=0.000 oracle=1.000
+  k= 28: model=0.344 ctrl=0.531 copy=0.000 oracle=1.000
+  k= 32: model=0.594 ctrl=0.719 copy=0.000 oracle=1.000
+
+== color_acc (chance=0.250) ==
+  k=  1: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k=  2: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k=  3: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k=  4: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k=  5: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k=  6: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k=  8: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k= 10: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k= 12: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k= 14: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k= 16: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k= 18: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k= 20: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k= 24: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k= 28: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k= 32: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000

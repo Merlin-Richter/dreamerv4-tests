@@ -1,0 +1,94 @@
+# EXP-025 — GridWorld tokenizer v3 (foreground-weighted + training-stability fixes)
+
+Hyp: H-gridworld (backbone) | Decision: D-043 | Branch: feat/motion-prediction @ 725a988
+Cluster: ferranti (H100) | Job: 408737 | W&B: transformer-C-tokenizer / gridworld-tok-v3
+
+## Purpose
+Produce a USABLE frozen GridWorld tokenizer — one whose latents actually encode the
+moving colored square, not background-only. Supersedes EXP-024 (gridworld-tok-v2, run
+5d38b2nc), which FAILED.
+
+## Why EXP-024 failed (re-diagnosis from its W&B curve — see D-043)
+NOT pure sparse-target collapse. The curve shows the ball WAS being learned, then a loss
+explosion destroyed it:
+- ep8 val/mse 0.00226 → ep9 **0.000613** (latent_cos 0.29; latents becoming content-bearing)
+- ep10 **EXPLOSION**: val/mse 0.0380 (62×), train/mse 0.0387 (17×), pred_std 0.37→0.25
+- ep11–12 partial recovery; ep13–29 plateau at val/mse ~0.0037, never below ep9's 0.0006
+- the "dropped ball" recon strips were from the POST-explosion ep29 checkpoint
+Mechanism: at the loss minimum the Adam 2nd-moment shrinks → one batch lands an oversized
+step → blowup. clip_grad_norm_(1.0) (already on) clips the gradient, not the Adam-scaled
+step, so it can't catch it. The single-checkpoint overwrite then discarded the good ep9 model.
+
+## What changed vs EXP-024 (D-043)
+1. `--adam-beta2 0.95` — faster-adapting 2nd moment (mechanistic fix for the low-loss blowup).
+2. `--grad-spike-mult 5.0` — skip the optimizer step on a non-finite / >5×-EMA pre-clip grad
+   norm (backstop for the spike-shaped manifestation).
+3. best-checkpoint by `val/fg_mse` — canonical `tokenizer.pt` holds the BEST ball-encoding
+   model; `tokenizer_last.pt` holds the latest. An explosion can no longer discard the good model.
+4. per-step W&B logging (`--log-every 50`) of step_mse/loss/grad_norm + per-epoch grad_norm/skips,
+   so an intra-epoch explosion is VISIBLE (30 epoch points couldn't show it). Auto-step axis +
+   global_step/epoch fields.
+5. `--fg-weight 10` — modest foreground (ball) upweighting. DEMOTED from "the fix" to "a nudge":
+   the ep9 evidence shows plain MSE already encoded the ball. val/fg_mse + val/bg_mse logged
+   regardless (validity guard, D-042).
+
+Else identical to EXP-024: datagen 3000×200 (6×6 env, D-038) → tokenizer 30ep bs64 lr3e-4
+LPIPS-vgg --fresh → 6 recon strips.
+
+## Verification gate (Merlin's instruction — do NOT trust low MSE)
+Report success ONLY when the recon strips VISIBLY show the colored square at the right cell +
+colour, distinct from the background — confirm one square is a different colour from the bg.
+Cross-check: val/fg_mse dropped substantially (not background-only); grad_norm stayed bounded
+(no explosion, or spikes were skipped & logged); val/mse went BELOW the ep9 0.0006.
+
+## Run history
+- job 408737 @ 725a988: CRASHED at the epoch-2 boundary — `IndexError` in
+  `ChunkClipDataset.__getitem__`. Pre-existing bug (NOT from D-043): per-epoch
+  `set_start_offset` changes clips/episode, but `persistent_workers=True` (D-041) cached the
+  epoch-1 index; a longer epoch-2 over-indexed the workers' stale `_pairs`. EXP-024 dodged it by
+  luck (unseeded random offset drew its longest index first). Fixed f1e3d6c: `persistent_workers=False`.
+  **Epoch 1 of 408737 VALIDATED the D-043 fix:** grad_norm 0.248 (bounded, no explosion), 0 skips,
+  best-ckpt saved; val/mse 0.0057, val/fg_mse 0.0124, latent_cos 0.407 after 1 epoch.
+- job 408760 @ f1e3d6c: resubmit with the DataLoader fix (current).
+
+## Caveat to check at reconciliation
+fg_frac was **0.32** at ep1 — the foreground mask (temporal-median deviation) is catching the
+moving CURTAIN, not just the ~1% ball, so `--fg-weight` is curtain-diluted and val/fg_mse is
+curtain-dominated (a weaker pure-ball guard than intended). Not fatal (ep9 of EXP-024 showed plain
+MSE already learns the ball). If the ball is still dropped, restrict the fg mask to the ball
+(exclude curtain) — do NOT trust val/fg_mse alone; the recon strips are the real ball check.
+
+## Reconciliation (job 408760 @ f1e3d6c, W&B run 70k76148, COMPLETED 0:0, 2:48:54)
+Expected (D-043): no loss explosion; val/mse continues BELOW EXP-024's ep9 0.0006 and keeps improving;
+val/fg_mse drops substantially; recon strips visibly show the colored square (right cell + colour ≠ bg).
+Observed:
+- NO explosion. val/mse MONOTONE 0.0056(ep0) → 4.7e-6(ep29): ~130× below EXP-024's ep9 peak (6e-4)
+  and ~770× below EXP-024's final (3.6e-3). The model trained smoothly straight through ep10 where
+  EXP-024 blew up.
+- grad_norm_epoch bounded all run (0.24→0.03→0.08, no spike). Spike guard SKIPPED a few steps
+  (ep10:1, 11:2, 12:1, 14:1, 20:1) — exactly the spike events that are the EXP-024 failure mode;
+  caught & skipped, no explosion. beta2=0.95 + guard both contributed.
+- latent_cos 0.08–0.11 (≪0.7 collapse line) → latents distinct/content-bearing, NOT collapsed.
+  pred_std ~0.37 stable.
+- val/fg_mse → 5.1e-6, val/bg_mse → 4.5e-6 (both tiny; ball AND background reconstructed).
+  best-checkpoint = ep29 (last == best) → canonical tokenizer.pt is the best ball-encoding model.
+- RECON STRIPS (recon.png): the colored square is clearly present in the reconstruction rows at the
+  correct cell, in a colour distinct from the background (blue/red/green balls on red/purple/blue
+  grids); recon tracks ball position AND colour; curtain frames correctly rendered occluded.
+Surprise: none (favorable — went exactly as the corrected D-043 diagnosis predicted; confirms the
+EXP-024 failure was the explosion, not sparse gradient: with stability the ball is learned easily).
+Hypothesis impact: H-gridworld backbone — a USABLE frozen GridWorld tokenizer now exists (latents
+encode ball position + colour, no collapse, no explosion). Unblocks the GridWorld dynamics / H2-H3
+memory work once frozen.
+Tripwires checked (D-043): (a) no re-explosion ✓; (b) ball NOT dropped (val/fg_mse 5e-6 + visible in
+recon) ✓; (c) best-fg_mse did not stick to an early epoch — improved to the last epoch ✓.
+Caveat (logged, not blocking): fg_frac ~0.32 (mask catches the curtain too), so val/fg_mse alone is a
+curtain-diluted ball guard — but the RECON VISUAL (the real check) confirms the ball, so the metric's
+weakness didn't matter here.
+Next: present-then-stop → ESC-017. Recommend FREEZE to checkpoints/gridworld/tokenizer.pt (provenance:
+run 70k76148 @ f1e3d6c), then proceed to vanilla GridWorld dynamics (needs ESC-016 Q1 eval freeze too).
+Artifacts staged: experiments/gridworld-tok-v3/{tokenizer.pt, tokenizer_last.pt, recon.png}.
+
+## Precursor
+`experiments/EXP-025-fgval/` holds an INTERRUPTED local α=30 validation attempt (tok_a30.pt,
+stopped mid-ep2 on 2026-06-18) — superseded by this cluster run, kept only as a breadcrumb.

@@ -1,0 +1,314 @@
+\documentclass[11pt]{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+
+\newcommand{\sg}{\operatorname{sg}}
+\DeclareMathOperator{\Unif}{\mathcal{U}}
+
+\title{Dreamer 4: Technical Torso\\ \large Decisions, Architectures, and Equations}
+\author{(Extracted from Hafner, Yan, Lillicrap, ``Training Agents Inside of Scalable World Models'', 2025)}
+\date{}
+
+\begin{document}
+\maketitle
+
+This is a stripped-down skeleton: only the parts that actually carry information
+(method decisions, architecture, equations, key configs). Motivation, related work,
+and references are omitted.
+
+%==================================================================
+\section{Background}
+%==================================================================
+
+\subsection{Flow matching}
+The network $f_\theta$ is trained to restore a clean datapoint $x_1$ from a corrupted
+version $x_\tau$, where the signal level $\tau \in [0,1]$ mixes noise and data
+($\tau=0$ pure noise, $\tau=1$ clean). Flow matching has the network predict the
+velocity $v = x_1 - x_0$:
+\begin{align}
+  x_\tau &= (1-\tau)\,x_0 + \tau\,x_1,
+  &x_0 &\sim \mathcal{N}(0,\mathbb{I}),
+  &x_1 &\sim \mathcal{D},
+  &\tau &\sim p(\tau), \\
+  \mathcal{L}(\theta) &= \big\| f_\theta(x_\tau,\tau) - (x_1 - x_0) \big\|^2 .
+\end{align}
+$\tau$ is typically drawn uniform or logit-normal. Inference starts from noise $x_0$
+and integrates over $K$ steps of size $d = 1/K$:
+\begin{equation}
+  x_{\tau+d} = x_\tau + f_\theta(x_\tau,\tau)\,d, \qquad x_0 \sim \mathcal{N}(0,\mathbb{I}).
+\end{equation}
+
+\subsection{Shortcut models}
+Condition the network on the step size $d$ as well as $\tau$, so step size can be
+chosen at inference. For the finest step $d_{\min}$ the flow loss is used; for larger
+steps a bootstrap loss distills two half-steps:
+\begin{align}
+  x_0 &\sim \mathcal{N}(0,I), & x_1 &\sim \mathcal{D}, & \tau,d &\sim p(\tau,d), \\
+  b' &= f_\theta(x_\tau,\tau,\tfrac{d}{2}), &
+  b'' &= f_\theta(x',\tau+\tfrac{d}{2},\tfrac{d}{2}), &
+  x' &= x_\tau + b'\tfrac{d}{2}, \\
+  \mathcal{L}(\theta) &= \big\| f_\theta(x_\tau,\tau,d) - v_{\text{target}} \big\|^2,
+  &v_{\text{target}} &=
+  \begin{cases}
+    x_1 - x_0 & \text{if } d = d_{\min}, \\
+    \sg(b' + b'')/2 & \text{else.}
+  \end{cases}
+\end{align}
+Step size sampled as a power of two; signal level uniform over the reachable grid:
+\begin{equation}
+  d \sim 1/\Unif(\{1,2,4,8,\dots,K_{\max}\}), \qquad
+  \tau \sim \Unif(\{0,\, 1/d,\, \dots,\, 1 - 1/d\}).
+\end{equation}
+In practice $2$--$4$ sampling steps suffice versus $64+$ for ordinary diffusion.
+
+\subsection{Diffusion forcing}
+For sequences, assign a \emph{different} signal level to each time step. Every step
+then doubles as a denoising target and as (noised) history context for later steps,
+and inference supports flexible noise patterns (e.g.\ clean/lightly-noised history).
+
+%==================================================================
+\section{World Model Agent}
+%==================================================================
+
+The agent is a \textbf{causal tokenizer} (continuous video$\to$latent) plus an
+\textbf{interactive dynamics model}, both built on the same block-causal transformer.
+Tokenizer: masked-autoencoding reconstruction. Dynamics: shortcut-forcing objective,
+giving fast interactive rollout with few forward passes and no error accumulation.
+
+\paragraph{Three phases.}
+\begin{enumerate}
+  \item \textbf{World model pretraining} --- train tokenizer on videos (Eq.~9), then
+    train dynamics on tokenized videos (and optionally actions) via shortcut forcing
+    (Eq.~13).
+  \item \textbf{Agent finetuning} --- insert task tokens; train policy + reward heads
+    (Eqs.~13, 15).
+  \item \textbf{Imagination training} --- optimize policy (Eq.~17) and value (Eq.~16)
+    on world-model rollouts; transformer kept frozen.
+\end{enumerate}
+A single dynamics transformer carries multiple modalities and heads; all loss terms
+are normalized by running RMS estimates.
+
+%==================================================================
+\section{Causal Tokenizer}
+%==================================================================
+
+Encoder--decoder with a low-dimensional bottleneck, causal in time (temporal
+compression while still decoding frame-by-frame for interactive inference).
+
+\paragraph{Architecture decisions.}
+\begin{itemize}
+  \item Each step = image patch tokens + learned latent tokens.
+  \item After the encoder, read latents out via linear projection to a smaller channel
+    dim followed by $\tanh$. Decoder projects back up, concatenated with learned tokens
+    to read out patches.
+  \item Cross-modal routing: in the encoder, latents attend to all modalities but each
+    modality attends only within itself; in the decoder each modality attends within
+    itself and to latents, latents only within themselves.
+\end{itemize}
+
+\paragraph{Masked autoencoding loss.}
+\begin{equation}
+  \mathcal{L}(\theta) = \mathcal{L}_{\text{MSE}}(\theta) + 0.2\,\mathcal{L}_{\text{LPIPS}}(\theta).
+\end{equation}
+Input patches are dropped with probability $p \sim U(0,0.9)$ (sampled per image,
+including the $p=0$ inference case). MAE training improves spatial consistency of the
+dynamics model's generations.
+
+%==================================================================
+\section{Interactive Dynamics}
+%==================================================================
+
+Operates on the interleaved sequence of actions and (frozen) tokenizer representations.
+Trained with \textbf{shortcut forcing} for fast inference at $K=4$ forward passes per
+generated frame.
+
+\paragraph{Input tokenization.}
+\begin{itemize}
+  \item Representations linearly projected into $S_z$ spatial tokens, concatenated with
+    $S_r$ learned register tokens and a single token encoding signal level + step size
+    (both discrete $\to$ embedding lookup, channels concatenated).
+  \item Each action component encoded into $S_a$ tokens and summed with a learned
+    embedding (continuous: linear; categorical/binary: embedding lookup). For unlabeled
+    video, only the learned embedding is used.
+\end{itemize}
+
+\paragraph{Shortcut forcing objective.}
+Inputs are actions $a=\{a_t\}$, per-step signal levels $\tau=\{\tau_t\}$, step sizes
+$d=\{d_t\}$, and corrupted representations $\tilde z = \{z_t^{(\tau_t)}\}$; the model
+predicts clean representations $z_1 = \{z_t^1\}$. Here $t\in[1,T]$ is the sequence step
+and $\tau_t\in[0,1]$ its signal level.
+\begin{align}
+  z_0 &\sim \mathcal{N}(0,1), & z_1 &\sim \mathcal{D}, & \tau,d &\sim p(\tau,d),
+  & \tau,d &\in [0,1]^T, \\
+  \hat z_1 &= f_\theta(\tilde z,\tau,d,a), & \tilde z &= (1-\tau)\,z_0 + \tau\,z_1.
+\end{align}
+
+Key decision: predict \textbf{clean representations (x-prediction)}, not velocities
+(v-prediction). V-prediction trains high-frequency outputs whose subtle errors
+accumulate over long frame-by-frame rollouts; x-prediction gives stable rollouts of
+arbitrary length. The flow term is computed directly in x-space; the bootstrap term is
+formed in v-space and scaled back to x-space:
+\begin{align}
+  b' &= \big(f_\theta(\tilde z,\tau,\tfrac{d}{2},a) - z_\tau\big)\big/(1-\tau),
+  & z' &= \tilde z + b'\tfrac{d}{2}, \\
+  b'' &= \big(f_\theta(z',\tau+\tfrac{d}{2},\tfrac{d}{2},a) - z'\big)\big/\big(1-(\tau+\tfrac{d}{2})\big), \\
+  \mathcal{L}(\theta) &=
+  \begin{cases}
+    \big\|\hat z_1 - z_1\big\|_2^2 & \text{if } d = d_{\min}, \\[4pt]
+    (1-\tau)^2\,\Big\| (\hat z_1 - \tilde z)/(1-\tau) - \sg(b' + b'')/2 \Big\|_2^2 & \text{else.}
+  \end{cases}
+\end{align}
+(The $(1-\tau)^2$ factor brings the v-space bootstrap loss into the same range as the
+x-space flow loss, via $\|\hat x_1 - x_1\|_2^2 = (1-\tau)^2\|\hat v_\tau - v_\tau\|_2^2$
+with $\hat v_\tau = (\hat x_1 - x_\tau)/(1-\tau)$.)
+
+\paragraph{Ramp loss weight.}
+Low signal levels carry little learning signal (the flow term degenerates to the
+dataset mean) while the bootstrap term is easier (deterministic targets). Up-weight
+high signal levels linearly:
+\begin{equation}
+  w(\tau) = 0.9\,\tau + 0.1.
+\end{equation}
+
+\paragraph{Inference.}
+Autoregressive in time; each frame generated with the shortcut model at $K=4$ steps,
+$d=1/4$. Past context inputs are slightly corrupted to $\tau_{\text{ctx}} = 0.1$ for
+robustness to imperfect self-generations.
+
+%==================================================================
+\section{Imagination Training}
+%==================================================================
+
+\paragraph{Agent tokens.}
+Task embeddings enter as an extra modality interleaved with image reps, actions, and
+register tokens. Agent tokens attend to themselves and all other modalities, but
+\emph{no modality attends back to them} --- crucial to avoid causal confusion: the
+world model's future may only be influenced by actions, not by the current task.
+
+\paragraph{Behavior cloning + reward model (multi-token prediction, $L=8$).}
+\begin{equation}
+  \mathcal{L}(\theta) = -\sum_{n=0}^{L}\ln p_\theta(a_{t+n}\mid h_t)
+                        -\sum_{n=0}^{L}\ln p_\theta(r_{t+n}\mid h_t).
+\end{equation}
+Pretraining setting is reused (noisy reps, video-prediction loss kept) to preserve
+capabilities. Policy/reward heads = small MLPs, one output layer per MTP distance.
+Reward head: symexp twohot. Policy head: categorical or vectorized-binary.
+
+\paragraph{Reinforcement learning in imagination.}
+Initialize a value head and a frozen copy of the policy as a behavioral prior; update
+only policy + value heads, transformer frozen. One rollout per dataset context
+(diversity over depth). Rollouts unroll the transformer with itself, sampling reps from
+the flow head and actions from the policy head, then annotate rewards and values.
+
+\paragraph{Value head (TD-learning, $\lambda$-returns, $\gamma=0.997$).}
+\begin{equation}
+  \mathcal{L}(\theta) = -\sum_{t=1}^{T}\ln p_\theta(R_t^\lambda \mid s_t),
+  \quad
+  R_t^\lambda = r_t + \gamma c_t\big((1-\lambda)v_t + \lambda R_{t+1}^\lambda\big),
+  \quad
+  R_T^\lambda = v_T,
+\end{equation}
+with $c_t$ a non-terminal indicator; symexp twohot output.
+
+\paragraph{Policy (PMPO).}
+Uses only the \emph{sign} of advantages $A_t = R_t^\lambda - v_t$ (no return/advantage
+normalization needed; equal focus across tasks). Split states into
+$\mathcal{D}_+ = \{s_i \mid A_t \ge 0\}$ and $\mathcal{D}_- = \{s_i \mid A_t < 0\}$:
+\begin{equation}
+  \mathcal{L}(\theta) =
+  \frac{1-\alpha}{|\mathcal{D}_-|}\sum_{i\in\mathcal{D}_-}\ln\pi_\theta(a_i\mid s_i)
+  - \frac{\alpha}{|\mathcal{D}_+|}\sum_{i\in\mathcal{D}_+}\ln\pi_\theta(a_i\mid s_i)
+  + \frac{\beta}{N}\sum_{i=1}^{N} \mathrm{KL}\big[\pi_\theta(a_i\mid s_i)\,\big\|\,\pi_{\text{prior}}\big].
+\end{equation}
+$\alpha = 0.5$ (balance positive/negative sets), $\beta = 0.3$ (behavioral prior).
+The prior KL uses a \emph{reverse} direction vs.\ original PMPO, to keep the policy
+inside the space of reasonable behaviors. All three terms are in nats, making the
+scaling robust.
+
+%==================================================================
+\section{Efficient Transformer}
+%==================================================================
+
+Shared by tokenizer and dynamics. A 2D (time$\times$space) transformer, attention masked
+\emph{causal in time} (all tokens in a step attend to each other and to the past).
+Base: pre-layer RMSNorm, RoPE, SwiGLU; plus QKNorm and attention-logit soft capping for
+stability.
+
+\paragraph{Efficiency decisions.}
+\begin{itemize}
+  \item Separate space-only and time-only attention layers (break up dense
+    all-token attention).
+  \item Temporal attention only \emph{once every 4 layers} --- speeds up train+inference
+    and improves quality (spatial inductive bias).
+  \item GQA on all dynamics attention layers (shrink KV cache).
+\end{itemize}
+
+\paragraph{Sequence length.}
+More spatial tokens $\to$ visual quality; more temporal tokens $\to$ longer consistent
+context. Train on alternating short/long batches, then finetune on long batches only.
+Batch length must exceed context length so the model doesn't overfit to always seeing a
+start frame, enabling length generalization.
+
+%==================================================================
+\section{Key Configs and Headline Results}
+%==================================================================
+
+\paragraph{Model / compute.}
+2B params total (400M tokenizer, 1.6B dynamics). Trained on 256--1024 TPU-v5p, batch
+size 1/device, FSDP. 30\% of batch videos treated as standalone images (to learn start
+frames). Minecraft: 256 spatial tokens, 192-frame context, 256 batch length. Real-world
+datasets: 512 spatial tokens, 96-frame context, 128 batch length.
+
+\paragraph{Data.}
+VPT contractor dataset: 2541 h, 360p, mouse+keyboard at 20\,FPS. Keyboard = 23 binary
+dists; mouse = categorical with 121 classes (foveated discretization, $11\times11$).
+Image 360$\times$640, zero-padded to 384$\times$640, patch $16\times16 \to 960$ tokens;
+tokenizer bottleneck $512\times16$ reshaped to $256\times32$.
+
+\paragraph{Offline diamond challenge (1000 episodes, 60 min, empty inventory).}
+Dreamer 4 is the first to obtain diamonds purely offline: $0.7\%$ diamond success,
+$29\%$ iron pickaxe, $>90\%$ up to stone pickaxe. Beats OpenAI VPT (finetuned) using
+$100\times$ less data, and nearly triples the VLA (Gemma 3) iron-pickaxe rate.
+Imagination training helps more the harder the milestone, and reaches milestones faster.
+
+\paragraph{World-model comparison (single H100).}
+2B params, 640$\times$360, \textbf{9.6\,s context} (6$\times$ prior), 21\,FPS (real-time),
+$14/16$ interaction tasks --- vs.\ Oasis-large $5/16$ ($\sim$5\,FPS) and Lucid-v1 $0/16$.
+
+\paragraph{Action generalization.}
+With only 10\,h of paired actions (out of 2541\,h video): 53\% PSNR / 75\% SSIM relative
+to all-actions; with 100\,h: 85\% PSNR / 100\% SSIM. Action conditioning learned only on
+the Overworld extrapolates to Nether/End (seen only as unlabeled video): 76\% PSNR,
+80\% SSIM.
+
+\paragraph{Ablation cascade (FVD$\downarrow$, train s/step, inference FPS).}
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Model & Train s & FPS & FVD \\
+\midrule
+Diffusion Forcing Transformer        & 9.8 & 0.8  & 306 \\
+\quad + Fewer sampling steps ($K{=}4$) & 9.8 & 9.1  & 875 \\
+\quad + Shortcut model                & 9.8 & 9.1  & 329 \\
+\quad + X-Prediction                  & 9.8 & 9.1  & 326 \\
+\quad + X-Loss                        & 9.8 & 9.1  & 151 \\
+\quad + Ramp weight                   & 9.8 & 9.1  & 102 \\
+\quad + Alternating batch lengths     & 1.5 & 9.1  & 80  \\
+\quad + Long context every 4 layers   & 0.6 & 18.9 & 70  \\
+\quad + GQA                           & 0.5 & 23.2 & 71  \\
+\quad + Time-factorized long context  & 0.4 & 30.1 & 91  \\
+\quad + Register tokens               & 0.5 & 28.9 & 91  \\
+\quad + More spatial tokens ($N_z{=}128$) & 0.8 & 25.7 & 66  \\
+\quad + More spatial tokens ($N_z{=}256$) & 1.7 & 21.4 & 57  \\
+\bottomrule
+\end{tabular}
+\end{center}
+Final FVD 57 vs.\ 306 naive baseline (and 124 for the full architecture with v-space
+prediction/losses). Shortcut forcing at 4 steps $\approx$ diffusion forcing at 64 steps
+($16\times$ faster).
+
+\end{document}

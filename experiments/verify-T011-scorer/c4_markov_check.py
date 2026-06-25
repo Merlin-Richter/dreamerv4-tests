@@ -10,7 +10,7 @@ from __future__ import annotations
 import sys, pathlib
 import numpy as np
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "src"))
-from data_generators.occluded_bouncing import OccludedBouncingEnv
+from envs.occluded_bouncing import OccludedBouncingEnv
 
 IMG, R = 64, 10
 

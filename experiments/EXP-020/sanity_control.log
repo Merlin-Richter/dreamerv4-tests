@@ -1,0 +1,8 @@
+
+            h 1  h 2  h 4  h 8  h12   crossChance  predDisp(gt)
+  control OL  5.8   5.8   9.5  17.9  24.8     h=9     4.44(3.15)
+  control TF  5.2   4.5   4.1   4.9   3.9
+  c1      OL 22.3  18.0  21.8  19.9  21.3     h=1     8.50(3.15)
+  c1      TF 21.1  16.8  19.5  14.1  20.5
+
+wrote experiments\EXP-020\sanity_control.json

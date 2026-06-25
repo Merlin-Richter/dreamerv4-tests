@@ -23,7 +23,7 @@ from scipy.optimize import minimize
 
 _ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_ROOT / "src"))
-from data_generators.occluded_bouncing import OccludedBouncingEnv  # noqa
+from envs.occluded_bouncing import OccludedBouncingEnv  # noqa
 
 IMG = 64
 RADIUS = 10

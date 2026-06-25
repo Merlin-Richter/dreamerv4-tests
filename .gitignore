@@ -74,3 +74,7 @@ cache/
 *.feather
 *.arrow
 src/probe/last_results.json
+
+# cluster wrapper site config (secrets: W&B key, hostnames)
+scripts/cluster.env
+src_old/

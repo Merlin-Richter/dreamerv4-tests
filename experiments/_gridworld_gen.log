@@ -1,0 +1,17 @@
+Generating 3000 eps x 200 frames @ 64x64
+  300/3000 episodes  (1.3s)
+  600/3000 episodes  (2.6s)
+  900/3000 episodes  (3.9s)
+  1200/3000 episodes  (5.3s)
+  1500/3000 episodes  (6.6s)
+  1800/3000 episodes  (8.0s)
+  2100/3000 episodes  (9.3s)
+  2400/3000 episodes  (10.7s)
+  2700/3000 episodes  (12.1s)
+  3000/3000 episodes  (13.5s)
+
+Saved frames  -> gridworld.npy   (3000, 200, 64, 64, 3)
+Saved actions -> gridworld_actions.npy  (3000, 200)  (occluded fraction 0.50)
+Saved states  -> gridworld_states.npy   (3000, 200, 5)
+Saved colors  -> gridworld_colors.npy   (3000, 2)  (PALETTE order: ('red', 'green', 'blue', 'pink'))
+Disk: frames 7372.8 MB
