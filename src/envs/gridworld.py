@@ -135,7 +135,7 @@ class GridWorldEnv(BaseEnv):
         self.curtain = 0
         self.t = 0
 
-    def reset(self, seed: int = 42) -> "GridWorldEnv":
+    def reset(self, seed: int | None = None) -> "GridWorldEnv":
         self.rng = np.random.default_rng(seed)
         # Distinct background and square colors from the 4-color palette.
         bg_idx, sq_idx = self.rng.choice(len(COLOR_NAMES), size=2, replace=False)

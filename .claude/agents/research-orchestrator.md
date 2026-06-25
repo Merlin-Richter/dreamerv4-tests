@@ -1,6 +1,6 @@
 ---
 name: research-orchestrator
-description: Never
+description: Never use this agent
 model: opus
 color: green
 memory: project

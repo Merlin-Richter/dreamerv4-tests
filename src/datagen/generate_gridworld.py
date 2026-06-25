@@ -5,20 +5,20 @@ Drives `GridWorldEnv` (src/envs/gridworld.py) to write the discrete memory datas
 inspect it. The env (physics + rendering) lives in `src/envs/gridworld.py`; this module is the
 data-generation + viewer layer on top. Mirrors `generate_occluded.py`.
 
-Outputs (saved at repo root by default):
-    gridworld.npy         (N, T, H, W, 3)  uint8    frames (BGR)
-    gridworld_actions.npy (N, T)           uint8    0 = up/revealed, 1 = down/occluded
-    gridworld_states.npy  (N, T, 5)        float32  [col, row, dcol, drow, curtain]
-    gridworld_colors.npy  (N, 2)           uint8    [bg_color_idx, square_color_idx] (PALETTE order)
+Outputs (saved under data/ by default; gitignored):
+    data/gridworld.npy         (N, T, H, W, 3)  uint8    frames (BGR)
+    data/gridworld_actions.npy (N, T)           uint8    0 = up/revealed, 1 = down/occluded
+    data/gridworld_states.npy  (N, T, 5)        float32  [col, row, dcol, drow, curtain]
+    data/gridworld_colors.npy  (N, 2)           uint8    [bg_color_idx, square_color_idx] (PALETTE order)
 
 The categorical colors are stored per-episode (they are constant within an episode) so evals can
 score 4-way color recall without re-deriving them from pixels.
 
 Usage:
-    python -u src/datagen/generate_gridworld.py --n_episodes 1000 --out gridworld.npy
+    python -u src/datagen/generate_gridworld.py --n_episodes 1000        # -> data/gridworld.npy
     python -u src/datagen/generate_gridworld.py --play              # interactive: you control the curtain
     python -u src/datagen/generate_gridworld.py --debug             # preview one scheduled episode
-    python -u src/datagen/generate_gridworld.py --frames gridworld.npy --episode 0   # play saved
+    python -u src/datagen/generate_gridworld.py --frames data/gridworld.npy --episode 0   # play saved
 """
 from __future__ import annotations
 
@@ -204,6 +204,7 @@ def play_saved(args):
 def generate_dataset(args):
     rng_meta = np.random.default_rng(args.seed)
     out_frames = args.out
+    Path(out_frames).parent.mkdir(parents=True, exist_ok=True)
     out_actions = args.out.replace(".npy", "_actions.npy")
     out_states = args.out.replace(".npy", "_states.npy")
     out_colors = args.out.replace(".npy", "_colors.npy")
@@ -252,7 +253,7 @@ def parse_args():
     p.add_argument("--n_frames", type=int, default=200)
     p.add_argument("--img_size", type=int, default=64)
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--out", default="gridworld.npy")
+    p.add_argument("--out", default="data/gridworld.npy")
     p.add_argument("--fps", type=int, default=10, help="Playback FPS")
     return p.parse_args()
 

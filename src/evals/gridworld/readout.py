@@ -51,7 +51,7 @@ def read_square(frame: np.ndarray) -> dict:
         color_idx         : nearest-palette index of the square color
         bg_idx            : nearest-palette index of the inferred background
         margin            : top1-top2 distance-from-bg over cells (confidence)
-        is_occluded       : True if the frame looks like a flat curtain (no clear outlier cell)
+        is_occluded       : True if the frame has no black grid-line pixels (a flat curtain frame)
     """
     means = cell_mean_colors(frame)                       # (GRID_N,GRID_N,3)
     flat = means.reshape(-1, 3)                            # (GRID_N**2,3)
@@ -61,10 +61,14 @@ def read_square(frame: np.ndarray) -> dict:
     top, second = dist[order[0]], dist[order[1]]
     idx = int(order[0])
     row, col = divmod(idx, GRID_N)
+    # Occlusion is read off the raw pixels, not the cell means: a revealed frame has black grid
+    # lines (some pixel dark in all channels), a curtain frame is flat gray with none. The all-
+    # channels test is symmetric, so BGR vs RGB is irrelevant here.
+    has_black = bool((frame < 25).all(axis=-1).any())
     return {
         "col": col, "row": row,
         "color_idx": nearest_palette_idx(means[row, col]),
         "bg_idx": nearest_palette_idx(bg),
         "margin": float(top - second),
-        "is_occluded": bool(top < 8.0),  # ~no cell stands out from bg -> flat frame
+        "is_occluded": not has_black,  # no black grid-line pixels -> flat curtain frame
     }
