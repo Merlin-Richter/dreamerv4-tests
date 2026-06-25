@@ -10,6 +10,69 @@
 
 ---
 
+## ESC-022 | 2026-06-25 | OPEN — OVERNIGHT CAMPAIGN morning brief: FF9 rollout-training (op-3 relay)
+Context: you went to bed and said to work autonomously through the night — "implement and train and
+evaluate a few different ideas for the memory training... work empirically... reversibly." I did. This
+is the consolidated present-then-stop for the whole campaign (D-048). Everything is on branch
+feat/ff9-rollout-training (pushed); state files + figures committed.
+
+### What I did (one line each)
+1. **P1 probe (EXP-029)** — settled capacity-vs-credit + min depth for the relay BEFORE building.
+2. **Implemented FF9 rollout-training** — the memory->memory relay (op-3) on the gradient path
+   (TBPTT-k, contiguous-tail hiding, deep-clip decoupling). 7/7 self-tests; independent
+   critical-claim-verifier pass (all 4 correctness claims SUPPORTED). Updating-memory inference for eval.
+3. **Trained + evaluated** EXP-030 (h24), EXP-031 (h44 deep), EXP-032 (vanilla w32 control), EXP-033
+   (M=16 capacity) on the clean GridWorld bench, env-direct recall A/B vs the EXP-027/028 baselines.
+
+### The decisive read (honest; favorable on static, negative-with-a-clear-lesson on dynamic)
+**Rollout-training WORKS as a credit fix and gives a persistent bounded memory that carries STATIC
+hidden state flat BEYOND the window — but DYNAMIC position stays drift-capped, and training the relay
+TRADES OFF the windowed dead-reckoning path. The dynamic-memory bottleneck is REPRESENTATION STABILITY
+(continuous drift), not credit — pointing to DISCRETE/VQ memory next.**
+- **STATIC colour (the win):** FF9+rollout under the updating-memory relay holds colour FLAT ~0.8 to
+  k=32 (well past the 16-window), vs FF9-no-rollout windowed decaying to 0.34 and the UNTRAINED relay
+  at chance. A clean beyond-window bounded-memory result (the DreamerV4 h-state goal, for static state).
+- **DYNAMIC position, same-inference win:** trained relay >> untrained relay (k=6 0.52 vs 0.02; useful
+  memory k~3 -> k~8). The credit-assignment fix is real and large. In-window (k<=4) near-perfect.
+- **DYNAMIC position, the limit:** decays to chance by k~12-16, SHORT of the h=24 training depth —
+  exactly P1's prediction that a CONTINUOUS dynamic relay drifts (no free extrapolation). Deeper
+  training (EXP-031 h44) [RESULT LANDING] and wider memory (EXP-033 M=16) [RUNNING] test whether
+  depth/capacity move it; P1 predicts not (it's drift, not depth/capacity).
+- **The trade-off (D-048 tripwire, partial):** rollout-training HURT the windowed path (position k12
+  0.33 vs no-rollout 0.81) — the relay and the latent-window dead-reckoning compete for capacity. So
+  rollout-training does NOT advance BEST-achievable dynamic position (no-rollout windowed still best to
+  ~k16); it shifts the model toward the bounded-memory relay.
+- **Controls:** vanilla w32 (bigger window) ALSO fails past ~k16 — growing the window doesn't beat
+  blind dead-reckoning (the limit is ~14-16 dead-reckon steps, not window size). So there's no
+  brute-force shortcut either.
+
+### Access points
+- **Figure (open first):** experiments/EXP-030/compare_rollout.png — position (exact+graded) + colour
+  vs k; 5 curves (vanilla w16, FF9 no-rollout windowed [best position], FF9+rollout windowed
+  [regressed], FF9 untrained relay, FF9+rollout relay [trained]) + copy-last/oracle/chance/window line.
+- Numbers: experiments/EXP-030/recall_env_*.json. Reconciliation: experiments/EXP-030/NOTES.md.
+- Reasoning/idea space: experiments/EXP-029-design/orchestrator_analysis.md. P1: experiments/EXP-029/.
+- EXPERIMENTS rows EXP-029..033. Decision D-048. Verifier: experiments/EXP-030/verify/.
+
+### The questions for you (my recommendation first)
+1. Accept the read — rollout-training is a working credit fix that delivers a beyond-window STATIC
+   bounded memory, but dynamic position is drift-capped and the relay competes with windowed
+   dead-reckoning, so credit-assignment alone is NOT sufficient for dynamic state?
+2. **My recommended next method: DISCRETE / quantized (VQ) memory** — a finite-state memory cannot
+   drift continuously, directly attacking the EXP-030 dynamic-drift root cause (P1 + EXP-030 both point
+   here). It's an architecture change worth your sign-off before I build (codebook + commitment loss +
+   straight-through on the memory tokens). Alternative: consolidate the static-memory relay win + the
+   honest dynamic negative as a contribution and move on. Which?
+3. EXP-031 (deep) + EXP-033 (M=16) land this morning — I'll append their numbers here. If deeper/wider
+   does NOT push the dynamic knee (as P1 predicts), that closes the "it's just depth/capacity" door and
+   firms the discrete-memory recommendation.
+Urgency: present-then-stop. Nothing new starting beyond the already-queued EXP-031/033; cluster
+otherwise free. I did NOT build VQ (a real architecture change — your call). Note: ESC-020 (FF9
+corrected inference 2nd seed/verifier) and ESC-021 (rollout design sign-off) are largely SUBSUMED by
+this campaign (built + ran C1; the corrected inference is now exercised across many evals).
+
+---
+
 ## ESC-021 | 2026-06-24 | OPEN — FF9 rollout-training design review (method-architect) + gating probe
 Context: you agreed to a method-architect design pass on FF9_IDEA.md (op-3 / memory→memory training).
 It's back, code-grounded, and productively DISAGREES with my doc on build order. Design note:
