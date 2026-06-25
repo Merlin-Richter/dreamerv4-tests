@@ -79,11 +79,28 @@ otherwise free. I did NOT build VQ (a real architecture change — your call). N
 corrected inference 2nd seed/verifier) and ESC-021 (rollout design sign-off) are largely SUBSUMED by
 this campaign (built + ran C1; the corrected inference is now exercised across many evals).
 
-UPDATE 09:43 — **AUTH_DEAD**: the ferranti SSH socket expired overnight. Please re-run
-`scripts/open_master.sh --cluster ferranti` (2FA). EXP-033 (M=16) couldn't be pulled/evaluated (its
-result is the only missing piece — the capacity-vs-stability data point; checkpoint is safe on /weka).
-The EXP-030/031/032 headline above is COMPLETE and unaffected. After re-auth I'll pull+eval EXP-033 and
-append its numbers here. No cluster retry loop running (per §6).
+UPDATE 09:43 — **AUTH_DEAD**: socket expired overnight; RESOLVED (you re-auth'd ~12:18). EXP-033 pulled.
+
+UPDATE 12:30 — **EXP-033 (M=16) RESULT CHANGES THE CONCLUSION (in a good way).** Widening the memory
+M=4 -> M=16 (rollout otherwise identical to EXP-030) DRAMATICALLY lifts DYNAMIC position, and helps
+MORE than deepening training did:
+- relay position (exact / graded), M16 vs M4(h24) vs h44(M4): k8 0.83/0.84 vs 0.20/0.27 vs 0.45; k12
+  0.64/0.67 vs 0.14/0.19 vs 0.33; k16 0.34/0.39 vs 0.06/0.11 vs 0.20; k32 0.19/0.24 vs 0.02/0.07 vs 0.13.
+- color FLAT 0.89-1.0 to k32 (even cleaner than M=4).
+=> **The dynamic-position cap was substantially a CAPACITY limit (M=4 too small to hold integrated
+position precisely), NOT purely continuous-drift representation.** M=16 sustains REAL dynamic position
+well past the window (k12 0.64 exact, k16 0.34) and at the far tail beats the no-rollout windowed model
+— as a BOUNDED recurrent state. This was the P1 contingency the method-architect flagged ("if it's
+capacity, widen memory, not a credit fix") — and it bites: BOTH levers matter (credit makes the relay
+work at all; capacity sets how precisely/far it carries dynamic state).
+
+**REVISED recommendation (supersedes "discrete/VQ first"):** the cheapest high-value next step is to
+SCALE MEMORY CAPACITY further (M=32, and the wide+deep combo M=16 x h44) — capacity is clearly not yet
+saturated at M=16. Discrete/VQ becomes the move IF capacity scaling saturates (precision/stability),
+not the immediate first step. So the dynamic-memory result is markedly more POSITIVE than the M=4
+picture implied: rollout-training + adequate memory width gives a bounded memory that carries static
+AND substantial dynamic hidden state past the window. Figure updated (compare_rollout.png, darkred=M16).
+Your call: (a) scale capacity (M32 + wide-deep) [my new lean], (b) discrete/VQ, (c) consolidate.
 
 ---
 

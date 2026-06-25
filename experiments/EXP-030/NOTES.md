@@ -107,3 +107,13 @@ to k44: ~0.05-0.13. Graded position k16 0.25 vs 0.11. Color FLAT 0.83-0.91 to k4
 - BUT saturates: even h44 (trained to depth 44) only holds useful position to ~k16-20 (modest
   ~0.2-0.25 graded), far short of k44 -> continuous-memory PRECISION cap. -> EXP-033 (M=16) tests
   capacity; discrete/VQ tests stability.
+
+## EXP-033 (M=16 wider memory) result — CAPACITY IS A MAJOR LEVER (revises the conclusion)
+Relay position M=16 vs M=4(h24) vs h44(M4): k8 0.83/0.20/0.45, k12 0.64/0.14/0.33, k16 0.34/0.06/0.20,
+k32 0.19/0.02/0.13 (exact); graded k16 0.39/0.11/0.25. Color FLAT 0.89-1.0 to k32.
+- Widening memory M=4 -> M=16 helps DYNAMIC position MORE than deepening training (h24 -> h44) did.
+  => the M=4 dynamic cap was SUBSTANTIALLY a CAPACITY limit (M=4 too small to hold integrated position
+  precisely), NOT purely continuous-drift representation (the P1 / method-architect capacity contingency).
+- M=16 + rollout = a BOUNDED recurrent memory carrying static AND substantial dynamic state past the
+  window (k12 0.64 exact), beating the no-rollout windowed model at the far tail. Markedly more positive
+  than the M=4 picture. REVISED next lever: scale capacity (M=32, wide+deep) before discrete/VQ.
