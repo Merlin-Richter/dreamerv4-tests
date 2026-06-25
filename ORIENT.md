@@ -17,19 +17,22 @@ chance or worse (BPTT overshoots to 6.75 > 2x chance @d199). DICTATES: to recall
 rollout to depth >=D. CAVEAT: continuous-position probe is PESSIMISTIC for GridWorld's discrete/
 bounded/periodic state — the GridWorld A/B is the real test (-> discrete-memory/VQ if it still drifts).
 
-## IN FLIGHT — 3 ferranti jobs (branch feat/ff9-rollout-training; training code == 1a00ba6, synced a4588b9)
-- **EXP-030 job 409752** — FF9 rollout MODERATE (window16, clip28, h24, tbptt12, tail, +ff9 3,
-  warmup20, 80ep). RUNNING (ep9 ~03:00, train0.10/val0.08, ETA ~06:40). Monitor: bg wait btxr1rma7.
-- **EXP-032 job 409753** — VANILLA window-32 control. RUNNING (~03:00, ETA ~04:30). Monitor: bg wait bkmep1943.
-- **EXP-031 job 409754** — DEEP (clip48, h44, tbptt16). PENDING (Resources) — may not finish by morning (bonus).
-Implementation + verifier (all 4 claims SUPPORTED) + eval tooling all DONE & committed. When a job lands:
-follow experiments/EXP-030/EVAL_RUNBOOK.md (pull -> recall_relay.py relay+windowed -> plot_rollout_compare).
+## CAMPAIGN COMPLETE — AWAITING MERLIN (ESC-022 morning brief is the present-then-stop)
+EXP-030 (h24), EXP-031 (h44 deep), EXP-032 (vanilla w32) all TRAINED + EVALUATED (env-direct recall
+A/B). EXP-033 (M=16 capacity test) STILL TRAINING (job 409760, ~ep4 ~07:50, ETA ~12:30) — append its
+relay curve when done (EVAL_RUNBOOK). Headline figure: experiments/EXP-030/compare_rollout.png.
+**RESULT (see ESC-022 for the full decisive read):** rollout-training is a verified working credit fix
+-> a persistent bounded memory that carries STATIC hidden state FLAT beyond the window (color 0.8@k32)
+and, with DEEP training (h44>h24), sustains residual DYNAMIC position FAR past the window (k>=20) where
+the latent-window inference has decayed to chance. Depth is a real lever. BUT dynamic precision is
+modest + saturates short of the training depth (continuous-memory cap), and the relay TRADES OFF
+near-window windowed dead-reckoning. -> recommend DISCRETE/VQ memory next (needs Merlin sign-off).
 
-## BASELINE DONE this session (the "before" for the A/B)
-experiments/EXP-030/recall_env_ff9_norollout_relay.json — FF9 v2 (no rollout) under the UPDATING-memory
-relay inference: untrained B2 relay COLLAPSES by k~3 (pos 0.67->0.17->chance@k4; color->chance@k8).
-The bar FF9+rollout must clear under the same relay inference. See EXP-030/NOTES.md for inference
-semantics (relay = 2-frame pure-memory; windowed = EXP-028 sliding-window; don't conflate them).
+## NEXT (after Merlin's ESC-022 verdict)
+1. Append EXP-033 (M=16) result -> does more continuous capacity lift dynamic precision (capacity) or
+   not (-> representation/discrete is the lever)?
+2. On his call: build DISCRETE/VQ memory (my lean; architecture change) OR consolidate the static-memory
+   relay win + the honest dynamic result. Do NOT build VQ without sign-off.
 
 ## NEXT ACTIONS (in order)
 1. **Implement UPDATING-memory inference** (essential for eval — the trained relay is exercised ONLY
