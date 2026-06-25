@@ -79,6 +79,12 @@ otherwise free. I did NOT build VQ (a real architecture change — your call). N
 corrected inference 2nd seed/verifier) and ESC-021 (rollout design sign-off) are largely SUBSUMED by
 this campaign (built + ran C1; the corrected inference is now exercised across many evals).
 
+UPDATE 09:43 — **AUTH_DEAD**: the ferranti SSH socket expired overnight. Please re-run
+`scripts/open_master.sh --cluster ferranti` (2FA). EXP-033 (M=16) couldn't be pulled/evaluated (its
+result is the only missing piece — the capacity-vs-stability data point; checkpoint is safe on /weka).
+The EXP-030/031/032 headline above is COMPLETE and unaffected. After re-auth I'll pull+eval EXP-033 and
+append its numbers here. No cluster retry loop running (per §6).
+
 ---
 
 ## ESC-021 | 2026-06-24 | OPEN — FF9 rollout-training design review (method-architect) + gating probe
