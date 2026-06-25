@@ -348,6 +348,10 @@ class DynamicsModel(nn.Module):
         device = z1.device
         actions = self.action_features(action_idx)
         B, T, L, _ = z1.shape
+        # Training is confined to the temporal window (the RoPE table length); a longer clip would
+        # index the fixed cos/sin table out of range on the default forward path.
+        assert T <= self.config.max_temporal_length, (
+            f"clip length {T} exceeds max_temporal_length {self.config.max_temporal_length}")
 
         tau_idx, d_idx = self.sample_tau_d(B, T, device)
         tau = self._tau_value(tau_idx)[..., None, None]  # (B, T, 1, 1)

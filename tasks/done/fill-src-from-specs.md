@@ -51,3 +51,30 @@ scoring?" Read its verdict and fix what it finds before calling this done.
 ## Done when
 `src/` = the keep-list only, all imports work, the minimal tests pass (incl. oracle self-test == 1.0),
 the verifier has run on the WRITE files and its findings are addressed.
+
+---
+
+## RESULT (2026-06-25, branch `rebuild/src-from-specs`)
+DONE. `src/` is now exactly the keep-list (verified `find src`). Built leaf-first:
+- COPY (unchanged, already matched specs): `wlog.py`, `envs/base.py`, `models/tokenizer.py`.
+- COPY+: `envs/gridworld.py` (`reset(seed=None)`), `datagen/generate_gridworld.py` (default out
+  `data/`), `evals/gridworld/readout.py` (`is_occluded` = black-pixel check, no all-channel-dark pixel).
+- WRITE: `models/dynamics_model.py` (lifted blocks+shortcut loss+FF9 sufficiency, NEW carrying
+  KV-cached rollout — read-old/write-new memory relay, 5th-pass commit at near-clean+written-memory,
+  RoPE-by-absolute-index, sliding-window eviction; `forward` bit-identical to src_old for n_memory=0).
+  `evals/gridworld/recall.py` (merged single-rollout env-based scorer, absorbs old adapter.py).
+- TRIM: `train_dynamics.py` (610→480), `train_tokenizer.py` (870→582, all stability kept),
+  `play_dynamics.py` (372→209).
+- Tests: `test_gridworld` (kept), `test_gridworld_eval` (rewritten to new recall API), `test_dynamics`
+  (new). All green incl. oracle self-test position_acc/color_acc == 1.0.
+- Verifier (critical-claim-verifier): **FAITHFUL, no BUG/DEVIATES** on both WRITE files; probes in
+  `experiments/verify-rebuild-dynamics-recall/`, logged in EXPERIMENTS.md. Addressed its one defensive
+  caveat (added a window-length assert in `loss`).
+
+**FLAGGED FOR MERLIN (one decision I had to make):** the recall `k`↔tick alignment in a single
+branching rollout. I made the reveal at occlusion-length `k` the read-only SIBLING of the k-th occluded
+tick (branched before that tick commits; one env.step per k), so the belief at `k` reflects memory
+carried through context + the first k-1 occluded frames. It's the only self-consistent single-rollout
+reading and is applied identically to model + baselines, but it sets the absolute k-axis convention —
+documented at the top of `recall.py`. If you intended k to mean "reveal the frame AFTER k occluded
+frames", that's a one-line shift. NOT YET MERGED to master; needs your review.
