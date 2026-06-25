@@ -62,7 +62,7 @@ def test_gradient_reaches_memory_and_blocks():
     cfg = _tiny_cfg()
     model = DynamicsModel(cfg)
     z1, actions = _batch(cfg)
-    loss, _ = model._ff9_rollout_loss(z1, model.action_features(actions), h=5, tbptt_k=5, p_hide=1.0)
+    loss, _ = model._ff9_rollout_loss(z1, model.action_features(actions), h=5, tbptt_k=5, p_hide=1.0, hide_mode='iid')
     loss.backward()
     assert model.memory_tokens.grad is not None and model.memory_tokens.grad.abs().sum() > 0
     blk_grads = [p.grad for p in model.blocks.parameters() if p.grad is not None]
@@ -108,7 +108,7 @@ def test_tbptt_truncation_controls_graph_depth():
         model.zero_grad(set_to_none=True)
         torch.manual_seed(123)                 # same hide coins + noise across arms
         z = z1.clone().requires_grad_(True)
-        loss, _ = model._ff9_rollout_loss(z, model.action_features(actions), h=H, tbptt_k=tbptt, p_hide=1.0)
+        loss, _ = model._ff9_rollout_loss(z, model.action_features(actions), h=H, tbptt_k=tbptt, p_hide=1.0, hide_mode='iid')
         loss.backward()
         return z.grad[:, :seed].abs().sum().item()
 
@@ -130,9 +130,9 @@ def test_p_hide_zero_no_leak_to_target_via_memory_only():
     z1, actions = _batch(cfg, B=64)
     with torch.no_grad():
         torch.manual_seed(1)
-        vis, _ = model._ff9_rollout_loss(z1, model.action_features(actions), h=5, tbptt_k=5, p_hide=0.0)
+        vis, _ = model._ff9_rollout_loss(z1, model.action_features(actions), h=5, tbptt_k=5, p_hide=0.0, hide_mode='iid')
         torch.manual_seed(1)
-        hid, _ = model._ff9_rollout_loss(z1, model.action_features(actions), h=5, tbptt_k=5, p_hide=1.0)
+        hid, _ = model._ff9_rollout_loss(z1, model.action_features(actions), h=5, tbptt_k=5, p_hide=1.0, hide_mode='iid')
     print(f"  visible(p_hide=0) loss={vis.item():.4f}  hidden(p_hide=1) loss={hid.item():.4f}")
     assert hid >= vis, "hiding the source latent did not make the task harder -> latent path not removed"
 

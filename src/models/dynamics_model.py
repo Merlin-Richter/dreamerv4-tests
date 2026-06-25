@@ -103,7 +103,8 @@ class DynamicsModelConfig():
     # true latent near-clean (re-anchor). Provenance fields; the live knobs are loss() args.
     ff9_rollout_h: int = 0          # rollout hops used in training (0 = off). 0 => no extra RNG/loss.
     ff9_rollout_tbptt: int = 4      # detach the carried memory every k hops (TBPTT-k truncation depth).
-    ff9_rollout_p_hide: float = 0.5 # per-step prob the source latent is hidden (memory-only step).
+    ff9_rollout_p_hide: float = 0.5 # per-step prob the source latent is hidden (iid mode only).
+    ff9_rollout_hide_mode: str = "tail"  # "tail" (contiguous hidden run, mirrors occlusion) | "iid".
 
 
 class Attention(nn.Module):
@@ -421,6 +422,7 @@ class DynamicsModel(nn.Module):
              multistep_h: int = 0, lambda_multistep: float = 1.0,
              ff9_rollout_h: int = 0, lambda_ff9_rollout: float = 1.0,
              ff9_rollout_tbptt: int = None, ff9_rollout_p_hide: float = None,
+             ff9_rollout_hide_mode: str = None,
              return_parts: bool = False) -> torch.Tensor:
         """Shortcut forcing loss over a clip of clean representations.
 
@@ -433,9 +435,16 @@ class DynamicsModel(nn.Module):
         lambda_ff7: weight of the FF7 term in the total.
         return_parts: also return {"diffusion": .., "ff7": ..} detached components.
         """
-        B, T, L, _ = z1.shape
         device = z1.device
-        actions = self.action_features(action_idx)
+        act_full = self.action_features(action_idx)
+        # The main terms (diffusion/ff7/ff9/multistep) run within the model's temporal window W; the
+        # FF9 rollout term may use a LONGER clip (T>W) to train the memory relay to deeper hops (the
+        # rollout is window-2 internally, so it never exceeds the RoPE table). When T==W (the usual
+        # case) z_full==z1 and act_full==actions -> byte-identical to before.
+        W = self.config.max_temporal_length
+        z_full, z1 = z1, z1[:, :W]
+        actions = act_full[:, :W] if act_full is not None else None
+        B, T, L, _ = z1.shape
 
         tau_idx, d_idx = self.sample_tau_d(B, T, device)
         tau = self._tau_value(tau_idx)[..., None, None]  # (B, T, 1, 1)
@@ -509,7 +518,8 @@ class DynamicsModel(nn.Module):
         if ff9_rollout_h > 0:
             tbptt = ff9_rollout_tbptt if ff9_rollout_tbptt is not None else self.config.ff9_rollout_tbptt
             p_hide = ff9_rollout_p_hide if ff9_rollout_p_hide is not None else self.config.ff9_rollout_p_hide
-            ff9r, per_h = self._ff9_rollout_loss(z1, actions, ff9_rollout_h, tbptt, p_hide)
+            hmode = ff9_rollout_hide_mode if ff9_rollout_hide_mode is not None else self.config.ff9_rollout_hide_mode
+            ff9r, per_h = self._ff9_rollout_loss(z_full, act_full, ff9_rollout_h, tbptt, p_hide, hmode)
             total = total + lambda_ff9_rollout * ff9r
             parts["ff9_rollout"] = ff9r.detach()
             for j, v in enumerate(per_h, start=1):
@@ -626,7 +636,7 @@ class DynamicsModel(nn.Module):
         return (flow * mask).sum() / mask.sum().clamp(min=1)
 
     def _ff9_rollout_loss(self, z1: torch.Tensor, actions: torch.Tensor, h: int,
-                          tbptt_k: int, p_hide: float):
+                          tbptt_k: int, p_hide: float, hide_mode: str = "tail"):
         """FF9 rollout-training: train the memory->memory relay (op-3) — D-048, EXP-029 design (C1).
 
         `_ff9_loss` credits writing memory_t from latents (op-1) and reading memory_t j hops later
@@ -677,7 +687,17 @@ class DynamicsModel(nn.Module):
         d2 = torch.full((B, 2), d_fine, device=device, dtype=torch.long)
         zero_tau = torch.zeros(B, dtype=torch.long, device=device)
         ctx_tau = torch.full((B,), tau_ctx_idx, dtype=torch.long, device=device)
-        hide = torch.rand(B, h, device=device) < p_hide               # per (sample, hop) hide coin
+        # Which source latents are HIDDEN (tau=0 => memory is the only carrier). Two modes:
+        #  - "tail": a few visible anchor steps then a CONTIGUOUS hidden tail (start r~U[1,h-1]).
+        #    Mirrors the recall eval (observe a prefix, then a contiguous occluded run to the reveal)
+        #    and forces the relay to hold across many consecutive memory-only hops (the real test).
+        #  - "iid": i.i.d. Bernoulli(p_hide) per step (design-note default; frequent re-anchoring,
+        #    more stable but mostly short hidden runs).
+        if hide_mode == "tail":
+            r = torch.randint(1, max(2, h), (B,), device=device)      # 1..h-1 visible anchor steps
+            hide = torch.arange(h, device=device)[None, :] >= r[:, None]
+        else:
+            hide = torch.rand(B, h, device=device) < p_hide           # per (sample, hop) hide coin
         learned_mem = self.memory_tokens.expand(B, 1, -1, -1)
         per_j = []
         for jj in range(h):

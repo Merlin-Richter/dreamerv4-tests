@@ -312,9 +312,19 @@ def main():
     parser.add_argument("--ff9-rollout-phide", type=float, default=0.5, metavar="P",
                         help="Per-step prob the source latent is HIDDEN (memory-only step) vs near-clean "
                              "GT re-anchor (default 0.5).")
+    parser.add_argument("--ff9-rollout-hide-mode", choices=["tail", "iid"], default="tail",
+                        help="How source latents are hidden during the rollout: 'tail' = a contiguous "
+                             "hidden run (mirrors the eval's occlusion; default) | 'iid' = Bernoulli "
+                             "per step (design-note re-anchoring default).")
     parser.add_argument("--ff9-rollout-warmup", type=int, default=0, metavar="EPOCHS",
                         help="Linearly ramp lambda_ff9_rollout from 0 to its peak over the first EPOCHS "
                              "epochs (contain-then-propagate; design note). 0 = full weight from ep 0.")
+    parser.add_argument("--rollout-clip-len", type=int, default=None, metavar="N",
+                        help="DATASET clip length for the FF9 rollout term (decoupled from the model "
+                             "window --context-length). Set > context-length to train the memory relay "
+                             "to deeper hops than the window (P1: recall horizon ~ training depth). The "
+                             "model's temporal window stays --context-length; only the rollout uses the "
+                             "longer clip (window-2 internally, so RoPE is safe). Default = context-length.")
     parser.add_argument("--seed", type=int, default=0,
                         help="Seed for torch/numpy/random (model init, tau/noise sampling).")
     parser.add_argument("--max-episodes", type=int, default=None,
@@ -376,8 +386,18 @@ def main():
     # Build dynamics config; tokenizer-tied dims come from the tokenizer checkpoint.
     base = DynamicsModelConfig()
     chunk_len = args.context_length if args.context_length is not None else base.max_temporal_length
-    if t < chunk_len:
-        raise ValueError(f"Episode length T={t} must be >= clip length L={chunk_len}.")
+    # DATASET clip length: decoupled from the model window for FF9 deep rollout-training. The model's
+    # temporal window stays `chunk_len`; the dataset serves `data_clip_len` >= chunk_len so the rollout
+    # term can train the memory relay to deeper hops than the window (loss() windows the main terms to
+    # max_temporal_length, feeds the full clip only to the rollout term). Default = chunk_len.
+    data_clip_len = chunk_len
+    if args.rollout_clip_len is not None and args.rollout_clip_len > chunk_len:
+        if args.ff9_rollout <= 0:
+            raise ValueError("--rollout-clip-len only applies with --ff9-rollout > 0.")
+        data_clip_len = args.rollout_clip_len
+        print(f"[deep rollout] dataset clip={data_clip_len} frames; model window={chunk_len}.")
+    if t < data_clip_len:
+        raise ValueError(f"Episode length T={t} must be >= clip length L={data_clip_len}.")
 
     # Read tokenizer dims from its loaded modules so the two models always agree.
     n_latents = tokenizer.encoder.n_latents
@@ -396,13 +416,14 @@ def main():
         ff9_rollout_h=args.ff9_rollout,
         ff9_rollout_tbptt=args.ff9_rollout_tbptt,
         ff9_rollout_p_hide=args.ff9_rollout_phide,
+        ff9_rollout_hide_mode=args.ff9_rollout_hide_mode,
     )
 
-    train_ds = ChunkClipDataset(raw, train_idx, chunk_len, start_offset=0, actions=actions)
-    val_ds = ChunkClipDataset(raw, val_idx, chunk_len,
-                              start_offset=args.val_offset % (chunk_len + 1), actions=actions)
+    train_ds = ChunkClipDataset(raw, train_idx, data_clip_len, start_offset=0, actions=actions)
+    val_ds = ChunkClipDataset(raw, val_idx, data_clip_len,
+                              start_offset=args.val_offset % (data_clip_len + 1), actions=actions)
     if len(train_ds) == 0 or len(val_ds) == 0:
-        raise ValueError(f"No clips with L={chunk_len}; try shorter clips or smaller --val-offset.")
+        raise ValueError(f"No clips with L={data_clip_len}; try shorter clips or smaller --val-offset.")
 
     # DataLoader throughput (D-041): default num_workers=0 loads each batch synchronously on the main
     # thread (memmap read + uint8->float32) while the GPU idles. Background workers + pinned memory +
@@ -449,6 +470,7 @@ def main():
             cfg.ff9_rollout_h = args.ff9_rollout
             cfg.ff9_rollout_tbptt = args.ff9_rollout_tbptt
             cfg.ff9_rollout_p_hide = args.ff9_rollout_phide
+            cfg.ff9_rollout_hide_mode = args.ff9_rollout_hide_mode
         model = DynamicsModel(cfg).to(device)
         result = model.load_state_dict(payload["model_state_dict"], strict=False)
         if result.missing_keys:
