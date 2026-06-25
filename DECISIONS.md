@@ -1363,3 +1363,45 @@ Note: FF9 recall eval needs MEMORY-AWARE inference (generate dispatches to gener
 the current dynamics_rollout_frames uses generate_cached (vanilla path) — must add the memory path for
 the EXP-028 eval (handle at eval time, after the eval-data-source question is settled with Merlin).
 Spawns: EXP-028 (FF9 GridWorld); FF9-aware recall adapter.
+
+## D-048 | 2026-06-25
+Context: Merlin going to bed; explicit instruction to work AUTONOMOUSLY THROUGH THE NIGHT —
+"implement and train and evaluate a few different ideas for the memory training... a bunch of
+ideas flying around... work empirically... work reversibly." This is an explicit, session-scoped
+OVERRIDE of the §5 present-then-stop gate: I run multiple experiments without stopping for review,
+but keep full provenance, reversibility (new branch feat/ff9-rollout-training), and write-before-act.
+The scientific frontier (FF9_IDEA.md, ESC-020/021): FF9 v2 memory tokens CONTAIN dynamic state
+in-window (EXP-028: pos 0.94 in-window, smooth decay to chance ~k28) but the memory->memory
+propagation (op-3) is UNTRAINED — _ff9_loss:576 fills intermediate frames with the learned-init
+placeholder, so "write mem_{t+1} <- mem_t" is on no gradient path (method-architect diagnosis,
+EXP-029-design: CREDIT-ASSIGNMENT not architecture). EXP-028's decay is the production echo of
+V-T014's untrained-carry drift.
+Decision: run an overnight campaign of memory-training ideas on the clean GridWorld bench, gated by
+the P1 probe, all budget-matched to EXP-027/028 for fair A/B vs the vanilla floor and the FF9 v2:
+  (P1, GATING) run probe_dynamic_relay.py (dynamic-secret tbptt-k sweep) -> capacity-vs-credit (Q1:
+    does full BPTT carry dynamic state? if not, M=4 too small -> widen memory, not a credit fix) +
+    min depth k* (Q2). NO GridWorld training; ~30-60 min local.
+  (C1, MAIN) implement FF9 rollout-training: real memory chain on the gradient path, TBPTT-k at the
+    P1-measured k*, per-step Bernoulli latent-hiding (mixture, re-anchor), teacher-forced GT context
+    near-clean, newest-frame flow + multi-frame memory sufficiency. Enabling change: forward returns
+    written memory tokens. Config-gated identity-when-off; existing paths untouched (reversible).
+  (2-3 cluster variants) C1 at k*; plus a second idea chosen on P1 (wider memory M=8 if capacity-
+    bound; else C3 tbptt-2 cheap control and/or a p_hide ablation).
+Alternatives rejected: C2 (cached-grad streaming scheme, FF9_IDEA's own proposal) — same gradient in
+  kind, far higher correctness risk (grad through RoPE-rotated evicted K/V); method-architect ranks
+  it a graduate-to, not first build. Hard-coding 4*N truncation — measure k instead. Auxiliary
+  privileged-state probe loss — violates the no-privileged-data constraint (memory).
+Expected outcome: at k*, GridWorld position recall at k=24 rises above the EXP-028 chance floor and
+the 16<k<32 slope flattens, WITHOUT regressing in-window (k<=8) or base 1-step motion; static
+colour/bg goes flatter past the window. C3 (tbptt-2) likely bends the curve less (V-T014).
+Would change my mind / tripwires:
+  - P1: full BPTT FAILS on the dynamic secret -> capacity-bound (M=4) -> pivot to widening memory
+    BEFORE any rollout loss (reorders the whole campaign).
+  - In-window recall (k<=8) or base val-diffusion REGRESSES under rollout-training -> the unrolled
+    branch fights ops 1+2 -> raise warmup / lower rollout fraction / lower p_hide.
+  - Gradient-flow self-test shows grad does NOT reach the memory-write chain, or a teacher-forced
+    latent leak path -> implementation bug, fix before any cluster run (don't waste the big run).
+  - EXP-028 corrected inference is the premise; its 2nd-seed/verifier (ESC-020 Q2) still open -> if
+    it fails, the diagnosis target shifts. (Folding a 2nd FF9 seed into tonight's runs covers this.)
+Spawns: EXP-029 (P1 probe); _ff9_rollout_loss + forward return_memory; train_dynamics --ff9-rollout
+  flags; cluster runs EXP-030+; critical-claim-verifier on the implementation; env-direct recall A/Bs.
