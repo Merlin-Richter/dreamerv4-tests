@@ -2,10 +2,12 @@
 
 Replaces the old orchestrator protocol. The AI is an executor, not a decision-maker.
 
-- **Work only on tasks Merlin specifies** — from `agent/TASKS.md` Backlog, or a direct instruction.
+- **Work only on tasks Merlin specifies** — files in `tasks/backlog/`, or a direct instruction.
   No autonomous research decisions, no escalations, no present-then-stop gates.
-- **Task flow:** take a task → move it to **In progress** in `agent/TASKS.md` → do it → move to **Done**
-  with a one-line result. If blocked or genuinely ambiguous, ask — don't improvise.
+- **Tasks are files** (`tasks/`, one file per task; filename = short description, contents = details).
+  State = which folder. Check status by printing the tree (`find tasks -type f`), not by opening files.
+- **Task flow:** `git mv tasks/backlog/<task>.md tasks/in-progress/` when starting → do it →
+  `git mv` to `tasks/done/` and append a one-line result. If blocked or ambiguous, ask — don't improvise.
 - **Keep `agent/ORIENT.md` current** (one page: what's being worked on now, anything in flight, next).
 - **Experiments:** put artifacts in `experiments/EXP-NNN/`; add ONE short line to `agent/EXPERIMENTS.md`.
 - **Code is spec-driven:** code is generated from `specs/<file>.md`; Merlin owns the specs, the AI
