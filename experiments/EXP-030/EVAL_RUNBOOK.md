@@ -23,7 +23,7 @@ wsl.exe -e bash -lc "cd <repo> && bash scripts/pull_results.sh gridworld-ff9roll
 ### EXP-032 (run dir gw-vanilla-w32-s0, ckpt dynamics_vanilla_w32.pt) — vanilla, windowed only (no memory)
 ```
 wsl.exe -e bash -lc "cd <repo> && bash scripts/pull_results.sh gridworld-vanilla-w32-s0 --what all --cluster ferranti"
-./venv/Scripts/python.exe -u experiments/EXP-030/recall_relay.py --dynamics experiments/gw-vanilla-w32-s0/dynamics_vanilla_w32.pt --tag vanilla_w32 --inference windowed --n-per-k 64 --max-k 32
+./venv/Scripts/python.exe -u experiments/EXP-030/recall_relay.py --dynamics experiments/gridworld-vanilla-w32-s0/dynamics_vanilla_w32.pt --tag vanilla_w32 --inference windowed --n-per-k 64 --max-k 32
 ```
 
 ## Baselines already available (no re-run)
