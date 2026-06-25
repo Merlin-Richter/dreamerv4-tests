@@ -6,23 +6,19 @@ D-048) makes the FF9 memory tokens carry DYNAMIC hidden state (square position) 
 where the untrained relay / the no-memory baselines fail. Gated by EXP-029 P1 (recall horizon ~ train
 depth for dynamic state) -> train the relay to the eval depth.
 
-## Inference semantics (READ THIS before interpreting the A/B)
-Three inferences, all through the FROZEN recall core (D-045), env-direct episodes (N=64/k, n_ctx=8):
-- **windowed** (EXP-028 corrected): plain sliding-window `generate_cached(plain=True)`. Memory tokens
-  carried WITHIN the 16-frame window via temporal attention; latents are the main carrier. The model
-  has the full latent window. Vanilla uses this (no memory).
-- **relay** (D-048, the inference rollout-training trains): `generate_updating_memory`. A 2-frame
-  `[noise-source | new]` window, the persistent memory token RE-WRITTEN and carried each step (op-3/B2).
-  Source = pure noise (A1) => **memory is the ONLY carrier**; there is NO latent window. This is the
-  honest "is memory a sufficient state" probe (the imagination north-star), but it is HARDER than
-  windowed because it discards the latent history. NB: under relay, the curtain-UP "control" is NOT a
-  free-run-in-the-clear (source is still noise) -> it is memory-only with a curtain-up action, so its
-  position is also memory-limited, not a dead-reckoning ceiling. Don't read the relay control as the
-  EXP-027 in-the-clear control.
-- **snapshot** (B1, EXP-017/028 ref): frozen memory snapshot, static state only.
+## Inference (corrected 2026-06-25 — there is only ONE)
+The ONLY inference is the normal sliding-window autoregressive rollout (`generate_cached(plain=True)`),
+through the FROZEN recall core (D-045), env-direct episodes (N=64/k, n_ctx=8, W=16). Memory tokens live
+in the W-frame window like the latents, carried frame-to-frame via causal temporal attention, EVICTING
+with the window — no token persists past it. Beyond-window state survives only if the memory->memory
+relay propagates it forward through successive in-window memory tokens as the window slides.
+Sliding-window size + context-noise (config.context_signal) are the knobs.
 
-The clean attribution of "does rollout-training help" = **FF9+rollout vs FF9-no-rollout under the SAME
-relay inference** (isolates training). The relay-vs-windowed gap is the inference difference.
+NOTE: an earlier version of this campaign reported a separate "relay" inference (a hand-coded 2-frame
+window with a noise source). That was just normal inference at W=2 with a noise source — an extreme,
+misleading framing — now DELETED (code + W=2 result files). The result sections below that cite "relay"
+numbers are SUPERSEDED; the canonical A/B is vanilla / FF9-no-rollout / FF9+rollout all under the normal
+windowed inference (identical n_ctx=8, W=16). See the "WINDOWED RE-EVAL" section at the bottom.
 
 ## Baseline established this session: FF9 (no rollout) under RELAY (untrained B2 relay)
 `recall_env_ff9_norollout_relay.json` (FF9 v2 checkpoint from EXP-028, gridworld-ff9-s0/dynamics_ff9.pt).
