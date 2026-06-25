@@ -8,21 +8,21 @@ h44 deep), 409753 (EXP-032 vanilla w32). All run.sh stage the checkpoint into th
 ### EXP-030 (run dir gw-ff9roll-m24-s0, ckpt dynamics_ff9roll_m24.pt)
 ```
 # pull checkpoint
-wsl.exe -e bash -lc "cd <repo> && bash scripts/pull_results.sh gw-ff9roll-m24-s0 --what all --cluster ferranti"
+wsl.exe -e bash -lc "cd <repo> && bash scripts/pull_results.sh gridworld-ff9roll-m24-s0 --what all --cluster ferranti"
 # eval under BOTH relay (its trained inference) and windowed (EXP-028 comparable), <=k32 to overlay baselines
-./venv/Scripts/python.exe -u experiments/EXP-030/recall_relay.py --dynamics experiments/gw-ff9roll-m24-s0/dynamics_ff9roll_m24.pt --tag ff9roll_m24_relay    --inference relay    --n-per-k 64 --max-k 32
-./venv/Scripts/python.exe -u experiments/EXP-030/recall_relay.py --dynamics experiments/gw-ff9roll-m24-s0/dynamics_ff9roll_m24.pt --tag ff9roll_m24_windowed --inference windowed --n-per-k 64 --max-k 32
+./venv/Scripts/python.exe -u experiments/EXP-030/recall_relay.py --dynamics experiments/gridworld-ff9roll-m24-s0/dynamics_ff9roll_m24.pt --tag ff9roll_m24_relay    --inference relay    --n-per-k 64 --max-k 32
+./venv/Scripts/python.exe -u experiments/EXP-030/recall_relay.py --dynamics experiments/gridworld-ff9roll-m24-s0/dynamics_ff9roll_m24.pt --tag ff9roll_m24_windowed --inference windowed --n-per-k 64 --max-k 32
 ```
 
 ### EXP-031 (run dir gw-ff9roll-d44-s0, ckpt dynamics_ff9roll_d44.pt) — eval to k44 (its train depth)
 ```
-wsl.exe -e bash -lc "cd <repo> && bash scripts/pull_results.sh gw-ff9roll-d44-s0 --what all --cluster ferranti"
-./venv/Scripts/python.exe -u experiments/EXP-030/recall_relay.py --dynamics experiments/gw-ff9roll-d44-s0/dynamics_ff9roll_d44.pt --tag ff9roll_d44_relay --inference relay --n-per-k 64
+wsl.exe -e bash -lc "cd <repo> && bash scripts/pull_results.sh gridworld-ff9roll-d44-s0 --what all --cluster ferranti"
+./venv/Scripts/python.exe -u experiments/EXP-030/recall_relay.py --dynamics experiments/gridworld-ff9roll-d44-s0/dynamics_ff9roll_d44.pt --tag ff9roll_d44_relay --inference relay --n-per-k 64
 ```
 
 ### EXP-032 (run dir gw-vanilla-w32-s0, ckpt dynamics_vanilla_w32.pt) — vanilla, windowed only (no memory)
 ```
-wsl.exe -e bash -lc "cd <repo> && bash scripts/pull_results.sh gw-vanilla-w32-s0 --what all --cluster ferranti"
+wsl.exe -e bash -lc "cd <repo> && bash scripts/pull_results.sh gridworld-vanilla-w32-s0 --what all --cluster ferranti"
 ./venv/Scripts/python.exe -u experiments/EXP-030/recall_relay.py --dynamics experiments/gw-vanilla-w32-s0/dynamics_vanilla_w32.pt --tag vanilla_w32 --inference windowed --n-per-k 64 --max-k 32
 ```
 
