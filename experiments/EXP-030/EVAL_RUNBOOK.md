@@ -55,3 +55,5 @@ wsl.exe -e bash -lc "cd <repo> && bash scripts/pull_results.sh gridworld-vanilla
 
 ## Reconciliation: append to experiments/EXP-030/NOTES.md (Expected/Observed/Surprise/Hypothesis/Tripwires/Next),
 update EXPERIMENTS rows (status->done + headline), then the consolidated MORNING BRIEF in ESCALATIONS.md.
+
+> SUPERSEDED NOTE (2026-06-25): the "relay" inference framing here is deprecated — there is only the normal sliding-window inference. Corrected verdict: rollout-training does NOT beat FF9-no-rollout under it. See ESC-022.

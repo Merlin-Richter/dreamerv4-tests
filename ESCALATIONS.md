@@ -10,7 +10,45 @@
 
 ---
 
-## ESC-022 | 2026-06-25 | OPEN — OVERNIGHT CAMPAIGN morning brief: FF9 rollout-training (op-3 relay)
+## ESC-022 | 2026-06-25 | OPEN — FF9 rollout-training campaign (D-048)
+
+### ⚠️ CORRECTED VERDICT (2026-06-25 afternoon, supersedes the overnight read below)
+You were right to push on the inference. Re-evaluated under the ONE correct inference — the **normal
+sliding-window rollout** (n_ctx=8, W=16, how the model is actually used) — **rollout-training does NOT
+work; it HURTS.** Canonical figure: **experiments/EXP-030/compare_windowed.png**. position_acc:
+
+  k    vanilla   FF9 no-rollout(M4)   FF9+rollout M16   FF9+rollout M4
+  8     0.33        **1.00**            0.78             ~0.8
+  12    0.08        **0.81**            0.33             ~0.33
+  16    0.08        **0.44**            0.09             ~0.05
+  colour k16: FF9-norollout **0.67** > rollout-M16 0.48 > vanilla 0.31.
+
+- The plain **FF9-no-rollout (M4, EXP-028) is the BEST memory model** (position AND colour). Both
+  rollout-trained models (M4 and M16) are WORSE — barely above the vanilla floor past k12. Wider memory
+  (M16) does NOT rescue it.
+- The overnight headline ("rollout-training works / static-memory win / capacity is a lever") was an
+  **ARTIFACT of a W=2 noise-source 'relay' inference I invented**, which handicapped the FF9-no-rollout
+  baseline to ~chance and made the rollout model look good. That inference + its results are **deleted**
+  (per your cleanup ask); only the normal sliding-window inference exists now.
+- **Honest mechanism guess:** the rollout loss trains the relay in an isolated 2-frame, memory-only,
+  noise-source regime — mismatched to the windowed inference (full latent context) — so it shifts the
+  model away from the windowed latent dead-reckoning that carries position best. Net regression.
+- **Lesson (mine):** I over-claimed from a self-built inference that wasn't how the model is used. Always
+  evaluate under the real-use inference first. The credit-assignment code was correctly implemented +
+  independently verified — the METHOD/training-regime is what doesn't deliver, not a bug.
+
+### Where this leaves H3 / the decision for you
+- **No method improvement.** FF9-no-rollout (within-window memory) remains the best; rollout-training as
+  designed is a NEGATIVE result. Options: (a) **redesign so training matches inference** — train the
+  relay WITHIN the normal windowed rollout (not the isolated 2-frame memory-only regime), which is the
+  obvious fix to the mismatch; (b) try DISCRETE/VQ memory; (c) accept FF9-no-rollout as the memory
+  result + log this negative and move on. My lean: (a) is the cheapest test of whether the *idea* (op-3
+  credit) has any legs once the train/inference mismatch is removed; if it still doesn't beat
+  FF9-no-rollout, drop it.
+- EXP-031 (deep) / EXP-033 (M16) are spent; nothing else running. cluster free.
+
+--- (overnight brief below is SUPERSEDED by the corrected verdict above; kept for the trajectory) ---
+
 Context: you went to bed and said to work autonomously through the night — "implement and train and
 evaluate a few different ideas for the memory training... work empirically... reversibly." I did. This
 is the consolidated present-then-stop for the whole campaign (D-048). Everything is on branch

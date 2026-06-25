@@ -28,17 +28,21 @@ the latent-window inference has decayed to chance. Depth is a real lever. BUT dy
 modest + saturates short of the training depth (continuous-memory cap), and the relay TRADES OFF
 near-window windowed dead-reckoning. -> recommend DISCRETE/VQ memory next (needs Merlin sign-off).
 
-## CAMPAIGN FULLY DONE + EVALUATED. AWAITING MERLIN'S ESC-022 VERDICT.
-**EXP-033 (M=16) CHANGED THE CONCLUSION (positively):** widening memory M=4->M=16 lifts DYNAMIC
-position dramatically (relay pos k12 0.64 vs M4 0.14; k16 0.34 vs 0.06) — MORE than deepening did
-(h44 k12 0.33). => the M=4 dynamic cap was largely a CAPACITY limit, NOT pure continuous drift. So
-rollout-training (credit) + adequate memory width (capacity) = a bounded recurrent memory carrying
-static AND substantial dynamic state past the window. Markedly better than the M=4 picture.
+## CORRECTED VERDICT (2026-06-25 PM) — rollout-training does NOT work under the real inference.
+Merlin pushed on the inference; re-evaluated under the ONE correct inference (normal sliding-window
+rollout, n_ctx=8, W=16): **FF9-no-rollout (M4, EXP-028) is the BEST memory model; both rollout-trained
+models (M4 + M16) are WORSE** (pos k12: FF9-norollout 0.81 vs rollout-M16 0.33 vs vanilla 0.08). The
+overnight "win" was an ARTIFACT of a W=2 noise-source "relay" inference I invented (handicapped the
+baseline). That inference + W=2 results are DELETED. Canonical figure: experiments/EXP-030/compare_windowed.png.
+=> rollout-training (op-3) as designed is a NEGATIVE result. Likely cause: the 2-frame memory-only
+training regime is mismatched to the windowed inference. Code was correct + verified; the method
+doesn't deliver. ESC-022 has the full corrected verdict + options.
 
-## NEXT (awaiting Merlin's ESC-022 verdict — REVISED options)
-1. [my new lean] SCALE CAPACITY: M=32 + the wide+deep combo (M=16 x h44) — capacity not saturated at 16.
-2. discrete/VQ memory (if capacity scaling saturates -> precision/stability). Architecture change; sign-off.
-3. consolidate the result. Do NOT build the next method without Merlin's call.
+## NEXT (awaiting Merlin's ESC-022 verdict)
+1. [my lean] redesign so training MATCHES inference — train the relay WITHIN the normal windowed rollout
+   (not the isolated 2-frame memory-only regime). Cheapest test of whether op-3 credit has any legs.
+2. discrete/VQ memory; or 3. accept FF9-no-rollout as the memory result + log the negative. Merlin's call.
+Cluster free; nothing running. Code cleanup (remove the separate relay/Option-B inference) committed.
 
 ## NEXT ACTIONS (in order)
 1. **Implement UPDATING-memory inference** (essential for eval — the trained relay is exercised ONLY

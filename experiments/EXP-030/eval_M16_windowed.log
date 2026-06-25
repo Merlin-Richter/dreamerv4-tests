@@ -7,3 +7,48 @@
   k=6 done
   k=8 done
   k=10 done
+  k=12 done
+  k=14 done
+  k=16 done
+  k=18 done
+  k=20 done
+  k=24 done
+  k=28 done
+  k=32 done
+wrote C:\Users\richt\OneDrive\Desktop\Code\transformer\experiments\EXP-030\recall_env_ff9roll_M16_windowed.json
+
+== position_acc (chance=0.028) ==
+  k=  1: model=1.000 ctrl=1.000 copy=0.141 oracle=1.000
+  k=  2: model=1.000 ctrl=1.000 copy=0.000 oracle=1.000
+  k=  3: model=1.000 ctrl=1.000 copy=0.188 oracle=1.000
+  k=  4: model=1.000 ctrl=1.000 copy=0.000 oracle=1.000
+  k=  5: model=0.984 ctrl=0.984 copy=0.031 oracle=1.000
+  k=  6: model=0.969 ctrl=1.000 copy=0.000 oracle=1.000
+  k=  8: model=0.781 ctrl=1.000 copy=0.000 oracle=1.000
+  k= 10: model=0.391 ctrl=1.000 copy=0.000 oracle=1.000
+  k= 12: model=0.328 ctrl=1.000 copy=0.000 oracle=1.000
+  k= 14: model=0.156 ctrl=0.984 copy=0.000 oracle=1.000
+  k= 16: model=0.094 ctrl=1.000 copy=0.000 oracle=1.000
+  k= 18: model=0.078 ctrl=0.984 copy=0.000 oracle=1.000
+  k= 20: model=0.031 ctrl=1.000 copy=0.000 oracle=1.000
+  k= 24: model=0.000 ctrl=1.000 copy=0.000 oracle=1.000
+  k= 28: model=0.016 ctrl=0.984 copy=0.000 oracle=1.000
+  k= 32: model=0.031 ctrl=0.984 copy=0.000 oracle=1.000
+
+== color_acc (chance=0.250) ==
+  k=  1: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k=  2: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k=  3: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k=  4: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k=  5: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k=  6: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k=  8: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k= 10: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k= 12: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k= 14: model=1.000 ctrl=1.000 copy=1.000 oracle=1.000
+  k= 16: model=0.484 ctrl=1.000 copy=1.000 oracle=1.000
+  k= 18: model=0.438 ctrl=1.000 copy=1.000 oracle=1.000
+  k= 20: model=0.391 ctrl=1.000 copy=1.000 oracle=1.000
+  k= 24: model=0.375 ctrl=1.000 copy=1.000 oracle=1.000
+  k= 28: model=0.219 ctrl=1.000 copy=1.000 oracle=1.000
+  k= 32: model=0.297 ctrl=1.000 copy=1.000 oracle=1.000

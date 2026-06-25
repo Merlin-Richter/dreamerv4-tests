@@ -113,3 +113,30 @@ k32 0.19/0.02/0.13 (exact); graded k16 0.39/0.11/0.25. Color FLAT 0.89-1.0 to k3
 - M=16 + rollout = a BOUNDED recurrent memory carrying static AND substantial dynamic state past the
   window (k12 0.64 exact), beating the no-rollout windowed model at the far tail. Markedly more positive
   than the M=4 picture. REVISED next lever: scale capacity (M=32, wide+deep) before discrete/VQ.
+
+## WINDOWED RE-EVAL (2026-06-25, CANONICAL — the correct inference) — REVERSES the overnight read
+All under the normal sliding-window rollout (n_ctx=8, W=16), the inference that matches real use.
+position_acc (chance 0.028):
+  k    vanilla   FF9-norollout-M4   FF9+rollout-M16   FF9+rollout-M4
+  8     0.33        1.00              0.78              (~ M16)
+  12    0.08        0.81              0.33
+  16    0.08        0.44              0.09
+  20    0.03        0.22              0.03
+colour k16: FF9-norollout 0.67 > rollout-M16 0.48 > vanilla 0.31.
+
+**VERDICT (negative, honest): rollout-training (op-3) does NOT help under the correct inference — it
+HURTS.** The plain FF9-no-rollout (M4, EXP-028) is the BEST memory model on position AND colour;
+both rollout-trained models (M4 and M16) are worse, barely above the vanilla floor past k12. Wider
+memory (M16) does NOT rescue it.
+- The overnight "rollout-training works / capacity is a lever" headline was an ARTIFACT of the W=2
+  noise-source "relay" inference I built (it handicapped the FF9-no-rollout baseline to ~chance by k3,
+  making the rollout model look good). Under the normal inference the comparison reverses. The W=2
+  inference + its results are deleted.
+- Mechanism (hypothesis): the rollout loss trains the relay in an ISOLATED 2-frame, memory-only,
+  noise-source regime — mismatched to the windowed inference (full latent context). It shifts the model
+  away from the windowed latent dead-reckoning that actually carries position best -> net regression.
+- Lesson (reinforces feedback_verify_inference_path / measurement_validity): a self-built inference that
+  handicaps the baseline produced a false positive. ALWAYS evaluate under the inference matching real use.
+
+Canonical figure: experiments/EXP-030/compare_windowed.png (vanilla / FF9-norollout / rollout-M4 /
+rollout-M16, all windowed). The earlier compare_rollout.png (relay curves) is superseded.

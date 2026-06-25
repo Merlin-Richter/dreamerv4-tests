@@ -76,3 +76,5 @@ memory itself discrete (next section).
   limit orthogonal to credit). P1's BPTT-ceiling arm (M=32 GRU) carried it in-window, so M is probably
   not the in-window bottleneck, but the GridWorld latent is higher-D — widening memory is a cheap knob
   to try if recall is capacity-limited rather than drift-limited.
+
+> SUPERSEDED NOTE (2026-06-25): the "relay" inference framing here is deprecated — there is only the normal sliding-window inference. Corrected verdict: rollout-training does NOT beat FF9-no-rollout under it. See ESC-022.

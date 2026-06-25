@@ -1,14 +1,9 @@
-"""ENV-DIRECT GridWorld recall eval for FF9 ROLLOUT-TRAINED models (D-048).
+"""ENV-DIRECT GridWorld recall eval (any dynamics checkpoint), the normal sliding-window inference.
 
 Same env-direct protocol, k-grid, n_ctx and scorer as EXP-028/recall_env.py (so curves overlay the
-existing recall_env_{vanilla,ff9}.json baselines directly), with one addition: --inference relay =
-the UPDATING-memory carry that C1 trains (`generate_updating_memory`: a persistent memory token
-re-extracted and carried each step while the latent window is window-2). The plain sliding-window
-("windowed") and frozen-snapshot ("snapshot") inferences are kept for the same model so we can show
-the relay's contribution in isolation.
-
-Writes experiments/EXP-030/recall_env_<tag>.json. KS extended past 32 (to 44) so the DEEP model's
-reach is visible; the <=32 points overlay the EXP-028 baselines.
+existing recall_env_{vanilla,ff9}.json baselines directly). The ONLY inference is the normal
+sliding-window autoregressive rollout (dynamics_rollout_frames -> generate_cached plain=True); memory
+tokens, if any, ride in the window and evict with it. Writes experiments/EXP-030/recall_env_<tag>.json.
 """
 import argparse
 import json
