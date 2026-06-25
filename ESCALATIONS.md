@@ -24,20 +24,28 @@ feat/ff9-rollout-training (pushed); state files + figures committed.
 3. **Trained + evaluated** EXP-030 (h24), EXP-031 (h44 deep), EXP-032 (vanilla w32 control), EXP-033
    (M=16 capacity) on the clean GridWorld bench, env-direct recall A/B vs the EXP-027/028 baselines.
 
-### The decisive read (honest; favorable on static, negative-with-a-clear-lesson on dynamic)
-**Rollout-training WORKS as a credit fix and gives a persistent bounded memory that carries STATIC
-hidden state flat BEYOND the window — but DYNAMIC position stays drift-capped, and training the relay
-TRADES OFF the windowed dead-reckoning path. The dynamic-memory bottleneck is REPRESENTATION STABILITY
-(continuous drift), not credit — pointing to DISCRETE/VQ memory next.**
+### The decisive read (honest; favorable on static + far-tail dynamic, modest absolute dynamic)
+**Rollout-training WORKS as a credit fix and gives a persistent bounded memory that (a) carries STATIC
+hidden state FLAT beyond the window and (b) with DEEP training sustains residual DYNAMIC position FAR
+past the window (k>=20) where the latent-window inference has decayed to chance. Depth is a real lever
+(h44 > h24). BUT absolute dynamic precision is modest and saturates short of the training depth (a
+continuous-memory PRECISION cap), and training the relay TRADES OFF near-window windowed
+dead-reckoning. Net: credit-assignment + depth get a real bounded dynamic memory, but to lift dynamic
+PRECISION the lever is representation stability/capacity (discrete/VQ or wider memory), not more credit.**
 - **STATIC colour (the win):** FF9+rollout under the updating-memory relay holds colour FLAT ~0.8 to
   k=32 (well past the 16-window), vs FF9-no-rollout windowed decaying to 0.34 and the UNTRAINED relay
   at chance. A clean beyond-window bounded-memory result (the DreamerV4 h-state goal, for static state).
 - **DYNAMIC position, same-inference win:** trained relay >> untrained relay (k=6 0.52 vs 0.02; useful
   memory k~3 -> k~8). The credit-assignment fix is real and large. In-window (k<=4) near-perfect.
-- **DYNAMIC position, the limit:** decays to chance by k~12-16, SHORT of the h=24 training depth —
-  exactly P1's prediction that a CONTINUOUS dynamic relay drifts (no free extrapolation). Deeper
-  training (EXP-031 h44) [RESULT LANDING] and wider memory (EXP-033 M=16) [RUNNING] test whether
-  depth/capacity move it; P1 predicts not (it's drift, not depth/capacity).
+- **DYNAMIC position — DEPTH IS A REAL LEVER (EXP-031 h44 > EXP-030 h24).** Deeper rollout training
+  pushes the knee right: graded position k8 0.48 vs 0.27, k12 0.36 vs 0.19, k16 0.25 vs 0.11. And in
+  the FAR-past-window regime (k>=20) the deep relay MATCHES/EXCEEDS the no-rollout windowed model
+  (graded k32: h44 0.17 vs FF9-windowed 0.11) — because the windowed latent dead-reckoning has decayed
+  to chance there while the persistent bounded memory sustains residual position. So GridWorld's
+  DISCRETE state extrapolates BETTER than P1's continuous probe (depth helps), but it still SATURATES
+  well short of the h=44 training depth (useful only to ~k16-20, modest absolute numbers ~0.2-0.25
+  graded) -> a continuous-memory PRECISION cap. EXP-033 (M=16) [RUNNING, ~12:30] tests if more
+  continuous capacity lifts it; if not, the cap is representational -> discrete/VQ.
 - **The trade-off (D-048 tripwire, partial):** rollout-training HURT the windowed path (position k12
   0.33 vs no-rollout 0.81) — the relay and the latent-window dead-reckoning compete for capacity. So
   rollout-training does NOT advance BEST-achievable dynamic position (no-rollout windowed still best to

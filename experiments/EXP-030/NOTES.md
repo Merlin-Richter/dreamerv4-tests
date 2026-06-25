@@ -95,3 +95,15 @@ it drift-capped regardless (P1 says capped)? (2) EXP-030 WINDOWED eval (does rol
 windowed path vs EXP-028?). (3) Morning decision for Merlin: pursue DISCRETE memory (VQ) for dynamic
 position, OR consolidate the static-memory relay win + the negative dynamic result. Present-then-stop
 at the consolidated brief (ESC-022).
+
+## EXP-031 (deep h44) result — DEPTH IS A LEVER
+Relay position_acc h44 vs h24: k8 0.45 vs 0.20, k12 0.33 vs 0.14, k16 0.20 vs 0.06, k32 0.13 vs 0.02;
+to k44: ~0.05-0.13. Graded position k16 0.25 vs 0.11. Color FLAT 0.83-0.91 to k44.
+- Deeper rollout training (h44) clearly pushes the dynamic-position knee right (h44 > h24 throughout
+  k8-32) -> GridWorld's DISCRETE state extrapolates better than P1's continuous probe; depth helps.
+- FAR-tail crossover: graded position k>=20 h44 (0.24/0.17 @k20/k32) MATCHES/EXCEEDS FF9-norollout
+  WINDOWED (0.29/0.11) -> the persistent bounded memory outlasts the latent window where it has decayed
+  to chance. The relay's regime is FAR past the window.
+- BUT saturates: even h44 (trained to depth 44) only holds useful position to ~k16-20 (modest
+  ~0.2-0.25 graded), far short of k44 -> continuous-memory PRECISION cap. -> EXP-033 (M=16) tests
+  capacity; discrete/VQ tests stability.
