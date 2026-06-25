@@ -117,12 +117,11 @@ def dynamics_rollout_frames(model, tokenizer, frames_u8: np.ndarray, curtain: np
         act = torch.from_numpy(cur_np[a:t + 1]).unsqueeze(0).to(device).clone()  # (1, T_ctx + n_gen)
         if control_curtain_up:
             act[:, ctx.shape[1]:] = 0                            # matched-horizon control: curtain UP
-        # The ONE inference: the normal sliding-window autoregressive rollout. The context window is the
-        # model's max_temporal_length; memory tokens (if any) live in that window like the latents and are
-        # carried frame-to-frame via causal temporal attention, evicting with the window. plain=True keeps
-        # this single path for memory models too (no special dispatch). Sliding-window size + context-noise
-        # (config.context_signal) are the knobs — there is no separate "relay"/"snapshot" carrier.
-        gen = model.generate_cached(ctx, n_gen, K=K, action_idx=act, plain=True)
+        # The ONE inference: the normal sliding-window autoregressive rollout (model.generate). Memory
+        # models (n_memory>0) CARRY each frame's written memory token forward — computed once, injected
+        # unchanged while it rides in the window (not recomputed from learned-init each step) — so memory
+        # is a real per-frame state threaded alongside the latents. Vanilla = the plain rollout.
+        gen = model.generate(ctx, n_gen, K=K, action_idx=act)
         full = torch.cat((ctx, gen), dim=1)
         win = full[:, -tok_w:]                                   # tokenizer-window ending at the reveal
         dec = tokenizer.decoder(win)[0].clamp(0, 1).cpu().float().numpy()  # (w, H, W, 3)

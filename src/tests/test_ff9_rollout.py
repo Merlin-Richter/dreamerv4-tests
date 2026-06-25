@@ -137,6 +137,37 @@ def test_p_hide_zero_no_leak_to_target_via_memory_only():
     assert hid >= vis, "hiding the source latent did not make the task harder -> latent path not removed"
 
 
+def test_generate_carries_memory():
+    """generate() for a memory model threads each frame's WRITTEN memory forward (not recomputed):
+    (a) it runs + right shape + finite; (b) the carried memory is actually READ (perturbing the
+    injected context memory changes the prediction); (c) the carrying rollout differs from the
+    recompute path (generate_cached plain=True), i.e. carrying is actually active."""
+    torch.manual_seed(0)
+    cfg = _tiny_cfg(use_full_state_memory=True)         # n_memory=4
+    model = DynamicsModel(cfg).eval()
+    B, P, n_gen = 2, 4, 6
+    ctx = torch.randn(B, P, cfg.n_latents, cfg.bottleneck_dim)
+    act = torch.randint(0, cfg.n_actions, (B, P + n_gen))
+    out = model.generate(ctx, n_gen, K=4, action_idx=act)
+    assert out.shape == (B, n_gen, cfg.n_latents, cfg.bottleneck_dim), out.shape
+    assert torch.isfinite(out).all()
+
+    # (b) the carried context memory is READ: perturbing it changes the new-frame prediction.
+    E = cfg.embedding_dim
+    window = ctx
+    act_w = model.action_features(act[:, :P + 1])
+    mem = model._written_memory(ctx, model.action_features(act[:, :P]))
+    torch.manual_seed(7); a = model._denoise_next(window, 4, act_w, context_mem=mem)
+    torch.manual_seed(7); b = model._denoise_next(window, 4, act_w, context_mem=mem + 5.0)
+    assert not torch.allclose(a, b, atol=1e-5), "carried memory is ignored by the rollout"
+
+    # (c) carrying != recompute (generate_cached plain re-inits memory every step).
+    torch.manual_seed(3); carried = model.generate(ctx, n_gen, K=4, action_idx=act)
+    torch.manual_seed(3); recomputed = model.generate_cached(ctx, n_gen, K=4, action_idx=act, plain=True)
+    assert not torch.allclose(carried, recomputed, atol=1e-5), \
+        "carrying memory produced the same rollout as recomputing it -> carry not active"
+
+
 if __name__ == "__main__":
     fns = [v for n, v in sorted(globals().items()) if n.startswith("test_")]
     for fn in fns:

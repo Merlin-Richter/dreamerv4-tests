@@ -1,107 +1,70 @@
-# FF9 — the full idea (memory tokens for world-model memory)
+# FF9 — memory tokens for world-model memory
 
-> Concise standalone description of FF9 and the rollout-training extension. Companion to the registry
-> in `IDEAS.md` ("three operations"); this is the canonical short statement of the method.
+> Canonical short statement of FF9 + the op-3 rollout-training extension. Updated 2026-06-25 with
+> what the EXP-029..033 campaign established (key correction: the inference did NOT carry memory).
 
-## What FF9 is (the corrected understanding)
-The dynamics transformer carries, per frame, a set of **memory tokens** (a distinct token type, M=4),
-alongside the frame's latent/register/shortcut tokens. Because temporal attention is position-wise,
-each memory slot is its own causal channel through time: frame *t*'s memory tokens can attend to the
-memory tokens of frames *t−1, t−2, …* in the window. The memory tokens are an **activation** (a final-
-layer hidden state fed into the next frame), not a denoising variable — they have no ground-truth label.
+## What FF9 is
+The dynamics transformer carries, per frame, a set of **memory tokens** (a distinct token type, M=4–16)
+alongside the latent/register/shortcut tokens. They are an **activation** (final-layer hidden state), not
+a denoising variable — no ground-truth label.
 
-**Inference is the ordinary autoregressive rollout** (`generate_cached`, plain): each step produces new
-memory tokens and carries the previous frames' memory tokens in the sliding window via temporal
-attention — exactly like the frame latents. (NOT the frozen-snapshot `generate_full_state_memory`; that
-special case writes one snapshot and never updates it — it has no dead-reckoning and is wrong as the
-default FF9 inference.)
+**Architecture wiring (from code):** spatial blocks do full unmasked attention within a frame
+(`[action|latents|registers|memory|shortcut]`) → memory↔latents mix **within a frame**. Temporal blocks
+(every 4th) attend **position-wise per slot, causally** → each memory slot is its own causal channel
+through time and does NOT see other-time latents directly. So latents and memory mix only within a frame;
+the temporal layers carry each channel forward.
 
-## The training, today (the "sufficiency" loss, `_ff9_loss`)
-For each frame *t*, a real memory token (written from the prefix window in the main pass) is injected at
-frame *t*; the path frames are set to **τ=0 (pure noise → no latent carries the scene)**; the model must
-reconstruct the next 1..j frames from **memory alone**, under the realized actions. This **forces the
-memory tokens to contain the full hidden state** (on- and off-screen) — operations **(1) write memory←
-latents** and **(2) read memory→latents**. EXP-028 confirms it works: FF9 tracks position + colour well
-past the no-memory window, decaying to chance by ~k≈28.
+## The training today (`_ff9_loss`, "sufficiency")
+For each frame *t*: a real memory token (written from the main windowed pass) is injected at *t*, the path
+latents are set to **τ=0 (pure noise)**, and the model must reconstruct the next 1..j frames from **memory
+alone** under the realized actions. Forces ops **(1) write memory←latents** and **(2) read memory→latents**.
+The FF9-no-rollout model (this loss only) is the best memory model we have.
 
-## What is missing — operation (3): write memory ← memory
+## ⚠️ CORRECTION (2026-06-25): the inference does NOT carry memory
+The earlier claim here — "inference is the ordinary rollout where memory tokens are carried in the window
+via temporal attention" — is **FALSE**, verified from the code. `generate` / `generate_cached(plain=True)`
+pass **`memory_in=None` on every forward**, so the memory tokens are **re-initialised from the learned
+parameter each step and never threaded**; the written memory activation is discarded. The cache is rebuilt
+per frame (no cross-frame persistence). **The only thing carried across frames is the latent sequence in
+the sliding window.** So under the inference used so far, the FF9 memory tokens are within-window scratch,
+not a carried state — the "memory beyond the window" premise was never actually exercised.
+- *Hypothesis (unverified):* FF9 beats vanilla past the window because the **generated occluded latents
+  themselves encode the dead-reckoned position** (an open-loop latent relay), and the memory tokens
+  improve the latent the model writes. Decay (to ~chance by k≈28) is open-loop compounding, not a window
+  cliff. Needs a probe (linear-probe generated occluded latents for position; ablate memory at inference).
+
+## op-3 (write memory ← memory) and the rollout-training extension
 The sufficiency loss never puts **real, previously-written memory tokens in the context** and asks the
-model to **read them and write the next memory token**. So **memory→memory propagation across context
-windows is untrained** — the model relies on a relay it was never given gradient for. This is exactly
-why recall decays with horizon (V-T014: a carry trained only within-window / without through-time
-gradient does not extrapolate; only BPTT-through-the-carry does).
+model to read them and write the next — so **memory→memory propagation is untrained** (op-3). The
+rollout-training extension trains it: roll real memory hops, carry the written memory forward, keep the
+autograd graph k hops (TBPTT-k); per-step hide the latents (memory-only) vs near-clean (re-anchor).
 
-## The extension — rollout training (this proposal)
-Add a second training mode, **~25% of steps** (75% stays the current sufficiency loss), that does real
-rollouts so genuine relayed memory tokens are present in context to learn to write the next ones from:
-- **Random sliding-context window length** per step, sampled from {2, 4, 8, …, 2^i, …, N}. Shorter
-  windows hit the memory→memory transition sooner (the informative latent has already evicted), giving
-  more memory-relay gradient per unit compute.
-- **Losses unchanged in kind:** flow-matching on latents + the k-step memory sufficiency loss under
-  random actions — but now evaluated on a window filled with REAL relayed memory tokens.
-- **KV caching + gradient caching is mandatory** for this to be affordable: cache the context K/V across
-  rollout steps (as inference already does, with eviction), and **retain the autograd graph for the
-  memory-token K/V** so the loss flows back through the chain of memory writes (truncated BPTT through
-  the memory channel). Detach the committed frame-latent K/V (held near-clean at `context_signal`);
-  keep grad only on the memory tokens.
+### Result (EXP-030/031/033) — NEGATIVE as implemented
+Built + independently verified correct, then trained (M4 h24; M4 h44 deep; M16). **Under the correct
+normal windowed inference it REGRESSES** — FF9-no-rollout stays best; rollout-trained models are worse,
+near the vanilla floor past k12; wider memory (M16) does not rescue it. The overnight "win" was an
+**artifact of a W=2 noise-source inference I built that crippled the baseline** (now deleted).
+- **Root cause:** train/inference mismatch. The rollout loss threads a written memory activation forward
+  (`mem_carry = mem_out`), but the inference **never consumes a carried memory activation** — so the
+  trained behaviour has no inference counterpart. It also trained an isolated 2-frame, memory-only,
+  noise-source regime far off the real windowed distribution.
+- **Lesson:** the idea is only testable if **inference actually carries the memory token forward AND
+  training matches that inference.** Same mechanism at train and test. (This is the current work item.)
 
-Net effect: the memory tokens are trained not just to *contain* the state but to *preserve and re-write*
-it across many hops — the relay FF9 currently fakes at inference becomes a trained operation.
+## Design knobs (Merlin, 2026-06-24) — for the matched redesign
+- Warmup the rollout fraction 0→~50% by wall-clock (contain, then propagate).
+- Hide latents per-loss-step, all-or-nothing (whole context hidden or visible); memory-only steps give
+  the carry gradient, visible steps re-anchor so a wrong guess can't compound forever.
+- Teacher-force GT context latents (near-clean) so the only rolled-out recurrent element is the memory.
+- Newest-frame flow loss only (matches inference); sufficiency loss stays multi-frame.
+- TBPTT depth k is the key knob (V-T014: tbptt-1 insufficient, deeper needed); measure, don't hard-code.
+- Don't over-punish butterfly effects (matters only in stochastic envs; GridWorld is deterministic).
 
-## Architecture fact (how memory and latents wire — from the code, dynamics_model.py)
-The stack alternates two block types. **Spatial blocks** (within a frame) do full, *unmasked* self-
-attention over `[action | latents | registers | memory | shortcut]` → **memory ↔ latents is bidirectional,
-same layer**. **Temporal blocks** (every 4th) attend **position-wise per token slot, causally** → each
-memory slot is its own causal channel through time and does NOT see latents at other times directly.
-So latents and memory mix only *within a frame*; the temporal layers carry each channel forward. This is
-why **hiding the latents is clean**: within-frame the latent tokens carry no info (forcing memory to be
-self-sufficient), while the temporal memory channel relays it forward untouched.
-
-## Decided knobs (Merlin, 2026-06-24)
-- **Warmup the rollout mode 0% → ~50%, by WALL-CLOCK time** (not step count). Memory tokens first learn
-  to *contain* state, then to *propagate* it.
-- **Hide latents PER-LOSS-STEP, all-or-nothing** (Merlin, 2026-06-24, clarified). The masking unit is
-  the WHOLE context's latents for one loss computation: at each step, with some probability, hide ALL
-  latents (memory-only for that loss) — otherwise ALL visible. So across the rollout some steps are
-  memory-only and some are fully visible (NOT a per-token / per-frame independent mask). The memory-only
-  steps give the memory-carry gradient; the visible steps re-anchor to ground truth so a wrong guess
-  can't compound forever. (Also the incremental probe for the **memory-only imagination** north star.)
-- **Use GROUND-TRUTH samples (teacher-force context latents)** — feed real latents, held near-clean, so
-  the only rolled-out recurrent element is the memory tokens (isolate the memory relay from open-loop
-  latent drift), and so the loss compares against the true trajectory.
-- **Don't over-punish butterfly effects** (Merlin, 2026-06-24). In a stochastic env the model can make a
-  VALID but wrong guess at a genuinely random branch; penalising the whole downstream rollout for that
-  is wrong signal. Teacher-forcing GT + per-step re-anchoring keeps the rollout on the true trajectory
-  so the loss measures memory preservation, not unrecoverable divergence from one random branch. (Design
-  question for method-architect: the right way to credit/curve this — e.g. loss only where the context
-  determines the answer; re-anchor cadence.)
-- **Stability guardrails** (norm / small projection on the relayed memory activation; detach-on-overflow;
-  gate on a deep-hop metric, not within-window loss) — it relays a final-layer activation into layer-0
-  input over many hops (drift risk, V-T014 / op-3 note).
-
-## Future direction — memory-only imagination (Merlin, 2026-06-24)
-North star: make the memory tokens the **recurrent world-state** (DreamerV4 h-state analogue) and run
-imagination + policy training purely in memory space, decoding latents only when pixels are needed. The
-hide-latents fraction above is the incremental test of whether memory is a *sufficient* state. Caveat:
-M=4 memory tokens is a small state (spatial detail currently lives in the latents), so full-scene
-memory-only imagination may need more memory capacity — an empirical knob, not a blocker.
-
-## Open questions (to settle before / during the build)
-1. **Flow loss on the newest frame only?** Taking the latent flow loss on all frames in every window
-   re-trains each frame ~(window-size) times — likely a harmful repeated/over-weighted signal, and the
-   older in-window frames are the easy ones. Lean: flow-match the **newest** frame only (also matches
-   inference, which only ever commits the newest frame). The memory sufficiency loss stays multi-frame.
-2. **Hide all frame latents during the rollout flow loss?** Setting context latents to τ=0 so memory is
-   the ONLY carrier maximises memory-specific gradient — but it diverges from inference (where latents
-   ARE present near-clean), risking a train/test mismatch / mis-calibrated latent+memory combination.
-   Lean: a **mixture** (some steps memory-only, some realistic), not memory-only as the sole mode.
-3. **How far back should gradients flow?** Ideally the loss at *t* that reads a memory token written at
-   *t−3* should reward that token's *construction*, i.e. BPTT through the memory chain — deeper than the
-   attention window. Cannot be infinite (memory); keep the memory-token graph alive for **~4·N** steps
-   and detach beyond. This truncation depth is the single most important knob (it is the ESC-014 "min
-   BPTT depth that extrapolates" question; V-T014 showed tbptt-1 insufficient, full BPTT works).
+## North star
+Make the memory tokens the **recurrent world-state** (DreamerV4 h-state) and run imagination/policy purely
+in memory space, decoding latents only when pixels are needed. M=4 may be too small for full-scene
+memory-only imagination — capacity is an empirical knob.
 
 ## Provenance
-Corrected FF9 understanding + this rollout-training extension: Merlin, 2026-06-24 (EXP-028 turn).
-Realizes operation (3) from `IDEAS.md` "three operations" (2026-06-14). Relates to ESC-014 / V-T014
-(relay gradient design) and the `stream_rollout_init/step` eviction-cache infra (T-012).
+FF9 + op-3 idea: Merlin 2026-06-24. Rollout-training built/tested + the inference correction:
+EXP-029..033 campaign (D-048), 2026-06-25. Relates to IDEAS.md "three operations", ESC-014/V-T014.

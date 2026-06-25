@@ -772,14 +772,29 @@ class DynamicsModel(nn.Module):
 
     # ------------------------------------------------------------------ rollout
     @torch.no_grad()
-    def _denoise_next(self, context: torch.Tensor, K: int,
-                      actions: torch.Tensor = None) -> torch.Tensor:
-        """Generate one clean frame conditioned on ``context`` (clean latents), using K
-        shortcut steps. ``context`` is held at signal level tau_ctx (=context_signal,
-        near 1.0 = near-clean) so the model can read it; see D-010 / EXP-008.
+    def _written_memory(self, latents: torch.Tensor, actions: torch.Tensor = None) -> torch.Tensor:
+        """The memory tokens the model WRITES for a window of (near-clean) latents: one forward with
+        memory_in=None (learned-init) + return_memory. (B, T, M, E). Used to seed the carried memory
+        from the observed prefix."""
+        B, T = latents.shape[:2]
+        device = latents.device
+        tau_ctx_idx = min(round(self.config.context_signal * self.K_max), self.K_max - 1)
+        tau = torch.full((B, T), tau_ctx_idx, device=device, dtype=torch.long)
+        d = torch.full((B, T), self.n_d - 1, device=device, dtype=torch.long)
+        _, mem = self(self._noise_to_ctx(latents), tau, d, actions, return_memory=True)
+        return mem
 
-        actions: optional (B, T_ctx + 1, n_action_tokens, E) action features covering the
-                 context frames and the new frame being generated.
+    @torch.no_grad()
+    def _denoise_next(self, context: torch.Tensor, K: int, actions: torch.Tensor = None,
+                      context_mem: torch.Tensor = None, return_mem: bool = False):
+        """Generate one clean frame conditioned on ``context`` (clean latents), using K shortcut steps.
+        ``context`` is held at signal level tau_ctx (near-clean) so the model can read it (D-010/EXP-008).
+
+        actions: (B, T_ctx + 1, n_action_tokens, E) action features for [context..., new frame].
+        context_mem: (B, T_ctx, M, E) the CARRIED written memory tokens for the context frames — injected
+                 unchanged (NOT recomputed); learned-init memory at the new frame. None => no memory
+                 carry (memory_in=None, learned-init everywhere; the old behaviour).
+        return_mem: also return the NEW frame's written memory (B, 1, M, E) so the caller can carry it.
         """
         B, T_ctx, L, _ = context.shape
         device = context.device
@@ -788,21 +803,30 @@ class DynamicsModel(nn.Module):
 
         tau_ctx = self.config.context_signal
         tau_ctx_idx = round(tau_ctx * self.K_max)
-        # Hold the (clean) context at signal level tau_ctx for this frame's sampling:
-        # ctx = tau_ctx * context + (1 - tau_ctx) * noise. High tau_ctx => near-clean.
         ctx_noised = (1 - tau_ctx) * torch.randn_like(context) + tau_ctx * context
 
         d_col = torch.full((B, T_ctx + 1), d_idx_val, device=device, dtype=torch.long)
         tau_col = torch.full((B, T_ctx + 1), tau_ctx_idx, device=device, dtype=torch.long)
+        mem_in = None
+        if context_mem is not None:
+            learned = self.memory_tokens.expand(B, 1, -1, -1)         # learned-init for the new frame
+            mem_in = torch.cat((context_mem, learned), dim=1)         # carried ctx memory + new init
 
         z = torch.randn((B, 1, L, self.bottleneck_dim), device=device)  # pure noise, tau = 0
         for k in range(K):
             tau = k / K
             tau_col[:, -1] = round(tau * self.K_max)
             inp = torch.concat((ctx_noised, z), dim=1)
-            z_hat1 = self(inp, tau_col, d_col, actions)[:, -1:]  # x-prediction for the new frame
+            z_hat1 = self(inp, tau_col, d_col, actions, memory_in=mem_in)[:, -1:]  # x-pred new frame
             v = (z_hat1 - z) / (1 - tau)
             z = z + v * d_val
+        if return_mem:
+            # the NEW frame's written memory: one forward with the committed latent held near-clean.
+            tau_col[:, -1] = tau_ctx_idx
+            z_clean = (1 - tau_ctx) * torch.randn_like(z) + tau_ctx * z
+            _, mem = self(torch.concat((ctx_noised, z_clean), dim=1), tau_col, d_col, actions,
+                          memory_in=mem_in, return_memory=True)
+            return z, mem[:, -1:]
         return z  # (B, 1, L, bottleneck_dim)
 
     @torch.no_grad()
@@ -817,24 +841,32 @@ class DynamicsModel(nn.Module):
         returns:    (B, n_generate, n_latents, bottleneck_dim) generated clean latents.
         """
         if getattr(self.config, "use_register_memory", False):
-            return self.generate_memory(context, n_generate, K, action_idx)
-        if getattr(self.config, "use_full_state_memory", False):
-            return self.generate_full_state_memory(context, n_generate, K, action_idx)
+            return self.generate_memory(context, n_generate, K, action_idx)  # FF7 registers (unchanged)
         K = K or self.config.inference_steps
         max_ctx = self.config.max_temporal_length - 1
         T_ctx = context.shape[1]
         act_feat = self.action_features(action_idx)  # (B, T_total, n_act, E) or None
+        # Memory models (n_memory>0) CARRY the memory token: each frame's written memory is computed ONCE
+        # (when the frame is generated) and then injected unchanged whenever it rides in the window — it is
+        # NOT recomputed from the learned-init each step. The memory thus persists as a real per-frame
+        # state, threaded forward alongside the latents (and evicting with the window). n_memory==0
+        # (vanilla) is the plain rollout, unchanged.
+        carry = self.n_memory > 0
         seq = context
+        mem_seq = (self._written_memory(context, act_feat[:, :T_ctx] if act_feat is not None else None)
+                   if carry else None)                                   # (B, T_ctx, M, E) seed memory
         generated = []
         for i in range(n_generate):
             window = seq[:, -max_ctx:]
             w = window.shape[1]
             new_idx = T_ctx + i               # absolute index of the frame being generated
-            act_window = None
-            if act_feat is not None:
-                # action features for [window frames ... new frame], matching _denoise_next input
-                act_window = act_feat[:, new_idx - w : new_idx + 1]
-            nxt = self._denoise_next(window, K, act_window)
+            act_window = act_feat[:, new_idx - w : new_idx + 1] if act_feat is not None else None
+            if carry:
+                nxt, new_mem = self._denoise_next(window, K, act_window,
+                                                  context_mem=mem_seq[:, -max_ctx:], return_mem=True)
+                mem_seq = torch.concat((mem_seq, new_mem), dim=1)        # carry the written memory forward
+            else:
+                nxt = self._denoise_next(window, K, act_window)
             generated.append(nxt)
             seq = torch.concat((seq, nxt), dim=1)
         return torch.concat(generated, dim=1)
