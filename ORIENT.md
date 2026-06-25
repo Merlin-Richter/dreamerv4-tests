@@ -28,15 +28,13 @@ the latent-window inference has decayed to chance. Depth is a real lever. BUT dy
 modest + saturates short of the training depth (continuous-memory cap), and the relay TRADES OFF
 near-window windowed dead-reckoning. -> recommend DISCRETE/VQ memory next (needs Merlin sign-off).
 
-## BLOCKED — AUTH_DEAD (09:43): ferranti SSH ControlMaster socket expired overnight
-Merlin must re-run `scripts/open_master.sh --cluster ferranti` (interactive 2FA) before ANY cluster
-verb works. Do NOT retry the socket in a loop (§6). EXP-033 (M=16, job 409760) status UNKNOWN — it was
-training (~ep4 @07:50); its checkpoint will be safe on /weka. Once re-auth'd: job_status 409760, then
-pull gridworld-ff9roll-m24-M16-s0 + eval via EVAL_RUNBOOK + append the M=16 capacity result to ESC-022.
+## AUTH_DEAD RESOLVED (Merlin re-auth'd ~12:18). EXP-033 (M=16) COMPLETED rc=0 (val 0.081 == M=4).
+M=16 relay eval RUNNING locally (capacity-vs-stability: does wider memory lift dynamic precision?).
+Append its curve to ESC-022 + NOTES when done, then truly idle on Merlin's ESC-022 verdict.
 
-## NEXT (after Merlin's ESC-022 verdict + re-auth)
-1. Re-auth -> pull/eval EXP-033 (M=16) -> does more continuous capacity lift dynamic precision
-   (capacity) or not (-> representation/discrete is the lever)?
+## NEXT (awaiting Merlin's ESC-022 verdict)
+1. [in progress] EXP-033 (M=16) relay eval -> capacity vs representation. If M=16 doesn't lift dynamic
+   precision over M=4 -> the cap is REPRESENTATION (continuous drift) -> firms discrete/VQ.
 2. On his call: build DISCRETE/VQ memory (my lean; architecture change) OR consolidate the static-memory
    relay win + the honest dynamic result. Do NOT build VQ without sign-off.
 
