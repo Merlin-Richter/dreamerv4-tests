@@ -63,6 +63,14 @@ Cross-inference context (NOT a fair same-inference A/B; different carriers):
 - FF9-norollout WINDOWED holds position BEST to ~k16 (k12 0.81, k16 0.44, chance ~k28) because the
   16-frame LATENT sequence carries it (open-loop), not a bounded memory. The relay (2-frame, pure
   memory) is inherently weaker on position. Neither solves beyond-window (k>16) DYNAMIC position.
+- **TRADE-OFF (D-048 tripwire, partial): rollout-training HURT the windowed path.** FF9+rollout under
+  WINDOWED: k8 0.88, k12 0.33, k16 0.05 — vs FF9-norollout windowed k8 1.00, k12 0.81, k16 0.44. So
+  the rollout objective shifted capacity toward the persistent relay at the COST of the windowed
+  latent dead-reckoning (the best dynamic-position path). The in-window k<=8 hit is mild (1.00->0.88);
+  the real regression is k12-16. => rollout-training does NOT advance BEST-achievable dynamic position
+  (the no-rollout windowed model is still best); it improves the RELAY path (and static color) while
+  degrading the windowed path. The two carriers compete for capacity. Warmup 20ep / M=4 may be too
+  tight (EXP-033 M=16 tests capacity).
 - vanilla w32 (windowed): peaks ~0.58, decays to chance by ~k16 -> growing the window to 32 did NOT
   beat blind dead-reckoning (the limit is dead-reckoning ~14-16 steps, not window size). The memory
   method does not need to beat brute-force context here because brute-force context also fails.

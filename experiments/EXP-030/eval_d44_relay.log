@@ -1,0 +1,6 @@
+[ff9roll_d44_relay] env-direct recall: n_ctx=8 N/k=64 inference=relay n_memory=4 ks=[1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44]
+  k=1 done
+  k=2 done
+  k=3 done
+  k=4 done
+  k=5 done
