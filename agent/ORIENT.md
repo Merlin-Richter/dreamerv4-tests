@@ -3,16 +3,20 @@
 Rewritten: 2026-06-26.
 
 ## What we're doing right now and why
-Rebuild merged + spec→code sync done. Two things in flight:
-1. **Retrain r2 (IN PROGRESS, jobs 410374/410375 on ferranti):** dynamics with 5× data (5000 eps) +
-   fixed LR schedule (per-step warmup→flat→cosine 80-100%, was cosine-from-step-0) — r1 models were
-   "not good enough". Reuses the frozen tokenizer. Overwrites checkpoints/gridworld/dynamics_{vanilla,ff9}.pt.
-   When done: re-run recall A/B. (NB: a PEP-604 `str|None` in the new --model-module seam crashed on the
-   cluster's py<3.10; fixed with `from __future__ import annotations`, commit 73b1c65.)
-2. **mem→mem training (implemented + VERIFIED, `experiments/mem2mem/`):** new training signal teaching
-   memory tokens to be constructed from prior memory tokens (the missing mem→mem signal). Autograd
-   correctness check passes (relay grad 3.25e-3, 0.0 when detached). Experiment run pending the r2
-   baselines + Merlin's go. Task: `tasks/in-progress/test-new-memory-training.md`.
+Rebuild merged + spec→code sync done. Two campaigns just completed — both WINS:
+1. **Retrain r2 (DONE):** dynamics with 5× data (5000 eps) + fixed LR schedule (warmup→flat→cosine
+   80-100%). Fixed the r1 "position null" — FF9 position recall went from chance to near-perfect to
+   k≈12 (then decays). val/loss 0.0058→0.0016. (NB: a PEP-604 `str|None` in the --model-module seam
+   crashed on cluster py<3.10; fixed with `from __future__ import annotations`, 73b1c65.)
+2. **mem→mem training (DONE, `experiments/mem2mem/`, `tasks/done/test-new-memory-training.md`):** new
+   training signal teaching memory tokens to be built from prior memory tokens. Autograd check passes
+   (relay grad 3.25e-3, 0.0 when detached). **Result: mem→mem holds position recall ~0.96 FLAT to k=20**
+   where FF9 decays to 0.14 — long-horizon tail (k≥14) pos_acc vanilla 0.03 / FF9 0.20 / mem→mem 0.96.
+   It carries hidden state indefinitely past the window — the core project goal demonstrated on GridWorld.
+
+## Checkpoints (in `checkpoints/gridworld/`, all SHA-1688818-era, frozen tokenizer)
+`tokenizer.pt`, `dynamics_vanilla.pt` (chance recall, no memory), `dynamics_ff9.pt` (recall to k≈12),
+`dynamics_mem2mem.pt` (recall flat to k=20). Recall driver: `experiments/recall-ab/run.py` (3-way).
 
 ## Background: the spec→code sync (`f91e2a0`)
 temporal cadence every-4th→every-3rd (`3×[spatial,temporal,spatial]`, depth 8→9), dynamics attention
@@ -41,23 +45,19 @@ Trained on ferranti @ SHA `0a0e070`, pulled to `checkpoints/gridworld/`: `tokeni
 val fg_mse 1.7e-5, no collapse), `dynamics_vanilla.pt` (n_memory=0), `dynamics_ff9.pt` (n_memory=4,
 ff9_k=3). Both dynamics action-conditioned (n_actions=2). EXPERIMENTS: `R-gridworld-retrain`.
 
-## Recall A/B — first read DONE (provisional), `experiments/recall-ab/`, EXPERIMENTS `recall-AB`
-- **STATIC attribute = memory WIN:** FF9 `color_acc` 1.000 at every k incl. k=20 (past the 16-window);
-  vanilla decays 0.56→0.22. The memory token carries the static color past the window; vanilla forgets.
-- **DYNAMIC = null:** `position_acc` near chance for both (FF9 0.03–0.09, vanilla 0.0–0.17), below
-  copy_last, FF9 **not** > vanilla. Moving-square position is not retained.
-- Caveats: env bounce period ~10 spikes copy_last to 1.0 at k=10/20 (confound); 50ep/7.75M/1000ep may
-  under-train position; provisional on k-alignment. oracle self-test 1.0.
+## Recall A/B history (`experiments/recall-ab/`)
+r1 (under-trained): position null. r2 (5× data + LR fix): FF9 position recall near-perfect to k≈12 then
+decays. 3-way (+mem→mem): mem→mem flat ~0.96 to k=20. See `NOTES.md` + `results_*.json`. EXPERIMENTS:
+`recall-AB`, `R-gridworld-retrain2`, `mem2mem-train`.
 
 ## NEXT (for Merlin to steer)
-1. Sign off / adjust the recall **k↔tick alignment** (decision #2) so the absolute k-axis is trusted.
-2. Decide whether to chase the **position null** (more train time / bigger model / longer schedule) or
-   bank the color win for now. Consider the env-periodicity confound before over-reading position.
-3. Cluster: ferranti up, idle (all retrain jobs COMPLETED). galvani socket down.
-
-## Cluster / env
-ferranti master socket UP, no jobs running. **galvani socket DOWN** (needs `open_master.sh --cluster
-galvani` from Merlin if we want it). Local dev = Windows/Git-Bash; cluster orchestration = WSL wrappers.
+1. **Recall `k`↔tick alignment** sign-off (decision #2) — still needed before *absolute* k numbers are
+   trusted (the model-vs-baseline *comparisons* above are convention-robust).
+2. **Graduate mem→mem?** It's the campaign's headline win. If keeping, fold it into `src/`+spec (it lives
+   in `experiments/mem2mem/` now). Possible ablations: mem2mem-only vs 50/50; n_ctx schedule; longer
+   max_k to find where it breaks; segmented-backward TBPTT (footprint); a harder env than GridWorld.
+3. Cluster: ferranti UP, idle (all jobs COMPLETED). **galvani socket DOWN** (needs `open_master.sh
+   --cluster galvani` from Merlin).
 
 ## Background — the memory research
 Frontier question: do per-timestep **memory tokens** let a Dreamer-4 world model retain hidden/off-screen
