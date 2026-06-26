@@ -1,5 +1,26 @@
 # Recall A/B — FF9 memory vs vanilla
 
+## 3-way (2026-06-26) — mem→mem training ELIMINATES the long-horizon decay
+Models: vanilla / FF9 / mem2mem, all SHA-1688818-era, frozen tokenizer. `results_mem2mem_3way.json`.
+n_ctx=4, max_k=20, n_rollouts=64, K=4. (Provisional on k-alignment; comparison convention-robust.)
+
+| pos_acc k          | 2 | 4 | 6 | 8 | 10 | 12 | 14 | 16 | 20 |
+|--------------------|----|----|----|----|----|----|----|----|----|
+| oracle             |1.00|1.00|1.00|1.00|1.00|1.00|1.00|1.00|1.00|
+| vanilla            |0.14|0.05|0.09|0.16|0.05|0.03|0.05|0.03|0.02|
+| FF9                |1.00|1.00|0.95|1.00|0.97|0.70|0.28|0.19|0.14|
+| **mem2mem**        |1.00|1.00|0.95|0.98|0.98|0.97|0.97|0.95|0.97|
+
+- **FF9 decays past k≈12 (0.70→0.14); mem2mem stays ~0.96 flat through k=20** — no decay past the
+  16-frame window. The memory→memory training signal carries hidden position state indefinitely.
+- Long-horizon tail (k≥14) pos_acc: **vanilla 0.03 → FF9 0.20 → mem2mem 0.96** (4.7× over FF9).
+  Mean pos_score edge over copy_last: vanilla −0.22, FF9 +0.35, **mem2mem +0.62**.
+- Genuinely tracking, not gaming the env's ~period-10 bounce: mem2mem is uniformly high across ALL k,
+  not just the k=10/20 spikes that inflate copy_last. oracle self-test 1.0; vanilla at chance (no leak).
+- Color: all memory models ≈1.0 at every k; vanilla decays to chance by k=20.
+
+Caveats: provisional on k-alignment sign-off; single 64-rollout seed set; one env (GridWorld 6×6).
+
 ## r2 (2026-06-26) — RETRAIN WORKS: position recall goes from null to near-perfect to k~12
 Models: `R-gridworld-retrain2` (5x data + fixed LR schedule, SHA 1688818). `results_r2.json`.
 n_ctx=4, max_k=20, n_rollouts=64, K=4. Same eval as r1 (still provisional on k-alignment;

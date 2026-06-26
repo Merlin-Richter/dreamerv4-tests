@@ -43,42 +43,50 @@ def main():
     print(f"device={device}  n_ctx={N_CTX} max_k={MAX_K} n_rollouts={N_ROLLOUTS} K={K}")
     tok = _load(CKPT / "tokenizer.pt", AutoEncoder, AutoEncoderConfig, device)
 
+    specs = [("vanilla", "dynamics_vanilla.pt"), ("ff9", "dynamics_ff9.pt")]
+    if (CKPT / "dynamics_mem2mem.pt").is_file():
+        specs.append(("mem2mem", "dynamics_mem2mem.pt"))
     results = {}
-    for tag, fname in [("vanilla", "dynamics_vanilla.pt"), ("ff9", "dynamics_ff9.pt")]:
+    for tag, fname in specs:
         torch.manual_seed(0)
         dyn = _load(CKPT / fname, DynamicsModel, DynamicsModelConfig, device)
         results[tag] = recall(dyn, tok, n_ctx=N_CTX, max_k=MAX_K, n_rollouts=N_ROLLOUTS, K=K,
                               device=device)
         print(f"[done] recall for {tag}")
 
-    van, ff9 = results["vanilla"], results["ff9"]
+    van = results["vanilla"]
     ks = sorted(int(k) for k in van["model"]["position_acc"])
 
     def row(label, vals):
         return label.ljust(22) + " ".join(f"{vals.get(k, float('nan')):.3f}" for k in ks)
 
-    print("\n=== position_acc (exact 6x6 cell; chance 1/36=0.028) — occlusion length k ===")
-    print("k".ljust(22) + " ".join(f"{k:5d}" for k in ks))
-    print(row("oracle (ceiling)", van["oracle"]["position_acc"]))
-    print(row("FF9 memory", ff9["model"]["position_acc"]))
-    print(row("vanilla", van["model"]["position_acc"]))
-    print(row("copy_last (no-mem)", van["copy_last"]["position_acc"]))
+    model_tags = [t for t, _ in specs]
 
-    print("\n=== position_score (graded distance credit) ===")
-    print(row("FF9 memory", ff9["model"]["position_score"]))
-    print(row("vanilla", van["model"]["position_score"]))
-    print(row("copy_last (no-mem)", van["copy_last"]["position_score"]))
+    def section(metric, title):
+        print(f"\n=== {title} ===")
+        print("k".ljust(22) + " ".join(f"{k:5d}" for k in ks))
+        print(row("oracle (ceiling)", van["oracle"][metric]))
+        for t in model_tags:
+            print(row(t, results[t]["model"][metric]))
+        print(row("copy_last (no-mem)", van["copy_last"][metric]))
 
-    print("\n=== color_acc (4-way; chance 0.25) ===")
-    print(row("FF9 memory", ff9["model"]["color_acc"]))
-    print(row("vanilla", van["model"]["color_acc"]))
-    print(row("copy_last (no-mem)", van["copy_last"]["color_acc"]))
+    section("position_acc", "position_acc (exact 6x6 cell; chance 1/36=0.028) — occlusion length k")
+    section("position_score", "position_score (graded distance credit)")
+    section("color_acc", "color_acc (4-way; chance 0.25)")
 
     # Headline: mean over k of (model - copy_last) position_score — convention-robust signal of "memory".
     def edge(m):
         return float(np.mean([m["model"]["position_score"][k] - m["copy_last"]["position_score"][k]
                               for k in ks]))
-    print(f"\nmean position_score edge over copy_last:  FF9={edge(ff9):+.3f}  vanilla={edge(van):+.3f}")
+    # Tail (long-horizon) position_acc mean for k>=14 — where only the memory relay carries state.
+    tail_ks = [k for k in ks if k >= 14]
+
+    def tail(m):
+        return float(np.mean([m["model"]["position_acc"][k] for k in tail_ks]))
+    print("\nmean position_score edge over copy_last:  "
+          + "  ".join(f"{t}={edge(results[t]):+.3f}" for t in model_tags))
+    print(f"long-horizon tail position_acc (k>={tail_ks[0]}):  "
+          + "  ".join(f"{t}={tail(results[t]):.3f}" for t in model_tags))
     print(f"oracle position_acc mean = {np.mean(list(van['oracle']['position_acc'].values())):.3f} "
           f"(instrument self-test; should be ~1.0)")
     print(f"chance: {van['chance']}")

@@ -45,7 +45,7 @@ Try to keep src/ untouched when running experiments.
 
 ---
 
-## STATUS (2026-06-26) — IMPLEMENTATION COMPLETE + VERIFIED; experiment run pending
+## STATUS (2026-06-26) — DONE (implemented, verified, run; clear positive result — see RESULT below)
 
 Implemented in `experiments/mem2mem/` (src/ untouched; imports the unmodified DynamicsModel +
 train_dynamics helpers). See `experiments/mem2mem/NOTES.md`.
@@ -59,7 +59,18 @@ train_dynamics helpers). See `experiments/mem2mem/NOTES.md`.
   relay and **exactly 0.0** when the relay is detached → the construction pass genuinely backprops.
   (Caught one real bug en route.) End-to-end GPU smoke passes (losses decrease).
 
-NOT yet done (the experiment itself): a full cluster run + recall A/B vs the FF9/vanilla baselines to
-see if mem→mem lifts the **position** recall null. Pending the r2 retrained baselines + Merlin's go.
 Open caveats in NOTES.md: TBPTT is relay-depth-bounded but not yet footprint-bounded (segmented backward
 is the fix if it OOMs at scale); teacher-forcing residual noted.
+
+## RESULT (2026-06-26) — DONE, the experiment WORKS.
+Cluster run (job 410376, bs64 clip64 50ep, val 0.0027) -> `checkpoints/gridworld/dynamics_mem2mem.pt`.
+3-way recall A/B (EXPERIMENTS `mem2mem-train`, `experiments/recall-ab/results_mem2mem_3way.json`):
+- **mem2mem holds position recall ~0.96 FLAT through k=20**, where FF9 decays past k≈12
+  (0.70@k12 → 0.14@k20). Long-horizon tail (k≥14) pos_acc: vanilla 0.03 / FF9 0.20 / **mem2mem 0.96**.
+- The memory→memory training signal carries hidden position state **indefinitely past the window** —
+  exactly the limitation the whole project targets. Not an env-periodicity artifact (uniformly high
+  across all k). This is the headline positive result of the campaign so far.
+
+Possible follow-ons (Merlin's call, NOT done): graduate the idea into `src/`+spec if it's keeping;
+ablate (mem2mem-only vs 50/50; n_ctx schedule; segmented-backward TBPTT for footprint); test on a
+harder env; longer max_k to find where mem2mem finally breaks.
