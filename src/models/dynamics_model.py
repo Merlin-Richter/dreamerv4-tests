@@ -483,18 +483,21 @@ class DynamicsModel(nn.Module):
 
     @torch.no_grad()
     def rollout_init(self, context: torch.Tensor, ctx_action_idx: torch.Tensor = None,
-                     K: int = None) -> dict:
+                     K: int = None, max_ctx: int = None) -> dict:
         """Prefill the carrying KV cache from observed context latents and return a rollout state.
 
         context:        (B, T_ctx, n_latents, bottleneck_dim) clean latents from the tokenizer.
         ctx_action_idx: optional (B, T_ctx) long action ids for the context frames.
+        max_ctx:        committed time-columns kept in the sliding window (default
+                        ``max_temporal_length-1``). Pass a smaller value to FORCE a shorter window than
+                        the model trained with (e.g. probe memory at window 8 instead of 16).
         The context is committed at near-clean (signal=context_signal) with its WRITTEN memory tokens
         (the relay seed), at absolute positions 0..T_ctx-1, then evicted to the last max_ctx frames.
         """
         K = K or self.config.inference_steps
         B, T_ctx = context.shape[:2]
         device = context.device
-        max_ctx = self.config.max_temporal_length - 1
+        max_ctx = (self.config.max_temporal_length - 1) if max_ctx is None else max_ctx
         d_idx_val = K.bit_length() - 1
         tau_ctx_idx = min(round(self.config.context_signal * self.K_max), self.K_max - 1)
 
@@ -570,16 +573,17 @@ class DynamicsModel(nn.Module):
 
     @torch.no_grad()
     def generate(self, context: torch.Tensor, n_generate: int, K: int = None,
-                 action_idx: torch.Tensor = None) -> torch.Tensor:
+                 action_idx: torch.Tensor = None, max_ctx: int = None) -> torch.Tensor:
         """Carrying autoregressive rollout: roll out ``n_generate`` frames after ``context``.
 
         context:    (B, T_ctx, n_latents, bottleneck_dim) clean latents from the tokenizer.
         action_idx: optional (B, T_ctx + n_generate) long action ids for context + generated frames
                     (required when action-conditioned). returns (B, n_generate, n_latents, bottleneck_dim).
+        max_ctx:    forced sliding-window size (committed time-columns); default max_temporal_length-1.
         """
         T_ctx = context.shape[1]
         ctx_act = action_idx[:, :T_ctx] if action_idx is not None else None
-        state = self.rollout_init(context, ctx_act, K)
+        state = self.rollout_init(context, ctx_act, K, max_ctx=max_ctx)
         out = []
         for i in range(n_generate):
             a = action_idx[:, T_ctx + i:T_ctx + i + 1] if action_idx is not None else None

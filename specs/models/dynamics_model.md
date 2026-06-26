@@ -133,7 +133,11 @@ DreamerV4 h-state analogue, aimed at the long-horizon-memory limitation.
   `ramp_min`; `n_actions, n_registers, n_memory, ff9_k`.
 - `forward(z_tilde, tau_idx, d_idx, actions=None, memory_in=None, return_memory=False) -> ẑ_1[, mem]`.
 - `loss(z1, action_idx=None) -> scalar` — shortcut forcing (+ FF9 sufficiency when `n_memory>0`).
-- `generate(context, n_generate, K=None, action_idx=None) -> latents` — carrying autoregressive rollout.
+- `generate(context, n_generate, K=None, action_idx=None, max_ctx=None) -> latents` — carrying
+  autoregressive rollout. `rollout_init(context, ctx_action_idx=None, K=None, max_ctx=None)` /
+  `rollout_step(state, action_idx=None, commit=True)` are the underlying primitives. `max_ctx` (committed
+  time-columns kept; default `max_temporal_length-1`) FORCES a shorter sliding window than the model
+  trained with — used by the recall/sheets evals' optional `--window` knob.
 
 ## Invariants
 - x-prediction in x-space; Temporal attention causal; spatial

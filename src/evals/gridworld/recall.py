@@ -90,54 +90,74 @@ def score_reveal(pred_frame: np.ndarray, true_cell: tuple[int, int],
 
 
 @torch.no_grad()
-def roll_and_score(model, tokenizer, seed: int, n_ctx: int, max_k: int, K: int,
-                   device) -> dict:
-    """One long occluded rollout for one env seed; returns per-event records for model/oracle/copy_last.
+def roll_and_score_batch(model, tokenizer, seeds, n_ctx: int, max_k: int, K: int,
+                         device, window: int = None) -> dict:
+    """Batched: run ``len(seeds)`` occluded rollouts in PARALLEL (B=len(seeds)) and return per-event
+    records for model/oracle/copy_last. Identical scoring/alignment to the single-seed path, just
+    vectorised over the batch so the model forwards + tokenizer decode run at B>1 (the GPU-friendly
+    path). Only the cheap per-env work (numpy env.step, closed-form readout) stays elementwise.
 
-    Each record is ``(k, {pos_correct, pos_score, color_correct})``. The reveal branch is read-only and
-    never corrupts the main occluded rollout's carried memory / latent window.
+    Each record is ``(k, {pos_correct, pos_score, color_correct})``; there are B records per checked k.
+    The reveal branch is read-only and never corrupts the main occluded rollout's carried state.
+    ``window`` (total frames) FORCES a shorter sliding window than training; None = native.
     """
     tok_w = _tokenizer_window(tokenizer)
-    env = GridWorldEnv().reset(seed)
+    max_ctx = None if window is None else max(1, window - 1)
+    B = len(seeds)
+    envs = [GridWorldEnv().reset(s) for s in seeds]
 
-    # Context: n_ctx REVEALED frames the model observes (action 0 = revealed).
-    cframes, s = [], None
-    for _ in range(n_ctx):
-        f, s = env.step(0)
-        cframes.append(f)
-    last_col, last_row = int(s[0]), int(s[1])             # last OBSERVED cell (copy_last belief)
-    colors = (COLOR_NAMES.index(env.bg_name), COLOR_NAMES.index(env.color_name))
+    # Context: n_ctx REVEALED frames per env (action 0 = revealed).
+    cframes, last = [[] for _ in range(B)], [None] * B
+    for b, env in enumerate(envs):
+        s = None
+        for _ in range(n_ctx):
+            f, s = env.step(0)
+            cframes[b].append(f)
+        last[b] = (int(s[0]), int(s[1]))                  # last OBSERVED cell (copy_last belief)
+    colors = [(COLOR_NAMES.index(e.bg_name), COLOR_NAMES.index(e.color_name)) for e in envs]
 
-    cfx = torch.from_numpy(np.stack(cframes).astype(np.float32) / 255.0).unsqueeze(0).to(device)
-    ctx_lat = tokenizer.encoder(cfx)                      # (1, n_ctx, L, D)
-    ctx_act = torch.zeros((1, n_ctx), dtype=torch.long, device=device)
-    state = model.rollout_init(ctx_lat, ctx_act, K)
+    cfx = torch.from_numpy(np.stack([np.stack(c) for c in cframes]).astype(np.float32) / 255.0).to(device)
+    ctx_lat = tokenizer.encoder(cfx)                      # (B, n_ctx, L, D)
+    ctx_act = torch.zeros((B, n_ctx), dtype=torch.long, device=device)
+    state = model.rollout_init(ctx_lat, ctx_act, K, max_ctx=max_ctx)
     lat_buf = ctx_lat[:, -(tok_w - 1):]                  # rolling latents for the decode window
 
     check = set(_check_ks(max_k))
-    a0 = torch.zeros((1,), dtype=torch.long, device=device)  # reveal action
-    a1 = torch.ones((1,), dtype=torch.long, device=device)   # occlude action
+    a0 = torch.zeros((B,), dtype=torch.long, device=device)  # reveal action
+    a1 = torch.ones((B,), dtype=torch.long, device=device)   # occlude action
     recs = {"model": [], "oracle": [], "copy_last": []}
 
     for k in range(1, max_k + 1):
-        f_true, s_true = env.step(0)                      # advance physics; revealed render = oracle truth
-        tcol, trow = int(s_true[0]), int(s_true[1])
+        true_cells, f_true = [], []
+        for env in envs:
+            f, s = env.step(0)                            # advance physics; revealed render = oracle truth
+            true_cells.append((int(s[0]), int(s[1])))
+            f_true.append(f)
         if k in check:
             z_rev = model.rollout_step(state, a0, commit=False)   # read-only reveal belief at this tick
             win = torch.cat((lat_buf, z_rev), dim=1)[:, -tok_w:]
-            dec = tokenizer.decoder(win)[0, -1].clamp(0, 1).cpu().float().numpy()
+            dec = tokenizer.decoder(win)[:, -1].clamp(0, 1).cpu().float().numpy()  # (B,H,W,3)
             pred = (dec * 255.0).round().astype(np.uint8)
-            recs["model"].append((k, score_reveal(pred, (tcol, trow), colors)))
-            recs["oracle"].append((k, score_reveal(f_true, (tcol, trow), colors)))
-            cl_dist = max(abs(last_col - tcol), abs(last_row - trow))
-            recs["copy_last"].append((k, {
-                "pos_correct": int(cl_dist == 0),
-                "pos_score": position_credit(cl_dist),
-                "color_correct": 1,                       # colour is static -> a memoryless guess knows it
-            }))
+            for b in range(B):
+                tcol, trow = true_cells[b]
+                recs["model"].append((k, score_reveal(pred[b], (tcol, trow), colors[b])))
+                recs["oracle"].append((k, score_reveal(f_true[b], (tcol, trow), colors[b])))
+                cl_dist = max(abs(last[b][0] - tcol), abs(last[b][1] - trow))
+                recs["copy_last"].append((k, {
+                    "pos_correct": int(cl_dist == 0),
+                    "pos_score": position_credit(cl_dist),
+                    "color_correct": 1,                   # colour is static -> a memoryless guess knows it
+                }))
         z_occ = model.rollout_step(state, a1, commit=True)        # commit the occluded tick
         lat_buf = torch.cat((lat_buf, z_occ), dim=1)[:, -(tok_w - 1):]
     return recs
+
+
+@torch.no_grad()
+def roll_and_score(model, tokenizer, seed: int, n_ctx: int, max_k: int, K: int,
+                   device, window: int = None) -> dict:
+    """Single-seed convenience wrapper over ``roll_and_score_batch`` (B=1)."""
+    return roll_and_score_batch(model, tokenizer, [seed], n_ctx, max_k, K, device, window=window)
 
 
 def chance_levels() -> dict:
@@ -155,9 +175,13 @@ def chance_levels() -> dict:
 
 @torch.no_grad()
 def recall(model, tokenizer, *, n_ctx: int = 4, max_k: int, n_rollouts: int = 64,
-           K: int = 4, device="cpu") -> dict:
+           K: int = 4, device="cpu", window: int = None, batch_size: int = 64) -> dict:
     """Run ``n_rollouts`` occluded rollouts and return per-k recall curves.
 
+    Rollouts run BATCHED: seeds are processed in chunks of ``batch_size`` as one B-batch through the
+    model/decoder (the GPU-friendly path). Lower ``batch_size`` if GPU memory is tight.
+    ``window`` (total frames) forces a shorter sliding context window than the model trained with;
+    None = the model's native ``max_temporal_length``.
     Returns ``{"model": {position_acc, position_score, color_acc each {k: v}}, "copy_last": …,
     "oracle": …, "chance": {position_acc, position_score, color_acc}}``.
     """
@@ -165,8 +189,9 @@ def recall(model, tokenizer, *, n_ctx: int = 4, max_k: int, n_rollouts: int = 64
                    "color_correct": "color_acc"}
     # acc[src][metric][k] -> list of per-rollout values
     acc = {src: defaultdict(lambda: defaultdict(list)) for src in ("model", "oracle", "copy_last")}
-    for seed in range(n_rollouts):
-        recs = roll_and_score(model, tokenizer, seed, n_ctx, max_k, K, device)
+    for i in range(0, n_rollouts, max(1, batch_size)):
+        seeds = list(range(i, min(i + batch_size, n_rollouts)))
+        recs = roll_and_score_batch(model, tokenizer, seeds, n_ctx, max_k, K, device, window=window)
         for src, events in recs.items():
             for k, rec in events:
                 for raw, name in metric_name.items():
@@ -178,3 +203,77 @@ def recall(model, tokenizer, *, n_ctx: int = 4, max_k: int, n_rollouts: int = 64
                     for name in metric_name.values()}
     out["chance"] = chance_levels()
     return out
+
+
+# --------------------------------------------------------------------------- CLI (run + dump JSON)
+def _load_checkpoint(path, cls_model, cls_cfg, device):
+    """Load a {config, model_state_dict} payload (same convention as interactive/play_dynamics.py).
+
+    NOTE: this small loader is duplicated in sheets.py and play_dynamics.py — see the follow-up to
+    extract a shared evals/gridworld loader module.
+    """
+    from dataclasses import fields
+    payload = torch.load(path, map_location=device, weights_only=False)
+    cfg = cls_cfg(**{k: v for k, v in payload["config"].items()
+                     if k in {f.name for f in fields(cls_cfg)}})
+    model = cls_model(cfg).to(device)
+    model.load_state_dict(payload["model_state_dict"])
+    model.eval()
+    return model, cfg
+
+
+def main() -> None:
+    """Run the recall eval on a checkpoint and write a JSON of the per-k curves (consumed by
+    plot_recall.py). Keeps recall() pure: this is just the load + run + serialize shell."""
+    import argparse
+    import json
+    from models.dynamics_model import DynamicsModel, DynamicsModelConfig
+    from models.tokenizer import AutoEncoder, AutoEncoderConfig
+
+    root = Path(__file__).resolve().parents[3]
+    ap = argparse.ArgumentParser(description="Run GridWorld recall on a checkpoint -> JSON curves.")
+    ap.add_argument("--checkpoint", type=Path, required=True, help="Dynamics checkpoint.")
+    ap.add_argument("--tokenizer", type=Path, required=True, help="Frozen tokenizer checkpoint.")
+    ap.add_argument("--out", type=Path, default=None,
+                    help="Output JSON (default: outputs/recall/recall_<checkpoint-stem>.json).")
+    ap.add_argument("--n-ctx", type=int, default=4)
+    ap.add_argument("--max-k", type=int, required=True)
+    ap.add_argument("--n-rollouts", type=int, default=64)
+    ap.add_argument("--K", type=int, default=4)
+    ap.add_argument("--window", type=int, default=None,
+                    help="Force the sliding context window to this many frames (default: the model's "
+                         "max_temporal_length). E.g. 8 to probe memory at a shorter window than 16.")
+    ap.add_argument("--batch-size", type=int, default=64,
+                    help="Rollouts run batched in chunks of this size (B). Lower if GPU memory is tight.")
+    args = ap.parse_args()
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    tok, _ = _load_checkpoint(args.tokenizer, AutoEncoder, AutoEncoderConfig, device)
+    for p in tok.parameters():
+        p.requires_grad_(False)
+    model, cfg = _load_checkpoint(args.checkpoint, DynamicsModel, DynamicsModelConfig, device)
+    window = args.window or cfg.max_temporal_length            # total frames in the sliding window
+
+    print(f"recall: n_ctx={args.n_ctx} max_k={args.max_k} n_rollouts={args.n_rollouts} "
+          f"K={args.K} window={window} batch_size={args.batch_size} n_memory={cfg.n_memory} "
+          f"device={device}")
+    res = recall(model, tok, n_ctx=args.n_ctx, max_k=args.max_k, n_rollouts=args.n_rollouts,
+                 K=args.K, device=device, window=window, batch_size=args.batch_size)
+    res["meta"] = {
+        "checkpoint": str(args.checkpoint), "tokenizer": str(args.tokenizer),
+        "n_ctx": args.n_ctx, "max_k": args.max_k, "n_rollouts": args.n_rollouts, "K": args.K,
+        "n_memory": cfg.n_memory, "window": window, "native_window": cfg.max_temporal_length,
+    }
+    out = args.out or (root / "outputs" / "recall" / f"recall_{args.checkpoint.stem}.json")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(res, indent=2))
+    print(f"wrote {out}")
+    # quick console digest (model vs copy_last on exact position)
+    print("  k :  model  copy_last  oracle   (position_acc)")
+    for k in sorted(res["model"]["position_acc"], key=int):
+        m, c, o = (res[s]["position_acc"][k] for s in ("model", "copy_last", "oracle"))
+        print(f"  {int(k):>3}: {m:6.3f}   {c:6.3f}   {o:6.3f}")
+
+
+if __name__ == "__main__":
+    main()

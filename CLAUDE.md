@@ -123,6 +123,12 @@ Channel order is **BGR end-to-end** (RGB only for on-screen display).
 Run from the repo root (scripts bootstrap `src` onto the path). Datasets live under `data/` (gitignored);
 checkpoints under `checkpoints/<env>/` (gitignored). Almost always pass `-u` so output isn't buffered.
 
+> **Local GPU:** use the repo venv `venv/Scripts/python.exe` — it has a CUDA torch build
+> (`torch 2.12.0+cu126`) and sees the RTX 4070 Laptop GPU, so evals/training run on the GPU. The bare
+> system `python` is a CPU-only torch build (`+cpu`, `cuda.is_available()==False`) — using it silently
+> falls back to CPU. All code already does `device = "cuda" if torch.cuda.is_available() else "cpu"`, so
+> just invoke it via the venv python to get the 4070.
+
 ```bash
 # 1. Generate the GridWorld dataset  ->  data/gridworld.npy (+ _actions/_states/_colors)
 python -u src/datagen/generate_gridworld.py --n_episodes 1000
@@ -163,6 +169,15 @@ python -u src/interactive/play_dynamics.py \
 python -u src/evals/gridworld/sheets.py --kind both \
   --checkpoint checkpoints/gridworld/dynamics_ff9.pt --tokenizer checkpoints/gridworld/tokenizer.pt \
   --frames data/gridworld.npy
+
+# Recall curves: eval each checkpoint -> JSON (outputs/recall/), then overlay any set of runs into a
+# compare figure. Eval-once-to-JSON, plot/compare-many (no re-eval to re-plot). --max-k may exceed the
+# window (the rollout slides/evicts); --window forces a shorter sliding window than training (e.g. 8).
+python -u src/evals/gridworld/recall.py --max-k 32 [--window 8] \
+  --checkpoint checkpoints/gridworld/dynamics_ff9.pt --tokenizer checkpoints/gridworld/tokenizer.pt
+python -u src/evals/gridworld/plot_recall.py \
+  --series "vanilla|outputs/recall/recall_dynamics_vanilla.json|tab:red" \
+  --series "FF9 (carry)|outputs/recall/recall_dynamics_ff9.json|tab:green"
 
 # Gate tests (CPU OK)
 python -u src/tests/test_gridworld.py          # env geometry / physics / curtain schedule
@@ -209,6 +224,7 @@ soft-cap fields.
 | `src/datagen/generate_gridworld.py` | GridWorld dataset writer + viewer |
 | `src/evals/gridworld/{readout,recall}.py` | Closed-form frame readout + the memory recall scorer |
 | `src/evals/gridworld/sheets.py` | Qualitative rollout-sheet PNGs (occlusion belief / free-run), cv2-only |
+| `src/evals/gridworld/plot_recall.py` | Overlay recall-curve JSONs into one 2×2 compare figure (matplotlib) |
 | `src/wlog.py` | W&B logger (no-op unless `--wandb`) |
 | `specs/**` | Authoritative one-spec-per-source-file map (Merlin owns these) |
 | `experiments/**` | The lab — speculative, NOT spec-backed; try ideas here without touching `src/` (see `experiments/README.md`) |

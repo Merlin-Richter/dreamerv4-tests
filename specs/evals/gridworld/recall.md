@@ -10,11 +10,18 @@ We score colors and square position match.
 `k`: length of occlusion
 
 ## Interface
-- `recall(model, tokenizer, *, n_ctx=4, max_k, n_rollouts=64, K=4, device) -> dict` — THE entry point.
+- `recall(model, tokenizer, *, n_ctx=4, max_k, n_rollouts=64, K=4, device, window=None) -> dict` — THE
+  entry point. `window` (total frames) optionally FORCES a shorter sliding context window than the model
+  trained with (e.g. 8 vs 16) to probe memory under a tighter window; None = native `max_temporal_length`.
   One long occluded rollout per seed, a reveal-belief scored at k e {2, 4, 6, 8, 10, 12, 14, 8*2=16, 8*3=24, 8*4=32, 8*i,  ..., max_k}; returns per-k curves
   `{"model": {position_acc, position_score, color_acc each {k:v}}, "copy_last":…, "oracle":…, "chance":…}`.
 - Helpers (internal): `roll_and_score(model, tokenizer, seed, n_ctx, max_k, K) -> per-event records`;
   `score_reveal(pred_frame, true_state, colors) -> {pos_correct, pos_score, color_correct}`.
+- `__main__` CLI (run + serialize, keeps `recall()` pure): `--checkpoint --tokenizer --max-k [--n-ctx
+  --n-rollouts --K --window --out]` loads a checkpoint, runs `recall()`, and writes the curves + a `meta`
+  block (n_ctx, max_k, n_rollouts, K, n_memory, window, native_window) to JSON (default
+  `outputs/recall/recall_<stem>.json`). `--max-k` may exceed the window (the rollout slides/evicts);
+  `--window` forces a shorter window. That JSON is what `plot_recall.py` consumes.
 
 ## Behavior
 - Per seed: reset env; step `n_ctx` REVEALED frames (action=0) = the model's observed context;
