@@ -3,12 +3,22 @@
 Rewritten: 2026-06-26.
 
 ## What we're doing right now and why
-The clean spec-driven rebuild is **merged to master** (`a51a78e`). On top of it a **spec→code sync** is
-committed (`f91e2a0`): temporal cadence every-4th→every-3rd (`3×[spatial,temporal,spatial]`, depth 8→9),
-dynamics attention gained the learnable per-head `logit_scale` (was a fixed `1/√d`), tokenizer decoder
-gained a sigmoid output bound, FF9 terminal frame gets a sampled τ, and the trainers moved to required
-`--frames/--tokenizer/--checkpoint` + `--fresh`→`--resume`. **Consequence: all existing checkpoints are
-architecture-incompatible — everything must be retrained.**
+Rebuild merged + spec→code sync done. Two things in flight:
+1. **Retrain r2 (IN PROGRESS, jobs 410374/410375 on ferranti):** dynamics with 5× data (5000 eps) +
+   fixed LR schedule (per-step warmup→flat→cosine 80-100%, was cosine-from-step-0) — r1 models were
+   "not good enough". Reuses the frozen tokenizer. Overwrites checkpoints/gridworld/dynamics_{vanilla,ff9}.pt.
+   When done: re-run recall A/B. (NB: a PEP-604 `str|None` in the new --model-module seam crashed on the
+   cluster's py<3.10; fixed with `from __future__ import annotations`, commit 73b1c65.)
+2. **mem→mem training (implemented + VERIFIED, `experiments/mem2mem/`):** new training signal teaching
+   memory tokens to be constructed from prior memory tokens (the missing mem→mem signal). Autograd
+   correctness check passes (relay grad 3.25e-3, 0.0 when detached). Experiment run pending the r2
+   baselines + Merlin's go. Task: `tasks/in-progress/test-new-memory-training.md`.
+
+## Background: the spec→code sync (`f91e2a0`)
+temporal cadence every-4th→every-3rd (`3×[spatial,temporal,spatial]`, depth 8→9), dynamics attention
+gained the learnable per-head `logit_scale`, tokenizer decoder gained a sigmoid output bound, FF9
+terminal frame gets a sampled τ, trainers moved to required `--frames/--tokenizer/--checkpoint`. **All
+pre-sync checkpoints are architecture-incompatible — retrained.**
 
 ## Just finished (this session)
 - **Cache-equivalence verification** (task → `tasks/done/verify-cached-vs-uncached-rollout-identical.md`).

@@ -42,3 +42,24 @@ Note:
 - During a batched rollout, all rollouts in the batch need to be of same `n_ctx` for GPU parallization to work properly.
 
 Try to keep src/ untouched when running experiments.
+
+---
+
+## STATUS (2026-06-26) — IMPLEMENTATION COMPLETE + VERIFIED; experiment run pending
+
+Implemented in `experiments/mem2mem/` (src/ untouched; imports the unmodified DynamicsModel +
+train_dynamics helpers). See `experiments/mem2mem/NOTES.md`.
+- `rollout.py` — the sliding-window mem→mem loss: real graph-attached old-half memory → construct
+  new-half memory, flow + FF9 loss on the NEW half only, 50/50 clean/full-noise modes, TBPTT detach at 2N.
+  Mechanism: temporal attention is causal per slot, so new memory is built by attending to old memory;
+  gradient relays new→old memory construction. No KV cache (full recompute).
+- `train_mem2mem.py` — standalone trainer, 50/50 normal + mem→mem, n_ctx∈{4,8,…,N} per batch, fixed LR
+  schedule, chunk-encodes long clips through the 16-frame tokenizer window.
+- **`test_autograd.py` (the must-have) PASSES**: an evicted grounding latent gets grad 3.25e-3 via the
+  relay and **exactly 0.0** when the relay is detached → the construction pass genuinely backprops.
+  (Caught one real bug en route.) End-to-end GPU smoke passes (losses decrease).
+
+NOT yet done (the experiment itself): a full cluster run + recall A/B vs the FF9/vanilla baselines to
+see if mem→mem lifts the **position** recall null. Pending the r2 retrained baselines + Merlin's go.
+Open caveats in NOTES.md: TBPTT is relay-depth-bounded but not yet footprint-bounded (segmented backward
+is the fix if it OOMs at scale); teacher-forcing residual noted.
