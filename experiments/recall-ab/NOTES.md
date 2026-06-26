@@ -1,4 +1,30 @@
-# Recall A/B — FF9 memory vs vanilla (first read)
+# Recall A/B — FF9 memory vs vanilla
+
+## r2 (2026-06-26) — RETRAIN WORKS: position recall goes from null to near-perfect to k~12
+Models: `R-gridworld-retrain2` (5x data + fixed LR schedule, SHA 1688818). `results_r2.json`.
+n_ctx=4, max_k=20, n_rollouts=64, K=4. Same eval as r1 (still provisional on k-alignment;
+comparison convention-robust).
+
+| k                  | 2 | 4 | 6 | 8 | 10 | 12 | 14 | 16 | 20 |
+|--------------------|----|----|----|----|----|----|----|----|----|
+| oracle pos_acc     |1.00|1.00|1.00|1.00|1.00|1.00|1.00|1.00|1.00|
+| **FF9 pos_acc**    |1.00|1.00|0.95|1.00|0.97|0.70|0.28|0.19|0.14|
+| vanilla pos_acc    |0.14|0.05|0.09|0.16|0.05|0.03|0.05|0.03|0.02|
+| copy_last pos_acc  |0.17|0.16|0.09|0.14|1.00*|0.17|0.16|0.09|1.00*|
+
+(* copy_last periodicity spikes — env bounce period ~10.)
+
+- **FF9 now tracks hidden POSITION** to k≈10-12 (near-perfect), decaying after. Mean position_score
+  edge over copy_last flipped **−0.22 (r1) → +0.35 (r2)**. r1's position null was under-training, not
+  a fundamental limit — 5x data + warmup→flat→late-cosine LR fixed it.
+- vanilla stays at chance (no memory). Color: FF9 1.00 all k; vanilla decays to ~chance by k=20.
+- **Residual = the long-horizon tail (k≳14)**, where the window has fully evicted and only the
+  memory→memory relay carries state. This is exactly what the mem→mem run (job 410376) targets; A/B
+  with `dynamics_mem2mem.pt` pending.
+
+---
+
+# Recall A/B — FF9 memory vs vanilla (r1 first read, under-trained)
 
 **Provenance:** models from `R-gridworld-retrain` (SHA `0a0e070`), `checkpoints/gridworld/`. Eval =
 `src/evals/gridworld/recall.py` (unchanged). Local RTX 4070 (CUDA). Params: n_ctx=4, max_k=20,
