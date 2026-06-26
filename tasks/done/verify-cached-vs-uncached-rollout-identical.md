@@ -48,3 +48,33 @@ Add a gate test (e.g. `src/tests/test_dynamics_cache.py`, or extend `src/tests/t
   control made explicit.
 - If any genuine divergence is found, it is documented (here + `agent/EXPERIMENTS.md`) with the root
   cause, not masked by tolerance.
+
+---
+
+## RESULT (2026-06-26, commit f91e2a0, CPU/fp32) — DONE; the "through eviction" premise was FALSE
+
+Gate test `src/tests/test_dynamics_cache.py` (green) + probe `experiments/verify-cache-equiv/probe.py`.
+Uncached reference (`UncachedRollout`) recomputes the current sliding window each step
+(`forward(cache=None)`, within-window RoPE), noise matched by replicating the production draw order under
+one `manual_seed` per path. **Independently re-verified** by `critical-claim-verifier` (own from-scratch
+reference, fp64 discriminator) — CONFIRMED.
+
+Finding (the third bullet's "genuine divergence" path, not the second bullet's expected equality):
+- **Within the window (no eviction): cached == uncached, maxdiff exactly 0.0 / fp (~5e-6).** The KV
+  cache + absolute-index RoPE is a CORRECT optimization here — and the read-only branch
+  (`rollout_step(commit=False)`) matches the uncached read-only prediction with no desync. Both vanilla
+  and memory.
+- **Through sliding-window eviction the two DIVERGE materially (O(0.1–1.4), not fp)** — appearing exactly
+  at the first frame generated after the window drops a committed frame. So the cache is **NOT a pure
+  optimization across eviction**; the task premise ("bit-for-bit identical … including through eviction")
+  is wrong. Root cause: with ≥2 stacked temporal layers a committed frame's frozen deep-temporal K/V
+  encodes its commit-time receptive field; a windowed recompute over the shrunk window can't reproduce
+  it. **Dichotomy (fp64-proven): 1 temporal layer → exact through eviction; ≥2 → O(1) divergence**
+  (magnitude weight-dependent, NOT monotone in depth). The test asserts within-window exactness + the
+  characterized divergence + the depth-3 discriminator (no tolerance-masking).
+
+Implication flagged for Merlin (NOT changed here): training (`loss`) uses windowed-recompute semantics
+(`forward(cache=None)` over a clip ≤ `max_temporal_length`); long-rollout inference uses frozen-cache
+semantics. They provably differ **past the window** — the exact regime the recall eval (long occluded
+rollouts) and the memory study operate in. Options + discussion in `experiments/verify-cache-equiv/NOTES.md`
+and `HOWTO/rope_kv_cache_caveat.md` (2026-06-26 update). EXPERIMENTS.md: `V-cache-equiv`.

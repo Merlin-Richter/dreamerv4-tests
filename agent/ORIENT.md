@@ -1,41 +1,49 @@
 # ORIENT.md
 
-Rewritten: 2026-06-25 (clean spec-driven rebuild complete).
+Rewritten: 2026-06-26.
 
 ## What we're doing right now and why
-**Clean rebuild of `src/` from the specs is DONE** (task `tasks/done/fill-src-from-specs.md`, branch
-`rebuild/src-from-specs`, NOT yet merged to master). The pre-rebuild code had accreted many dead memory
-experiments (FF7, multistep, ff9-rollout, snapshot/streaming inference). We rebuilt `src/` to exactly the
-keep-list the spec map defines: a ~5× smaller, spec-faithful codebase that does only what the specs say.
+The clean spec-driven rebuild is **merged to master** (`a51a78e`). On top of it a **spec→code sync** is
+committed (`f91e2a0`): temporal cadence every-4th→every-3rd (`3×[spatial,temporal,spatial]`, depth 8→9),
+dynamics attention gained the learnable per-head `logit_scale` (was a fixed `1/√d`), tokenizer decoder
+gained a sigmoid output bound, FF9 terminal frame gets a sampled τ, and the trainers moved to required
+`--frames/--tokenizer/--checkpoint` + `--fresh`→`--resume`. **Consequence: all existing checkpoints are
+architecture-incompatible — everything must be retrained.**
 
-## State of the rebuild (on branch `rebuild/src-from-specs`)
-- `src/` = keep-list only: `wlog`, `envs/{base,gridworld}`, `models/{tokenizer,dynamics_model}`,
-  `datagen/generate_gridworld`, `evals/gridworld/{readout,recall}`, `training/{train_dynamics,
-  train_tokenizer}`, `interactive/play_dynamics`, `tests/{test_gridworld,test_gridworld_eval,test_dynamics}`.
-- The two WRITE files were verified independently (critical-claim-verifier): **FAITHFUL, no BUG**.
-  `dynamics_model.forward` is bit-identical to the old code for `n_memory=0`; the NEW carrying KV-cached
-  rollout (read-old/write-new memory relay, 5th-pass commit, RoPE-by-absolute-index, window eviction) and
-  the merged single-rollout `recall.py` scorer pass their probes. All 3 test files green.
-- **Open decision flagged for Merlin:** the recall `k`↔tick alignment (documented at the top of
-  `recall.py` + in the done-task). Needs sign-off before any recall numbers are trusted.
+## Just finished (this session)
+- **Cache-equivalence verification** (task → `tasks/done/verify-cached-vs-uncached-rollout-identical.md`).
+  New gate test `src/tests/test_dynamics_cache.py` (green) + `experiments/verify-cache-equiv/`. Result,
+  independently re-verified (critical-claim-verifier, fp64): the carrying KV-cached rollout `==` an
+  uncached current-window recompute **bit-exact within the window**, but **diverges materially (O(1), not
+  fp) once the sliding window evicts** — because ≥2 stacked temporal layers freeze each committed frame's
+  deep-temporal K/V at its commit-time receptive field. Clean dichotomy: 1 temporal layer → exact;
+  ≥2 → diverges. So the cache is a correct optimization *within* a window but **not** past it.
+  EXPERIMENTS.md: `V-cache-equiv`. HOWTO updated (`rope_kv_cache_caveat.md`).
 
-## NEXT (awaiting Merlin)
-1. Merlin reviews the rebuild (esp. `recall.py` alignment + `dynamics_model` carrying inference) → merge
-   `rebuild/src-from-specs` to master.
-2. Train the GridWorld pipeline on this clean code: `generate_gridworld` → `train_tokenizer` (frozen) →
-   `train_dynamics` vanilla + `--ff9 K` memory. Then `recall` A/B (memory vs vanilla) — the real test of
-   whether the carrying relay retains hidden state past the latent window.
-3. Cluster free; nothing running.
+## Open decisions flagged for Merlin (do not silently resolve)
+1. **Cache train/inference semantics gap.** Training (`loss`) uses windowed-recompute semantics; long
+   inference uses frozen-cache (SWA) semantics — they provably differ *past the window*, exactly where
+   the recall eval and the memory study live. Options weighed in `experiments/verify-cache-equiv/NOTES.md`.
+2. **Recall `k`↔tick alignment** (documented atop `src/evals/gridworld/recall.py`) — still needs sign-off
+   before recall numbers are trusted.
 
-## Background — the memory research (history; the rebuild supersedes the dead code)
+## NEXT
+1. **Retrain the pipeline** (`tasks/backlog/retrain-models.md`): tokenizer (foreground weighting on) →
+   frozen → vanilla dynamics + FF9 memory dynamics, on the cluster, into `checkpoints/gridworld/`, pull
+   results back. Needs the dataset generated and a cluster master socket.
+2. Then `recall` A/B (memory vs vanilla) — the real test of whether the carrying relay retains hidden
+   state past the window. (Mind decision #1: recall measures the frozen-cache path.)
+
+## Cluster / env
+ferranti master socket UP, no jobs running. **galvani socket DOWN** (needs `open_master.sh --cluster
+galvani` from Merlin if we want it). Local dev = Windows/Git-Bash; cluster orchestration = WSL wrappers.
+
+## Background — the memory research
 Frontier question: do per-timestep **memory tokens** let a Dreamer-4 world model retain hidden/off-screen
-state past the short latent window? The clean code keeps the two ideas worth keeping: the **FF9 sufficiency
-loss** (memory must reconstruct future frames from memory alone) and the **carrying KV-cached inference**
-(read old memory tokens' cached K/V, write new ones each step). Prior campaign verdict (pre-rebuild,
-archived): an FF9-no-rollout memory model retained STATIC hidden state past the window; the FF9
-rollout-training relay (op-3) was a NEGATIVE result under the correct windowed inference. That whole
-rollout-training line is intentionally DROPPED from the rebuild. The recall eval is the result-defining
-spine — changing it silently redefines results.
+state past the short latent window? The clean code keeps the two ideas worth keeping: the **FF9
+sufficiency loss** (memory must reconstruct future frames from memory alone) and the **carrying KV-cached
+inference** (read old memory tokens' cached K/V, write new ones each step). The recall eval is the
+result-defining spine — changing it silently redefines results.
 
 ## Parked
 - Discrete/VQ memory idea (only if the carrying relay still drifts on GridWorld after retraining).

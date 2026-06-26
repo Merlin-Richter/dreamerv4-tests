@@ -48,5 +48,27 @@ positional-encoding bug. Validate any KV-cache implementation by checking that a
 cached rollout is bit-for-bit (or within fp tolerance) equal to the uncached
 recompute-each-step rollout over the same horizon.
 
+## UPDATE 2026-06-26 (rebuilt dynamics) — the validation above holds ONLY within a window
+
+Measured on the rebuilt `dynamics_model.py` (cache-equiv probe + gate `src/tests/test_dynamics_cache.py`,
+independently re-verified): the cached rollout equals the uncached *current-window recompute* bit-for-bit
+(fp) **only while the rollout has not yet evicted a committed frame**. Once the sliding window drops a
+frame, the two **diverge materially (O(1) in latent units, not fp)** — starting exactly at the first
+frame generated after the eviction.
+
+This is NOT a position bug (RoPE is handled correctly — the within-window match is exact). It is a
+**stacked-temporal-layer** effect: with ≥2 temporal layers (we have 3, at `i%3==1`), a committed frame's
+K/V at the 2nd/3rd temporal layer encodes its **commit-time receptive field**; the cache freezes it, but
+a windowed recompute over the now-shrunk window cannot reproduce it. Clean dichotomy (proven in fp64):
+**1 temporal layer → exact through eviction; ≥2 → O(1) divergence.**
+
+Consequence: the carrying KV cache is a *correct optimization within a window* but implements
+**sliding-window-attention-with-frozen-cache** semantics past the window — NOT the windowed-recompute
+semantics that training (`loss`, a `forward(cache=None)` over a clip ≤ `max_temporal_length`) uses. So a
+"cached == uncached **through eviction**" gate test is the wrong invariant — assert within-window
+exactness + the 1-vs-≥2 dichotomy instead. The recall eval's long occluded rollouts live entirely in the
+post-eviction regime, so memory claims are measured against the frozen-cache path. See
+`experiments/verify-cache-equiv/NOTES.md` (train/inference-gap discussion; Merlin's decision).
+
 Applies to both D (dynamics) and C (tokenizer, if used for streaming long observed
 sequences).
