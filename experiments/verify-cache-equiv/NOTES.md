@@ -53,18 +53,22 @@ stacked-temporal-layer phenomenon. RoPE is NOT the culprit: cached rotates at th
 uncached at the within-window index, but both windows are contiguous so relative phases (and V, which
 is unrotated) match — confirmed by the depth-3 exactness holding in fp64.
 
-## Interpretation (for Merlin — design decision, NOT silently changed)
-The cache is **not a pure optimization** once the rollout passes the window: it implements
-**sliding-window-attention-with-frozen-cache** semantics, whereas training (`loss`) runs a clean
-`forward(cache=None)` over a clip ≤ `max_temporal_length` — i.e. the *windowed-recompute* semantics.
-So there is a **train/inference mismatch that activates exactly past the window** — the regime the
-memory study is about. The recall eval runs long occluded rollouts that are always past the window, so
-its numbers reflect the frozen-cache path. Options to weigh:
-  1. Accept it (standard efficient SWA inference); document that recall measures the cached path.
-  2. Make long-rollout inference a true windowed recompute (drop the deep-layer freeze) — equals
-     training, costs O(window) recompute per step.
-  3. Train with the frozen-cache semantics (e.g. cache-in-the-loop / TBPTT) so train==inference.
-Not my call — flagged for decision.
+## Interpretation — RESOLVED by Merlin (2026-06-26): the divergence is DESIRED, not a defect
+Merlin's verdict: *"It should diverge as soon as eviction starts — that's literally the whole point of
+information preservation."* The frozen cache **carries state the sliding window has dropped**; an
+uncached current-window recompute, by construction, **cannot** — it only sees the live window. So the
+post-eviction gap between (cached) and (windowed-recompute) is exactly the memory mechanism doing its
+job: the cached path retains evicted hidden state, the recompute path forgets it. This is the CORRECT
+and intended behavior, not a train/inference bug to fix.
+
+Consequences to keep in mind (not actions):
+  * The recall eval measures the cached (memory-carrying) path — which is the point.
+  * The within-window bit-exactness still matters as a correctness check (the cache must be lossless
+    while everything is in-window); that's the hard gate in `test_dynamics_cache.py`.
+  * A vanilla (`n_memory=0`) model also diverges post-eviction (frozen deep-layer K/V of plain
+    tokens) — so the divergence is the SWA-cache mechanism in general; memory tokens are the part
+    *trained* (FF9) to make what's carried be the hidden state. The recall A/B (memory vs vanilla)
+    is what tells us whether the carried state is actually useful.
 
 ## Artifacts
 - `probe.py` — per-frame diff measurement harness.
