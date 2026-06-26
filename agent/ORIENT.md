@@ -31,12 +31,19 @@ Trained on ferranti @ SHA `0a0e070`, pulled to `checkpoints/gridworld/`: `tokeni
 val fg_mse 1.7e-5, no collapse), `dynamics_vanilla.pt` (n_memory=0), `dynamics_ff9.pt` (n_memory=4,
 ff9_k=3). Both dynamics action-conditioned (n_actions=2). EXPERIMENTS: `R-gridworld-retrain`.
 
-## NEXT
-1. **`recall` A/B (FF9 memory vs vanilla)** — the real test of whether the carrying relay retains hidden
-   state past the window. Models are ready. **Gated on the recall `k`↔tick alignment sign-off**
-   (decision #2 below) before any number is trusted. The eviction-divergence (decision #1) is RESOLVED:
-   it's the intended memory mechanism, so recall correctly measures the carried path.
-2. Cluster: ferranti up, idle (all retrain jobs COMPLETED). galvani socket down.
+## Recall A/B — first read DONE (provisional), `experiments/recall-ab/`, EXPERIMENTS `recall-AB`
+- **STATIC attribute = memory WIN:** FF9 `color_acc` 1.000 at every k incl. k=20 (past the 16-window);
+  vanilla decays 0.56→0.22. The memory token carries the static color past the window; vanilla forgets.
+- **DYNAMIC = null:** `position_acc` near chance for both (FF9 0.03–0.09, vanilla 0.0–0.17), below
+  copy_last, FF9 **not** > vanilla. Moving-square position is not retained.
+- Caveats: env bounce period ~10 spikes copy_last to 1.0 at k=10/20 (confound); 50ep/7.75M/1000ep may
+  under-train position; provisional on k-alignment. oracle self-test 1.0.
+
+## NEXT (for Merlin to steer)
+1. Sign off / adjust the recall **k↔tick alignment** (decision #2) so the absolute k-axis is trusted.
+2. Decide whether to chase the **position null** (more train time / bigger model / longer schedule) or
+   bank the color win for now. Consider the env-periodicity confound before over-reading position.
+3. Cluster: ferranti up, idle (all retrain jobs COMPLETED). galvani socket down.
 
 ## Cluster / env
 ferranti master socket UP, no jobs running. **galvani socket DOWN** (needs `open_master.sh --cluster
