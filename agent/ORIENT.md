@@ -21,18 +21,22 @@ architecture-incompatible — everything must be retrained.**
   EXPERIMENTS.md: `V-cache-equiv`. HOWTO updated (`rope_kv_cache_caveat.md`).
 
 ## Open decisions flagged for Merlin (do not silently resolve)
-1. **Cache train/inference semantics gap.** Training (`loss`) uses windowed-recompute semantics; long
-   inference uses frozen-cache (SWA) semantics — they provably differ *past the window*, exactly where
-   the recall eval and the memory study live. Options weighed in `experiments/verify-cache-equiv/NOTES.md`.
+1. ~~Cache train/inference semantics gap~~ — **RESOLVED 2026-06-26**: the post-eviction divergence IS
+   the intended information-preservation mechanism (Merlin). Recall correctly measures the carried path.
 2. **Recall `k`↔tick alignment** (documented atop `src/evals/gridworld/recall.py`) — still needs sign-off
-   before recall numbers are trusted.
+   before recall numbers are trusted. **This now gates the recall A/B.**
+
+## Models ready (retrain DONE, `tasks/done/retrain-models.md`)
+Trained on ferranti @ SHA `0a0e070`, pulled to `checkpoints/gridworld/`: `tokenizer.pt` (fg-weight 2.0,
+val fg_mse 1.7e-5, no collapse), `dynamics_vanilla.pt` (n_memory=0), `dynamics_ff9.pt` (n_memory=4,
+ff9_k=3). Both dynamics action-conditioned (n_actions=2). EXPERIMENTS: `R-gridworld-retrain`.
 
 ## NEXT
-1. **Retrain the pipeline** (`tasks/backlog/retrain-models.md`): tokenizer (foreground weighting on) →
-   frozen → vanilla dynamics + FF9 memory dynamics, on the cluster, into `checkpoints/gridworld/`, pull
-   results back. Needs the dataset generated and a cluster master socket.
-2. Then `recall` A/B (memory vs vanilla) — the real test of whether the carrying relay retains hidden
-   state past the window. (Mind decision #1: recall measures the frozen-cache path.)
+1. **`recall` A/B (FF9 memory vs vanilla)** — the real test of whether the carrying relay retains hidden
+   state past the window. Models are ready. **Gated on the recall `k`↔tick alignment sign-off**
+   (decision #2 below) before any number is trusted. The eviction-divergence (decision #1) is RESOLVED:
+   it's the intended memory mechanism, so recall correctly measures the carried path.
+2. Cluster: ferranti up, idle (all retrain jobs COMPLETED). galvani socket down.
 
 ## Cluster / env
 ferranti master socket UP, no jobs running. **galvani socket DOWN** (needs `open_master.sh --cluster
