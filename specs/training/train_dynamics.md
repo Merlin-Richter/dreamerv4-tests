@@ -19,6 +19,10 @@ Loss = shortcut forcing (+ FF9 sufficiency when `--ff9>0`). The dynamics model n
   encode frames → latents with the frozen tokenizer (no grad), then `model.loss(z1, actions)`.
 - Optimiser AdamW; **gradient clipping at max_norm=1.0** (prevents the tokenizer-style blow-up). Per-epoch
   val loss; checkpoint each epoch; W&B optional (loss parts).
+- **LR schedule (per-step, mirrors the tokenizer):** linear warmup over the first ~5% of steps
+  (min 200) → flat at peak LR → cosine cooldown only over the **final 20%** (decay starts at 80% of
+  total steps), down to ~1e-6. (Not a cosine-from-step-0 — the model should train at full LR for the
+  bulk of the run.)
 
 ## Invariants
 - Tokenizer is frozen (eval, no grad) and its dims drive the dynamics config — they must agree.

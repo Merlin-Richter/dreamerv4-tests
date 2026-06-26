@@ -105,6 +105,10 @@ Channel order is **BGR end-to-end** (RGB only for on-screen display).
   advancing true state. Baselines through the same readout: `oracle` (ceiling, must read 1.0), `copy_last`
   (no-memory reference), `chance`. **This eval is the result-defining spine — memory claims must show here,
   not on reconstruction loss.**
+- `sheets.py` (`occlusion_sheet`/`normal_sheet`/`save_sheet`): the QUALITATIVE companion to `recall` —
+  cv2 filmstrip PNGs (TOP = ground truth / true underlying square, BOTTOM = model rollout / belief) you
+  eyeball. The occlusion sheet uses the same carried `rollout_init`/`rollout_step(commit=False)` branching
+  rollout `recall` scores (so it carries memory for FF9 models). Illustrates; never decides — `recall` does.
 
 ### Shared components
 - `wlog.py`: lightweight W&B logger, no-op unless `--wandb`.
@@ -140,6 +144,9 @@ python -u src/training/train_dynamics.py --epochs 50 --batch-size 32 --context-l
 python -u src/training/train_dynamics.py --ff9 3 --n-memory 4 --context-length 16 --seed 0 \
   --frames data/gridworld.npy --tokenizer checkpoints/gridworld/tokenizer.pt \
   --checkpoint checkpoints/gridworld/dynamics_ff9.pt
+# Try a NEW loss/training-flow without editing the spec-backed model: pass an experiment-local
+# DynamicsModel subclass via --model-module (see experiments/README.md for the workflow).
+#   --model-module experiments/EXP-NNN/model.py:DynamicsModelEXP_NNN
 # Interactive rollout viz (--checkpoint + --frames required):
 python -u src/training/train_dynamics.py --test-checkpoint \
   --frames data/gridworld.npy --tokenizer checkpoints/gridworld/tokenizer.pt \
@@ -148,6 +155,13 @@ python -u src/training/train_dynamics.py --test-checkpoint \
 # 4. Inspect interactively (keys: 0=reveal, 1=occlude, r=reset, q=quit)
 python -u src/interactive/play_dynamics.py \
   --checkpoint checkpoints/gridworld/dynamics.pt --tokenizer checkpoints/gridworld/tokenizer.pt \
+  --frames data/gridworld.npy
+
+# Qualitative rollout sheets -> outputs/sheets/{sheet_occlusion,sheet_normal}.png (cheap, CPU OK; the
+# default --out-dir outputs/sheets/ is gitignored). Occlusion sheet needs no dataset (built from the env);
+# --frames is only used for the normal sheet. Pass --out-dir experiments/EXP-NNN to keep a run's sheets.
+python -u src/evals/gridworld/sheets.py --kind both \
+  --checkpoint checkpoints/gridworld/dynamics_ff9.pt --tokenizer checkpoints/gridworld/tokenizer.pt \
   --frames data/gridworld.npy
 
 # Gate tests (CPU OK)
@@ -189,13 +203,15 @@ soft-cap fields.
 | `src/models/tokenizer.py` | Frozen temporal autoencoder (latent space) |
 | `src/models/dynamics_model.py` | Dynamics transformer + shortcut/FF9 loss + carrying rollout |
 | `src/training/train_tokenizer.py` | Tokenizer training (stability: AdamW β2≈0.95, grad-spike skip, best-by-recon ckpt) |
-| `src/training/train_dynamics.py` | Dynamics training on frozen latents (`--ff9`/`--n-memory` for memory) |
+| `src/training/train_dynamics.py` | Dynamics training on frozen latents (`--ff9`/`--n-memory` for memory; `--model-module` for experiment subclasses) |
 | `src/interactive/play_dynamics.py` | Interactive single-frame viewer (single `model.generate` path) |
 | `src/envs/{base,gridworld}.py` | Env interface + GridWorld memory env |
 | `src/datagen/generate_gridworld.py` | GridWorld dataset writer + viewer |
 | `src/evals/gridworld/{readout,recall}.py` | Closed-form frame readout + the memory recall scorer |
+| `src/evals/gridworld/sheets.py` | Qualitative rollout-sheet PNGs (occlusion belief / free-run), cv2-only |
 | `src/wlog.py` | W&B logger (no-op unless `--wandb`) |
 | `specs/**` | Authoritative one-spec-per-source-file map (Merlin owns these) |
+| `experiments/**` | The lab — speculative, NOT spec-backed; try ideas here without touching `src/` (see `experiments/README.md`) |
 
 ## Notes on Design Choices
 - **MAE dropout (tokenizer)**: stops the decoder from ignoring patches / reconstructing the mean image.

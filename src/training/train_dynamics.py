@@ -16,9 +16,14 @@ Run from repo root:
 
 Visualize a rollout from a saved checkpoint (OpenCV window; needs a display):
     python -u src/training/train_dynamics.py --test-checkpoint
+
+To try a NEW loss / training-flow idea without editing the spec-backed model, pass an experiment-local
+subclass via `--model-module experiments/EXP-NNN/model.py:ClassName` (see experiments/README.md). The
+canonical src/models/dynamics_model.py stays untouched until the idea graduates.
 """
 
 import argparse
+import importlib.util
 import os
 import random
 import sys
@@ -28,7 +33,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
@@ -104,6 +109,39 @@ def _config_from_checkpoint(cfg_dict: dict, cls):
     return cls(**{k: v for k, v in cfg_dict.items() if k in allowed})
 
 
+def resolve_model_class(spec: str | None):
+    """Resolve which dynamics-model class to train/visualize.
+
+    ``spec`` None  -> the canonical, spec-backed ``DynamicsModel``.
+    ``spec`` ``"experiments/EXP-NNN/model.py:ClassName"`` -> an experiment-local subclass (NOT
+    spec-backed; it lives under experiments/ and dies with the experiment). The class MUST subclass
+    ``DynamicsModel`` and take a ``DynamicsModelConfig``, so checkpoints, ``generate()`` and the eval
+    path keep working unchanged — a loss/training-flow experiment overrides only ``loss()``. This is
+    the seam that lets variant ideas be tried WITHOUT editing src/models/dynamics_model.py (which is
+    spec-backed); see experiments/README.md.
+    """
+    if not spec:
+        return DynamicsModel
+    # rpartition (not partition): a Windows absolute path carries a drive-letter colon (C:/...), so
+    # split on the LAST ':' to separate the path from the class name.
+    mod_path, sep, cls_name = spec.rpartition(":")
+    if not sep or not cls_name.isidentifier():
+        raise ValueError(f"--model-module must be 'path/to/file.py:ClassName', got {spec!r}")
+    file = Path(mod_path)
+    if not file.is_file():
+        raise FileNotFoundError(f"--model-module file not found: {file}")
+    module_spec = importlib.util.spec_from_file_location(file.stem, file)
+    module = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(module)  # src/ is already on sys.path, so its imports resolve
+    cls = getattr(module, cls_name, None)
+    if cls is None:
+        raise AttributeError(f"class {cls_name!r} not found in {file}")
+    if not (isinstance(cls, type) and issubclass(cls, DynamicsModel)):
+        raise TypeError(f"{cls_name} must subclass DynamicsModel")
+    print(f"[--model-module] training experiment model {cls_name} from {file}")
+    return cls
+
+
 def load_tokenizer(checkpoint: Path, device: str) -> AutoEncoder:
     """Load the frozen causal tokenizer (C autoencoder)."""
     if not checkpoint.is_file():
@@ -142,7 +180,7 @@ def run_test_checkpoint(args: argparse.Namespace) -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
     payload = torch.load(args.checkpoint, map_location=device, weights_only=False)
     cfg = _config_from_checkpoint(payload["config"], DynamicsModelConfig)
-    model = DynamicsModel(cfg).to(device)
+    model = resolve_model_class(args.model_module)(cfg).to(device)
     model.load_state_dict(payload["model_state_dict"])
     model.eval()
 
@@ -273,6 +311,12 @@ def main():
                              "i.e. vanilla memory-free). Sets config.ff9_k.")
     parser.add_argument("--n-memory", type=int, default=4,
                         help="Number of per-frame MEMORY tokens when --ff9 > 0 (default 4).")
+    parser.add_argument("--model-module", type=str, default=None, metavar="FILE.py:Class",
+                        help="Train an experiment-local DynamicsModel SUBCLASS instead of the canonical "
+                             "model, e.g. 'experiments/EXP-034/model.py:DynamicsModelEXP034'. The seam "
+                             "for trying a new loss/training-flow WITHOUT editing the spec-backed "
+                             "src/models/dynamics_model.py. Default: the canonical model. See "
+                             "experiments/README.md.")
     parser.add_argument("--seed", type=int, default=0,
                         help="Seed for torch/numpy/random (model init, tau/noise sampling).")
     parser.add_argument("--max-episodes", type=int, default=None,
@@ -382,6 +426,7 @@ def main():
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, drop_last=True, **loader_kw)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, **loader_kw)
 
+    model_cls = resolve_model_class(args.model_module)
     if args.resume is not None:
         if not args.resume.is_file():
             raise FileNotFoundError(f"--resume checkpoint not found: {args.resume}")
@@ -390,7 +435,7 @@ def main():
         if args.ff9 > 0:  # warm-starting into FF9 training: add the memory carrier
             cfg.n_memory = args.n_memory
             cfg.ff9_k = args.ff9
-        model = DynamicsModel(cfg).to(device)
+        model = model_cls(cfg).to(device)
         result = model.load_state_dict(payload["model_state_dict"], strict=False)
         if result.missing_keys:
             print(f"[resume] randomly-initialized (not in checkpoint): {result.missing_keys}")
@@ -398,13 +443,30 @@ def main():
             print(f"[resume] ignored (in checkpoint, not in model): {result.unexpected_keys}")
         print(f"Loaded weights from {args.resume}")
     else:
-        model = DynamicsModel(cfg).to(device)
+        model = model_cls(cfg).to(device)
 
     # cfg is final here (resume may have replaced it from the checkpoint).
     wlog.init(args, cfg, project="transformer-D-dynamics")
 
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
-    scheduler = CosineAnnealingLR(opt, T_max=args.epochs, eta_min=1e-6)
+    # Per-step warmup -> flat -> late-cosine cooldown (mirrors train_tokenizer). A plain
+    # cosine-from-step-0 (the previous CosineAnnealingLR) spends most of training at low LR; instead
+    # warm up, hold at peak, and cool down only in the final 20%, so the model trains at full LR for
+    # the bulk of the (now longer) run.
+    total_steps = max(1, len(train_loader) * args.epochs)
+    warmup_steps = max(200, int(0.05 * total_steps))
+    decay_start = int(0.8 * total_steps)
+    eta_min_ratio = 1e-6 / args.lr
+
+    def lr_lambda(step):
+        if step < warmup_steps:
+            return (step + 1) / warmup_steps
+        if step < decay_start:
+            return 1.0
+        p = (step - decay_start) / max(1, total_steps - decay_start)
+        return eta_min_ratio + (1.0 - eta_min_ratio) * 0.5 * (1.0 + np.cos(np.pi * p))
+
+    scheduler = LambdaLR(opt, lr_lambda)
     args.checkpoint.parent.mkdir(parents=True, exist_ok=True)
 
     epoch_bar = tqdm(range(args.epochs), desc="Epochs", position=0, mininterval=1.0)
@@ -431,6 +493,7 @@ def main():
             loss.backward()
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             opt.step()
+            scheduler.step()  # per-step schedule (warmup -> flat -> late cosine)
             train_loss += loss.item()
             train_parts["grad_norm"] = train_parts.get("grad_norm", 0.0) + float(grad_norm)
             for name, value in parts.items():
@@ -471,7 +534,6 @@ def main():
         metrics.update({f"val/loss_{k}": v / len(val_loader) for k, v in val_parts.items()})
         wlog.log(metrics, step=epoch)
 
-        scheduler.step()
         torch.save({"model_state_dict": model.state_dict(), "config": asdict(cfg)}, args.checkpoint)
         tqdm.write(f"Saved checkpoint to {args.checkpoint}")
 
