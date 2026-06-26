@@ -18,6 +18,8 @@ Token layout per frame (sequence axis): ``[action | latents | registers | (memor
 Only the latent-token outputs are read out as the x-prediction of the clean representation.
 """
 
+import math
+
 import torch
 import torch.nn as nn
 from dataclasses import dataclass
@@ -37,7 +39,7 @@ class DynamicsModelConfig:
 
     n_heads: int = 16
     mlp_ratio: float = 3.0
-    depth: int = 8
+    depth: int = 9  # 3x[spatial, temporal, spatial]; temporal at i%3==1
 
     drop_rate: float = 0.1
     att_drop_rate: float = 0.1
@@ -81,7 +83,13 @@ class Attention(nn.Module):
         assert int(self.head_dim) == self.head_dim
         self.head_dim = int(self.head_dim)
 
-        self.scale = 1 / (self.head_dim ** 0.5)
+        # Learnable per-head attention temperature (spec §2). q/k are RMSNorm'd below (QK-norm),
+        # which caps |q.k|; with the textbook 1/sqrt(d) scale the logits stay ~O(1) over all keys
+        # so softmax is near-uniform. Init ~4x sharper than 1/sqrt(d) to escape that basin and let
+        # it adapt; clamped for stability. Mirrors the tokenizer's logit_scale.
+        self.base_scale = 1 / (self.head_dim ** 0.5)
+        self.logit_scale = nn.Parameter(torch.full((self.n_heads, 1, 1, 1, 1), math.log(4.0)))
+        self.max_logit_scale = math.log(100.0)
         self.q_norm = nn.RMSNorm(self.head_dim)
         self.k_norm = nn.RMSNorm(self.head_dim)
         self.soft_cap_act = nn.Tanh()
@@ -160,7 +168,8 @@ class Attention(nn.Module):
             mask = torch.zeros((T, T_all), dtype=torch.bool, device=x.device)
             mask[:, T_all - T:] = torch.triu(torch.ones(T, T, device=x.device), diagonal=1).bool()
 
-        attn_scores = (q @ k_all.transpose(-2, -1)) * self.scale
+        scale = self.base_scale * torch.exp(self.logit_scale.clamp(max=self.max_logit_scale))
+        attn_scores = (q @ k_all.transpose(-2, -1)) * scale
         attn_scores = self.soft_cap_act(attn_scores / self.soft_cap) * self.soft_cap
         if mask is not None:
             attn_scores = attn_scores.masked_fill(mask, float('-inf'))
@@ -252,7 +261,8 @@ class DynamicsModel(nn.Module):
         self.d_embedding = nn.Embedding(self.n_d, E // 2)
 
         self.blocks = nn.ModuleList([
-            TransformerBlock(config, is_temporal=((i + 1) % 4 == 0))
+            # Layer cadence: 3x[spatial, temporal, spatial] -> temporal at i%3==1 (depth=9 = three groups).
+            TransformerBlock(config, is_temporal=(i % 3 == 1))
             for i in range(config.depth)
         ])
 

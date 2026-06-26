@@ -38,7 +38,8 @@ A 2-D transformer with separate **space** and **time** attention, pre-RMSNorm, R
 
 - **Spatial blocks** — full, *unmasked* self-attention over the tokens of a single frame (the block
   above). All token types mix here (so e.g. memory ↔ latents mix within a frame).
-- **Temporal blocks** — applied only **once every 4 layers**; attention is **causal in time** and
+- **Temporal blocks** — the middle layer of each `[spatial, temporal, spatial]` triple, i.e. **every
+  3rd layer** (`i%3==1`, so `depth=9` is three groups); attention is **causal in time** and
   **position-wise per token slot** (RoPE on the time axis). So each slot — including each memory slot —
   is its own causal channel across frames, and does *not* see other-slot tokens at other times directly.
   Sparse temporal attention is cheaper and (Dreamer-4 finding) higher quality.
@@ -115,9 +116,11 @@ DreamerV4 h-state analogue, aimed at the long-horizon-memory limitation.
 
 - **Memory tokens** are an *activation* (a final-layer hidden state), with **no ground-truth label**.
 - **FF9 sufficiency loss** (when `n_memory>0`, lookahead `ff9_k>0`): for each frame `t`, a short
-  mini-window where the path latents are set to `τ=0` (pure noise, so no latent carries the scene) and
-  the memory token written at `t` is injected; the model must reconstruct the next `1..ff9_k` frames
-  from **memory alone**. This forces memory to contain the hidden (on/off-screen) state. Added to §3's
+  mini-window where the intermediate path latents are set to `τ=0` (pure noise, so no latent carries the
+  scene) and the memory token written at `t` is injected; the model must reconstruct the next `1..ff9_k`
+  frames from **memory alone**. (The single terminal scored frame `t+j` gets a *sampled* `τ` so a
+  well-posed x-prediction target exists; low-`τ` draws keep memory load-bearing.) This forces memory to
+  contain the hidden (on/off-screen) state. Added to §3's
   loss with a weighted loss and using loss normalization (where the scaler is gradient detatched). The gradient of the reconstruction needs to flow back through the mechanism that constructed the memory tokens.
 - **Carried inference (the load-bearing part).** At rollout, each frame's *written* memory token is
   taken on the last of the K=4 diffusion steps (when the frame is generated) and then placed at the input of itself (same time step). We also put the diffused frame latents at the input give it a near-clean signal level and run one final forward pass to get the frozen KV cache for the whole time step (this fifth forward pass to generate the KV cache can be done losslessly together with the first diffusion step of the next frame for a small optimization). Vanilla (`n_memory=0`) is the plain rollout with no carry.

@@ -4,7 +4,9 @@ Trains `AutoEncoder` to reconstruct GridWorld frames; the result is frozen and r
 Reconstruction loss (MSE, optional LPIPS) over T-frame clips.
 
 ## Interface
-- CLI: `--frames data/gridworld.npy --checkpoint <out.pt> --epochs --batch-size --lr --seed`;
+- CLI: `--frames data/gridworld.npy --checkpoint <out.pt>` (`--checkpoint` = SAVE destination = BEST
+  checkpoint; also loaded by the viewers); `--resume <in.pt>` (optional, load weights to start FROM);
+  `--epochs --batch-size --lr --seed`;
   `--lpips` (perceptual term); `--wandb*`; `--test-checkpoint` (show recon strips instead of training).
 - Produces `<checkpoint>.pt = {config, model_state_dict}` + recon-strip images.
 

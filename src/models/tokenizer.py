@@ -15,7 +15,7 @@ class AutoEncoderConfig():
 
     n_heads: int = 16
     mlp_ratio: float = 3.0
-    depth: int = 8
+    depth: int = 9  # 3x[spatial, temporal, spatial]; temporal at i%3==1
 
     drop_rate: int = 0.1
     att_drop_rate: int = 0.1
@@ -197,8 +197,9 @@ class Encoder(nn.Module):
         self.learned_latents = nn.Parameter(0.05*torch.rand((config.n_latents, config.embedding_dim), dtype=config.dtype))
         self.n_latents = config.n_latents
 
-        self.blocks = nn.ModuleList([(TransformerBlock(config, is_encoder=True, is_temporal=False) if (i+1)%4 != 0 
-                                            else TransformerBlock(config, is_encoder=True, is_temporal=True)) for i in range(config.depth)])
+        # Layer cadence: 3x[spatial, temporal, spatial] -> temporal at i%3==1 (depth=9 = three groups).
+        self.blocks = nn.ModuleList([TransformerBlock(config, is_encoder=True, is_temporal=(i % 3 == 1))
+                                     for i in range(config.depth)])
 
         self.norm = nn.RMSNorm(config.embedding_dim)
         self.bottleneck_proj = nn.Linear(config.embedding_dim, config.bottleneck_dim)
@@ -258,8 +259,9 @@ class Decoder(nn.Module):
         self.from_bottleneck_proj = nn.Linear(config.bottleneck_dim, config.embedding_dim)
         self.learned_patch_tokens = nn.Parameter(0.05*torch.rand((self.n_patches, config.embedding_dim), dtype=config.dtype))
         
-        self.blocks = nn.ModuleList([(TransformerBlock(config, is_encoder=False, is_temporal=False) if (i+1)%4 != 0 
-                                            else TransformerBlock(config, is_encoder=False, is_temporal=True)) for i in range(config.depth)])
+        # Layer cadence: 3x[spatial, temporal, spatial] -> temporal at i%3==1 (depth=9 = three groups).
+        self.blocks = nn.ModuleList([TransformerBlock(config, is_encoder=False, is_temporal=(i % 3 == 1))
+                                     for i in range(config.depth)])
 
         self.norm = nn.RMSNorm(config.embedding_dim)
         self.patch_token_to_img_patch_proj = nn.Linear(config.embedding_dim, config.patch_size*config.patch_size*3)
@@ -295,7 +297,9 @@ class Decoder(nn.Module):
         
         x = self.norm(x[:, :, :self.n_patches, :])
 
-        x = self.imagify_patches(self.patch_token_to_img_patch_proj(x))
+        # Sigmoid bounds pixels to [0, 1] — the range of the (frame/255) training targets and what
+        # MSE / LPIPS(normalize=True) assume. Without it the decoder emits unbounded reals.
+        x = self.imagify_patches(torch.sigmoid(self.patch_token_to_img_patch_proj(x)))
 
         return x
 

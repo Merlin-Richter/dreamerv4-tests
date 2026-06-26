@@ -13,19 +13,20 @@ present-then-stop gates. When a task is ambiguous or you're blocked, **ask**; do
 
 The research: world models from video (DreamerV4 lineage) and their **memory limitation** — a short
 latent window can't retain off-screen/hidden state. We're rebuilding the codebase clean (spec-driven)
-and studying memory tokens that carry state past the window. `agent/OPERATING.md` is the canonical short
-statement of how you work; this file is the full version.
+and studying memory tokens that carry state past the window.
 
 ---
 
 ## 1. Cold start (every session)
-1. Read `agent/ORIENT.md` — current situation, what's being worked on, anything in flight.
+1. Read `agent/ORIENT.md` — current situation, what's being worked on, anything in flight. (could be stale)
 2. Print the task tree: `find tasks -type f` (or `ls -R tasks`). Folder = state, filename = description;
    open a task file only when you act on it.
 3. Skim `agent/EXPERIMENTS.md` (the short experiment index).
-4. If anything is running on the cluster, reconcile: `bash scripts/job_status.sh --cluster <ferranti|galvani>`
+4. Run `bash scripts/cluster_health.sh` to see if the sockets are alive. If dead and you need cluster for training -> just write to the human.
+5. If anything is running on the cluster, reconcile: `bash scripts/job_status.sh --cluster <ferranti|galvani>`
    (in WSL — see §5). Process finished jobs before new work.
-5. State in one line what you're about to do. If you can't, the state files failed — tell Merlin.
+6. State in one line what you're about to do. If you can't, the state files failed — tell Merlin.
+7. check the git state and commit the current state if uncommitted so that a rollback is possible.
 
 Don't re-derive a plan from scratch; pick up where ORIENT + the task tree say things stand.
 

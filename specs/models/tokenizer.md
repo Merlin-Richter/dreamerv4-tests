@@ -21,8 +21,10 @@ the dynamics model: 2-D (space/time) attention, RMSNorm, RoPE on time, QK-norm, 
   attend to latents**; so the latents must summarise the frame.
 - **Decoder**: from the bottleneck latents + `n_patches` learned patch tokens, run the transformer;
   **patch tokens attend to the latents but the latents do NOT attend back**; keep the patch tokens →
-  project to pixels → un-patchify to the frame.
-- **Temporal layers** (every 4th block) are causal across time with RoPE — frames see the past, giving
+  project to pixels → **sigmoid (bounds output to [0,1], the range of the /255 targets)** → un-patchify
+  to the frame.
+- **Temporal layers** (the middle of each `[spatial, temporal, spatial]` triple — **every 3rd block**,
+  `i%3==1`, so `depth=9` is three groups) are causal across time with RoPE — frames see the past, giving
   temporally-consistent latents.
 - **MAE patch-dropout** (train only): per image, drop a fraction `~U[mae_min,mae_max]` of patch tokens
   (replaced by a learned token) before encoding. Forces the decoder to use the latents instead of

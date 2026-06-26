@@ -132,7 +132,7 @@ def run_test_checkpoint(args: argparse.Namespace) -> None:
     import cv2
 
     if not args.checkpoint.is_file():
-        raise FileNotFoundError(f"Checkpoint not found: {args.checkpoint}")
+        raise FileNotFoundError(f"--test-checkpoint needs an existing --checkpoint, got: {args.checkpoint}")
 
     raw = np.load(args.frames, mmap_mode="r")
     if raw.ndim != 5 or raw.shape[-1] != 3:
@@ -230,15 +230,14 @@ def run_test_checkpoint(args: argparse.Namespace) -> None:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--frames", type=Path, default=_ROOT / "data" / "gridworld.npy",
-                        help="Path to frames .npy (N, T, H, W, C) uint8.")
+    parser.add_argument("--frames", type=Path, required=True,
+                        help="Path to frames .npy (N, T, H, W, C) uint8 (required; env-specific).")
     parser.add_argument("--actions", type=Path, default=None,
                         help="Path to actions .npy (N, T) ints. Default: '<frames>_actions.npy' "
                              "if it exists, else unlabeled (no action conditioning).")
-    parser.add_argument("--tokenizer", type=Path,
-                        default=_ROOT / "checkpoints" / "occluded" / "tokenizer.pt",
-                        help="Frozen C tokenizer checkpoint (env-specific; pass --tokenizer for "
-                             "the right env, e.g. checkpoints/gridworld/tokenizer.pt).")
+    parser.add_argument("--tokenizer", type=Path, required=True,
+                        help="Frozen tokenizer checkpoint (required; env-specific, e.g. "
+                             "checkpoints/gridworld/tokenizer.pt).")
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument(
@@ -249,10 +248,13 @@ def main():
              "(capped at 8). 0 = synchronous load on the main thread (starves the GPU).",
     )
     parser.add_argument("--lr", type=float, default=3e-4)
-    parser.add_argument("--checkpoint", type=Path,
-                        default=_ROOT / "checkpoints" / "bouncing" / "dynamics.pt",
-                        help="Where to save weights + config (env-specific; pass --checkpoint, "
-                             "e.g. checkpoints/gridworld/dynamics_vanilla.pt).")
+    parser.add_argument("--checkpoint", type=Path, required=True,
+                        help="Where to SAVE weights + config each epoch (required; env-specific, e.g. "
+                             "checkpoints/gridworld/dynamics.pt). With --test-checkpoint, the checkpoint "
+                             "to load and visualize.")
+    parser.add_argument("--resume", type=Path, default=None,
+                        help="Load weights + config to start training FROM (optional; default: random "
+                             "init). Use to continue a run or warm-start FF9 from a vanilla checkpoint.")
     parser.add_argument("--test-checkpoint", action="store_true",
                         help="Load --checkpoint and visualize an autoregressive rollout.")
     parser.add_argument("--context-frames", type=int, default=4,
@@ -265,8 +267,6 @@ def main():
                         help="Clip length in frames. Default: DynamicsModelConfig.max_temporal_length.")
     parser.add_argument("--val-offset", type=int, default=0)
     parser.add_argument("--val-fraction", type=float, default=0.05)
-    parser.add_argument("--fresh", action="store_true",
-                        help="Ignore any existing --checkpoint and train from random init.")
     parser.add_argument("--ff9", type=int, default=0, metavar="K",
                         help="FF9 memory-sufficiency training: enable the per-frame memory tokens + "
                              "the memory-only-sufficiency loss with lookahead K (1-3 sensible; 0=off, "
@@ -382,10 +382,12 @@ def main():
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, drop_last=True, **loader_kw)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, **loader_kw)
 
-    if args.checkpoint.is_file() and not args.fresh:
-        payload = torch.load(args.checkpoint, map_location=device, weights_only=False)
+    if args.resume is not None:
+        if not args.resume.is_file():
+            raise FileNotFoundError(f"--resume checkpoint not found: {args.resume}")
+        payload = torch.load(args.resume, map_location=device, weights_only=False)
         cfg = _config_from_checkpoint(payload["config"], DynamicsModelConfig)
-        if args.ff9 > 0:  # resuming an older checkpoint into FF9 training: add the memory carrier
+        if args.ff9 > 0:  # warm-starting into FF9 training: add the memory carrier
             cfg.n_memory = args.n_memory
             cfg.ff9_k = args.ff9
         model = DynamicsModel(cfg).to(device)
@@ -394,7 +396,7 @@ def main():
             print(f"[resume] randomly-initialized (not in checkpoint): {result.missing_keys}")
         if result.unexpected_keys:
             print(f"[resume] ignored (in checkpoint, not in model): {result.unexpected_keys}")
-        print(f"Loaded weights from {args.checkpoint}")
+        print(f"Loaded weights from {args.resume}")
     else:
         model = DynamicsModel(cfg).to(device)
 

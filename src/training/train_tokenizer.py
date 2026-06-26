@@ -247,23 +247,26 @@ def main():
                         help="DataLoader workers. Default: auto from SLURM_CPUS_PER_TASK/cpu_count "
                              "(capped 8); 0 on Windows. 0 = synchronous load on the main thread.")
     parser.add_argument("--lr", type=float, default=3e-4)
-    parser.add_argument("--checkpoint", type=Path,
-                        default=_SRC.parent / "checkpoints" / "gridworld" / "tokenizer.pt",
-                        help="Where to save {config, model_state_dict}; also loaded by viewers.")
+    parser.add_argument("--checkpoint", type=Path, required=True,
+                        help="Where to SAVE {config, model_state_dict} (BEST val/fg_mse) (required; "
+                             "env-specific). Also the checkpoint loaded by the --test-checkpoint / "
+                             "--save-recon viewers.")
     parser.add_argument("--test-checkpoint", action="store_true",
                         help="Load --checkpoint and open a window: clip vs reconstruction.")
     parser.add_argument("--save-recon", type=Path, default=None,
                         help="Headless: render N input/recon strips to this PNG (no GUI).")
     parser.add_argument("--n-samples", type=int, default=4, help="Clips to render for --save-recon.")
-    parser.add_argument("--seed", type=int, default=0, help="RNG seed for --save-recon selection.")
+    parser.add_argument("--seed", type=int, default=0,
+                        help="RNG seed for torch/numpy/random (model init, per-epoch offset/shuffle; "
+                             "also --save-recon selection). The train/val split is fixed (seed 0).")
     parser.add_argument("--context-length", type=int, default=None,
                         help="Clip length L (= AutoEncoderConfig.max_temporal_length). Default: config value.")
     parser.add_argument("--val-offset", type=int, default=0, help="Fixed start offset for val chunks.")
     parser.add_argument("--val-fraction", type=float, default=0.05)
     parser.add_argument("--max-episodes", type=int, default=None,
                         help="Train on only the first N episodes (fast local validation).")
-    parser.add_argument("--fresh", action="store_true",
-                        help="Ignore any existing --checkpoint and train from random init.")
+    parser.add_argument("--resume", type=Path, default=None,
+                        help="Load weights + config to start training FROM (optional; default: random init).")
     parser.add_argument("--lpips", action="store_true",
                         help="Add an LPIPS perceptual term (off by default; module imported only when set).")
     parser.add_argument("--lpips-net", type=str, default="vgg", choices=["vgg", "alex", "squeeze"])
@@ -296,6 +299,12 @@ def main():
     if args.save_recon is not None:
         run_save_recon(args)
         return
+
+    # Seed model init + per-epoch offset/shuffle sampling for reproducibility (the train/val split
+    # below stays pinned at manual_seed(0) so the val set is stable across --seed, matching train_dynamics).
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
     # Memory-mapped uint8; clips become float32 per-batch in the dataset, so RAM stays small.
     raw = np.load(args.frames, mmap_mode="r")
@@ -390,8 +399,10 @@ def main():
         pstd = pred.reshape(p, -1).std(1).mean().item()
         return cos, pstd
 
-    if args.checkpoint.is_file() and not args.fresh:
-        payload = torch.load(args.checkpoint, map_location=device, weights_only=False)
+    if args.resume is not None:
+        if not args.resume.is_file():
+            raise FileNotFoundError(f"--resume checkpoint not found: {args.resume}")
+        payload = torch.load(args.resume, map_location=device, weights_only=False)
         cfg = _config_from_checkpoint(payload["config"])
         model = AutoEncoder(cfg).to(device)
         # Tolerant load so architecture changes warm-start instead of crashing; report mismatches.
@@ -400,7 +411,7 @@ def main():
             print(f"[resume] randomly-initialized: {result.missing_keys}")
         if result.unexpected_keys:
             print(f"[resume] ignored: {result.unexpected_keys}")
-        print(f"Loaded weights from {args.checkpoint}")
+        print(f"Loaded weights from {args.resume}")
     else:
         model = AutoEncoder(cfg).to(device)
 

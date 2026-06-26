@@ -4,7 +4,10 @@ Trains a `DynamicsModel` (vanilla or FF9-memory) on GridWorld frames encoded by 
 Loss = shortcut forcing (+ FF9 sufficiency when `--ff9>0`). The dynamics model never touches pixels.
 
 ## Interface
-- CLI: `--frames data/gridworld.npy --tokenizer <frozen .pt> --checkpoint <out.pt>`;
+- CLI: `--frames <.npy>`, `--tokenizer <frozen .pt>`, and `--checkpoint <out.pt>` are **required** (no
+  defaults; env-specific). `--checkpoint` is the SAVE destination (written each epoch; also the
+  checkpoint loaded by `--test-checkpoint`). `--resume <in.pt>` (optional) loads weights + config to start
+  training FROM (default: random init; e.g. warm-start FF9 from a vanilla checkpoint).
   `--epochs --batch-size --lr --seed --context-length`; memory: `--ff9 K --n-memory M`;
   `--wandb*`; `--test-checkpoint` (interactive rollout viz instead of training).
 - Produces `<checkpoint>.pt` = `{config, model_state_dict}`.

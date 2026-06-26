@@ -31,7 +31,7 @@ The active pipeline is **GridWorld → frozen Tokenizer → Dynamics model**:
 GridWorld frames (B, T, 64, 64, 3) uint8 BGR
   ↓
 [models.tokenizer]  (FROZEN)
-  • patchify 8×8 → spatial + temporal (every 4th layer, causal) attention
+  • patchify 8×8 → spatial + temporal (3×[spatial,temporal,spatial], causal) attention
   • MAE patch-dropout (train only); restricted cross-attention bottleneck
   • → latents (B, T, n_latents=4, bottleneck_dim=64)
   ↓
@@ -44,7 +44,7 @@ GridWorld frames (B, T, 64, 64, 3) uint8 BGR
 ### Tokenizer (`models/tokenizer.py`) — spec: `specs/models/tokenizer.md`
 - Patchifies frames into non-overlapping `patch_size=8` patches + learned position embeddings.
 - Spatial layers: full self-attention within a frame over patches + `n_latents` learned latent tokens.
-  Temporal layers (every 4th): causal across time with RoPE.
+  Temporal layers (every 3rd, the middle of each [spatial,temporal,spatial] triple): causal across time with RoPE.
 - **Restricted cross-attention IS the bottleneck**: in the encoder latent tokens attend to patches but
   patches do not attend to latents; in the decoder patches attend to latents but not vice-versa.
 - **MAE patch-dropout** (train only) forces the decoder to use the latents, preventing mean-image collapse.
@@ -59,7 +59,7 @@ Registers are plain learned scratch tokens; memory tokens are present only when 
 **Transformer**: 2-D, separate space/time attention, pre-RMSNorm, RoPE (time only), SwiGLU, QK-norm,
 attention-logit soft-capping, learnable per-head logit scale. Spatial = unmasked within a frame;
 temporal = causal in time, **position-wise per token slot** (each slot, incl. each memory slot, is its
-own causal channel across time), applied every 4th layer.
+own causal channel across time), applied every 3rd layer (the middle of each [spatial,temporal,spatial] triple).
 
 **Shortcut forcing loss** (`loss`): diffusion forcing (per-frame signal level τ) + shortcut models
 (step size d=1/K). **x-prediction** (predicts clean `ẑ₁`, not velocity). Finest step → flow MSE; coarser
@@ -130,12 +130,20 @@ python -u src/training/train_tokenizer.py --epochs 20 --batch-size 16
 python -u src/training/train_tokenizer.py --lpips                 # optional LPIPS perceptual loss
 python -u src/training/train_tokenizer.py --test-checkpoint --checkpoint checkpoints/gridworld/tokenizer.pt
 
-# 3. Train the dynamics model on the frozen tokenizer
+# 3. Train the dynamics model on the frozen tokenizer.
+# --frames and --tokenizer are REQUIRED (no defaults); --checkpoint defaults to none (train from
+# scratch, no save) — pass it to save/resume.
 python -u src/training/train_dynamics.py --epochs 50 --batch-size 32 --context-length 16 \
-  --tokenizer checkpoints/gridworld/tokenizer.pt
+  --frames data/gridworld.npy --tokenizer checkpoints/gridworld/tokenizer.pt \
+  --checkpoint checkpoints/gridworld/dynamics.pt
 # Memory model: --ff9 K enables the FF9 sufficiency loss; --n-memory M (default 4) sets memory tokens.
-python -u src/training/train_dynamics.py --ff9 3 --n-memory 4 --context-length 16 --seed 0
-python -u src/training/train_dynamics.py --test-checkpoint        # interactive rollout viz
+python -u src/training/train_dynamics.py --ff9 3 --n-memory 4 --context-length 16 --seed 0 \
+  --frames data/gridworld.npy --tokenizer checkpoints/gridworld/tokenizer.pt \
+  --checkpoint checkpoints/gridworld/dynamics_ff9.pt
+# Interactive rollout viz (--checkpoint + --frames required):
+python -u src/training/train_dynamics.py --test-checkpoint \
+  --frames data/gridworld.npy --tokenizer checkpoints/gridworld/tokenizer.pt \
+  --checkpoint checkpoints/gridworld/dynamics.pt
 
 # 4. Inspect interactively (keys: 0=reveal, 1=occlude, r=reset, q=quit)
 python -u src/interactive/play_dynamics.py \
@@ -150,6 +158,16 @@ python -u src/tests/test_dynamics.py           # forward / loss+FF9 grad / carry
 
 W&B is optional on every trainer via `wlog` flags (`--wandb --wandb-project … --wandb-entity … --wandb-name
 … --wandb-tags …`), or `$WANDB_ENTITY`/`$WANDB_PROJECT` env defaults. Checkpoints stay local.
+
+### Cluster / remote runs
+Big training/eval runs go to the GPU cluster (ferranti H100s / galvani A100s). **All** cluster access goes
+through the `scripts/` wrappers (`sync_code.sh`, `submit_job.sh`, `pull_results.sh`, …) — never raw
+ssh/scp/rsync/sbatch (protocol §6). Asymmetric transport: **code goes up only via GitHub** (`sync_code.sh`
+does a remote `git fetch`+`checkout`, so commit+push first), while **results/checkpoints come straight back
+to local** via `pull_results.sh` (rsync; `*.pt` only with `--what checkpoints|all`). The wrappers **must run
+in WSL** (the ssh ControlMaster socket is WSL-namespaced) and need a master socket Merlin opens
+interactively first. Local 4070 training stays in Windows/Git-Bash; only cluster orchestration is WSL.
+**Read more:** `scripts/README.md` (verbs + error contract) and `HOWTO/cluster.md`.
 
 ## Config Dataclasses
 
