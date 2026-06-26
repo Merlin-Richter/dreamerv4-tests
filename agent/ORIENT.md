@@ -24,7 +24,18 @@ gained the learnable per-head `logit_scale`, tokenizer decoder gained a sigmoid 
 terminal frame gets a sampled τ, trainers moved to required `--frames/--tokenizer/--checkpoint`. **All
 pre-sync checkpoints are architecture-incompatible — retrained.**
 
-## Just finished (this session)
+## Just finished (latest session, 2026-06-26)
+- **Working tree committed as a verified rollback point** (`786e6ce`): the in-flight `--window`/`max_ctx`
+  eval tooling (dynamics `rollout_init`/`generate` knob, recall `window=` + CLI + meta block, NEW
+  `plot_recall.py` + `sheets.py` with specs), CLAUDE.md docs, and done→archive task moves. Verified
+  specs↔src consistent for every changed/new file; all 4 gate suites green. Closed task
+  `check-git-changes-in-specs-and-src` (→done). Minor non-blocking drift noted: `sheets.py` CLI has extra
+  `--actions`/`--occ-seed0` not in its spec.
+- **Cluster: BOTH sockets DOWN** (ferranti + galvani, confirmed via WSL). Needs Merlin `open_master.sh`.
+  Backlog task `retrain-mem2mem-with-only-rollout-training` (rollout-only vs 50/50; test window=8 max_k=64)
+  is BLOCKED on this.
+
+## Earlier this session
 - **Cache-equivalence verification** (task → `tasks/done/verify-cached-vs-uncached-rollout-identical.md`).
   New gate test `src/tests/test_dynamics_cache.py` (green) + `experiments/verify-cache-equiv/`. Result,
   independently re-verified (critical-claim-verifier, fp64): the carrying KV-cached rollout `==` an
