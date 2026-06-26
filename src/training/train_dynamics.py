@@ -21,6 +21,9 @@ To try a NEW loss / training-flow idea without editing the spec-backed model, pa
 subclass via `--model-module experiments/EXP-NNN/model.py:ClassName` (see experiments/README.md). The
 canonical src/models/dynamics_model.py stays untouched until the idea graduates.
 """
+# Defer annotation evaluation so PEP-604 unions (e.g. `str | None` in resolve_model_class) work on
+# the cluster's Python < 3.10 (they are only evaluated lazily, never at def time).
+from __future__ import annotations
 
 import argparse
 import importlib.util
