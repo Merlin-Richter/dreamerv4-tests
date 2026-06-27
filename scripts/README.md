@@ -31,7 +31,8 @@ others. So the human opening the master and the orchestrator running the verbs m
 | `job_status.sh --cluster X [ids]` | squeue (no ids) / sacct state+exit+elapsed+MaxRSS (with ids) |
 | `fetch_logs.sh --cluster X <id> [--tail N]` | slurm log, running or done |
 | `wait_for_jobs.sh --cluster X <ids> [--poll S]` | block until terminal; early-exit (rc 7) on FAIL/Traceback |
-| `pull_results.sh --cluster X <run> [--what all\|logs\|metrics\|checkpoints]` | rsync back; *.pt only on demand |
+| `pull_results.sh --cluster X <run> [--what all\|logs\|metrics\|checkpoints]` | rsync back a whole `runs/<run>/` dir; *.pt only on demand |
+| `pull_file.sh --cluster X <remote-path> [--dest LOCAL]` | rsync back ONE file from outside `runs/` (e.g. a checkpoint at `checkpoints/<env>/x.pt`); path is repo-relative, mirrors locally by default |
 | `cancel_job.sh --cluster X <id>` | scancel — refuses ids not in EXPERIMENTS.md |
 | `clean_run.sh --cluster X <run>` | rm runs/<run> — refuses anything escaping the runs/ subtree |
 
