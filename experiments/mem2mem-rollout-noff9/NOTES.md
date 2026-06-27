@@ -32,4 +32,5 @@ rollout-only no-boot (`dynamics_mem2mem_rollout.pt`), and the baselines. Questio
 without FF9?
 
 ## Status
-- (to fill: SHA, job id, result)
+- [2026-06-27] submitted: branch `exp/mem2mem-rollout-only` SHA `0d1cdca`, ferranti **job 411270**,
+  36 epochs, 4h wall, --no-ff9 (bootstrap + curriculum ON). Parallel with 411221 (flow+ff9).
