@@ -68,6 +68,9 @@ def main():
     p.add_argument("--no-bootstrap", action="store_true",
                    help="Disable the shortcut bootstrap distillation in the rollout new-half loss "
                         "(finest-step flow only). Default: bootstrap ON (matches the normal diffusion loss).")
+    p.add_argument("--no-ff9", action="store_true",
+                   help="Drop the FF9 sufficiency term: memory is trained ONLY by the rollout flow loss "
+                        "(50/50 clean/noise; the noise-mode flow loss is the memory signal). Ablation.")
     p.add_argument("--no-curriculum", action="store_true",
                    help="Disable the step-size curriculum (sample all d steps from step 0). "
                         "Default: ramp d finest-first (only d_min for --curr-warmup, then +1 step every "
@@ -110,7 +113,8 @@ def main():
     nparams = sum(p.numel() for p in model.parameters())
     ncts = valid_n_ctx(N, clip_len)
     print(f"device={device} params={nparams/1e6:.2f}M n_actions={n_actions} clip_len={clip_len} "
-          f"n_ctx choices={ncts} mem2mem_frac={args.mem2mem_frac} bootstrap={not args.no_bootstrap}")
+          f"n_ctx choices={ncts} mem2mem_frac={args.mem2mem_frac} bootstrap={not args.no_bootstrap} "
+          f"use_ff9={not args.no_ff9}")
 
     train_ds = ChunkClipDataset(raw, train_idx, clip_len, actions=actions)
     val_ds = ChunkClipDataset(raw, val_idx, clip_len, actions=actions)
@@ -169,7 +173,8 @@ def main():
                     loss, parts = mem2mem_rollout_loss(model, z1, acts, n_ctx=W, device=device,
                                                        gen=gen, max_frames=args.max_frames,
                                                        bootstrap=not args.no_bootstrap,
-                                                       n_d_unlocked=n_unlocked)
+                                                       n_d_unlocked=n_unlocked,
+                                                       use_ff9=not args.no_ff9)
                     agg["mem2mem"] += float(loss.detach()); agg["n_m"] += 1
                     agg["flow"] += parts["flow"]; agg["ff9"] += parts["ff9"]
                 else:

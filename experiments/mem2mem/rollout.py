@@ -126,7 +126,7 @@ def _sample_modes(B, device, gen, force_mode):
 
 def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
                          tbptt_frames=None, max_frames=None, gen=None, force_mode=None,
-                         bootstrap=True, n_d_unlocked=None):
+                         bootstrap=True, n_d_unlocked=None, use_ff9=True):
     """One mem->mem rollout over a long clip. Returns (total_loss, parts_dict).
 
     z1:          (B, T, L, D) clean latents (T should be long, e.g. up to 5*max_temporal_length).
@@ -143,9 +143,12 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
     n_d_unlocked: step-size CURRICULUM — sample d only from the ``n_d_unlocked`` FINEST steps (the
                  trainer ramps this 1 -> n_d over training). 1 => d_min only => pure flow (the bootstrap
                  forwards are skipped). None => all steps. See _sample_tau_d for the finest-first rationale.
+    use_ff9:     include the explicit FF9 sufficiency term. False -> memory is trained ONLY by the rollout
+                 flow loss (in the 50% full-noise mode the new half can only be reconstructed from carried
+                 memory, so that flow term IS the memory signal). Ablation: is FF9 needed at all?
 
     Loss = shortcut-forcing diffusion on the new half (flow at the finest step + bootstrap distillation
-    at coarser steps) + FF9 sufficiency (new-half memories), normalized like model.loss.
+    at coarser steps) [+ FF9 sufficiency (new-half memories) when use_ff9], normalized like model.loss.
     """
     assert model.n_memory > 0, "mem2mem needs n_memory > 0"
     N = model.config.max_temporal_length
@@ -215,7 +218,7 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
             af_win=af(s, s + W), memory_in=memory_in,
             positions=torch.arange(W, device=device), half=half, bootstrap=bootstrap)
         # new_mem: (B, half, M, E) — graph-attached; carried + FF9-scored
-        if k > 0 and new_b + k <= T:
+        if use_ff9 and k > 0 and new_b + k <= T:
             z1_sub = z1[:, new_a:new_b + k]                          # (B, half+k, L, D)
             mem_sub = z1.new_zeros(B, half + k, new_mem.shape[-2], new_mem.shape[-1])
             mem_sub[:, :half] = new_mem
