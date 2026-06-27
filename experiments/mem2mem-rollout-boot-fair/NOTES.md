@@ -52,10 +52,12 @@ vanilla/copy_last baselines. position_acc mean / tail (k≥14) / k=64.
 - If **A < winner**: the τ-shift (snapped grid, ~25% τ=0) is the culprit, independent of bootstrap.
 
 ## Provenance
-- Branch `exp/mem2mem-rollout-only`. SHA + JOB_IDs: filled in below at submit.
-- SHA: <pending>
-- Arm B job: <pending>  | Arm A job: <pending>
+- Branch `exp/mem2mem-rollout-only`, SHA `851a7ab8d8f9d88827e3d9588c4ecd4d0ed742d1`. Cluster ferranti (H100).
+- **Arm B (fair boot):** job **411502** → `dynamics_mem2mem_rollout_boot_fair.pt` (--ff9-norm-flow, 50ep, 5h).
+- **Arm A (control):** job **411503** → `dynamics_mem2mem_rollout_bootctrl.pt` (--boot-loss-off --ff9-norm-flow, 50ep, 4h).
+- Data: 5× `data/gridworld.npy` + frozen `tokenizer.pt` already on cluster (same as jobs 411133/411221).
+- Compare against: winner `dynamics_mem2mem_rollout.pt` (job 411133) + old unfair boot (411221).
 
 ## Status
-- [2026-06-27] Code done + verified (probe |diff|=0, autograd relay intact, both arms smoke clean).
-  Submitting to ferranti.
+- [2026-06-27] SUBMITTED. Code verified (probe |diff|=0, autograd relay intact, both arms smoke clean @ 4070).
+  Jobs 411502 (B) + 411503 (A) queued on ferranti (queue depth ~241 pending). Awaiting completion → recall A/B.
