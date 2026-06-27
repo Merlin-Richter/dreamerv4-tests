@@ -57,6 +57,33 @@ A confound-free check would be boot @ 50ep — but since no-boot is already at c
 no upside to pursue. CONCLUSION: keep the simple rollout-only + FF9 (finest-step flow, no bootstrap).
 Overlay: `compare_w8_k64_ablations.png`. Per-K JSONs: outputs/recall/recall_{boot,noboot}_K{1,2}.json.
 
+## CORRECTION (2026-06-27, later) — this was NOT a clean ablation; "bootstrap hurt" is unsupported
+On review (prompted by Merlin: shortcut forcing logically shouldn't hurt), the diff `2951ee6` (winner)
+→ `3be2108` (this run) shows the bootstrap was confounded with THREE separable changes, and the
+mechanism stated above is directionally real but mis-framed:
+
+1. **FF9 normalizer dilution (the real lever, reframed).** FF9 is scaled by
+   `diffusion.detach()/ff9.detach()` — and `diffusion` here is the *mixed* flow+bootstrap per-token mean.
+   The bootstrap self-distillation term is intrinsically SMALLER than the flow x-prediction loss, so
+   mixing it in shrinks the normalizer and silently down-weights FF9's gradient. KEY: it was the
+   rollout-only WINNER that was non-standard — it used *pure flow* as the basis (larger), accidentally
+   giving FF9 *more* weight. This run merely reverted FF9 to the diluted (model.loss-faithful) weighting.
+   Smoke confirms the gap: `flow 0.113` (mixed) vs `flow_norm 0.266` (pure) ⇒ ~2.4× under-weight. So
+   "bootstrap lowered flow → down-weighted FF9" is right in direction but the lowering is largely an
+   *artifact of averaging in a small term*, not a real denoising gain, and the winner was the outlier.
+2. **τ distribution shift (a SECOND, separate change).** The new-half τ sampler was rewritten from
+   uniform `U{0..K_max-1}` to the d-snapped joint `(d, step)` grid (required by bootstrap). At full
+   curriculum unlock this piles ≈25% of clean-mode tokens at τ=0 (vs <1% before) — a much noisier new
+   half, changing what memory is built from. This rides along with bootstrap and was not isolated here.
+3. **36 vs 50 epochs** (vs the winner's 50). Also the sister no-ff9 run showed instability at the exact
+   curriculum-unlock point — so the 5× worse FF9 is a *compound* of (1)+(2)+(3)+instability, not the
+   bootstrap gradient per se.
+
+Net: keep the practical takeaway ("the plain rollout-only + FF9 is the winner and already nails K=1, so
+there's no upside to bootstrap on GridWorld"), but DO NOT cite this run as evidence that shortcut forcing
+hurts retention. The clean isolation is `experiments/mem2mem-rollout-boot-fair/` (2-arm factorial, fixed
+normalizer + matched epochs + τ held identical between arms).
+
 ## Status
-- [2026-06-27] DONE. branch SHA `3be2108`, ferranti job 411221 (36ep, 2h21m). bootstrap+curriculum ON.
-  Result above. Checkpoint `dynamics_mem2mem_rollout_boot.pt` (kept for reference; NOT the winner).
+- [2026-06-27] DONE but SUPERSEDED as an ablation (confounded — see CORRECTION). branch SHA `3be2108`,
+  ferranti job 411221 (36ep, 2h21m). Checkpoint `dynamics_mem2mem_rollout_boot.pt` (reference only).

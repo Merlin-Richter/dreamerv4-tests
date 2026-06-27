@@ -119,7 +119,7 @@ for mode_noise in (False, True):
         inp = make_inputs(mode_noise, g1)
 
         # REAL _newhalf_loss
-        loss_real, mem_real = R._newhalf_loss(
+        loss_real, mem_real, _flow_norm_real = R._newhalf_loss(
             model, old_part=inp["old_part"], tau_old=inp["tau_old"], new_part=inp["new_part"],
             tau_new_idx=inp["tau_new_idx"], d_new_idx=inp["d_new_idx"], z1_new=inp["z1_new"],
             af_win=inp["af_win"], memory_in=inp["memory_in"], positions=inp["positions"],

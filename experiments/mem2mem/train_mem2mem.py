@@ -67,7 +67,19 @@ def main():
     p.add_argument("--mem2mem-frac", type=float, default=0.5, help="P(batch uses mem->mem vs normal).")
     p.add_argument("--no-bootstrap", action="store_true",
                    help="Disable the shortcut bootstrap distillation in the rollout new-half loss "
-                        "(finest-step flow only). Default: bootstrap ON (matches the normal diffusion loss).")
+                        "(finest-step flow only). Default: bootstrap ON (matches the normal diffusion loss). "
+                        "Also forces d_min-only sampling (uniform tau) — the rollout-only winner config.")
+    p.add_argument("--boot-loss-off", action="store_true",
+                   help="CONTROL ARM for the bootstrap A/B: keep the curriculum d-sampling (snapped-tau "
+                        "grid, coarse steps present) but disable the bootstrap LOSS term (coarse-d tokens "
+                        "get flow MSE). Holds the tau distribution identical to the bootstrap run so the "
+                        "ONLY difference is the bootstrap gradient. Unlike --no-bootstrap, does NOT force "
+                        "d_min-only. Pair with --ff9-norm-flow.")
+    p.add_argument("--ff9-norm-flow", action="store_true",
+                   help="Normalize the FF9 term by the pure d_min FLOW magnitude (not the mixed "
+                        "flow+bootstrap diffusion mean), keeping FF9's effective weight invariant to the "
+                        "bootstrap. Required for a fair bootstrap A/B; default keeps the mixed mean "
+                        "(faithful to model.loss).")
     p.add_argument("--no-ff9", action="store_true",
                    help="Drop the FF9 sufficiency term: memory is trained ONLY by the rollout flow loss "
                         "(50/50 clean/noise; the noise-mode flow loss is the memory signal). Ablation.")
@@ -113,7 +125,9 @@ def main():
     nparams = sum(p.numel() for p in model.parameters())
     ncts = valid_n_ctx(N, clip_len)
     print(f"device={device} params={nparams/1e6:.2f}M n_actions={n_actions} clip_len={clip_len} "
-          f"n_ctx choices={ncts} mem2mem_frac={args.mem2mem_frac} bootstrap={not args.no_bootstrap} "
+          f"n_ctx choices={ncts} mem2mem_frac={args.mem2mem_frac} "
+          f"bootstrap={not (args.no_bootstrap or args.boot_loss_off)} "
+          f"(boot_loss_off={args.boot_loss_off}) ff9_norm_flow={args.ff9_norm_flow} "
           f"use_ff9={not args.no_ff9}")
 
     train_ds = ChunkClipDataset(raw, train_idx, clip_len, actions=actions)
@@ -153,11 +167,13 @@ def main():
     last_unlocked = 1
     for epoch in range(args.epochs):
         model.train()
-        agg = {"normal": 0.0, "mem2mem": 0.0, "flow": 0.0, "ff9": 0.0, "n_m": 0, "n_n": 0}
+        agg = {"normal": 0.0, "mem2mem": 0.0, "flow": 0.0, "flow_norm": 0.0, "ff9": 0.0,
+               "n_m": 0, "n_n": 0}
         for batch in train_loader:
             frames, acts = _split_batch(batch, device)
             z1 = encode(frames)
-            # step-size curriculum: only d_min while no_bootstrap; ramp finest-first otherwise.
+            # step-size curriculum: only d_min while no_bootstrap (winner repro); ramp finest-first
+            # otherwise. --boot-loss-off keeps the curriculum (coarse d sampled) but drops the boot term.
             if args.no_bootstrap:
                 n_unlocked = 1
             elif args.no_curriculum:
@@ -166,17 +182,20 @@ def main():
                 n_unlocked = step_curriculum(gstep / total_steps, model.n_d,
                                              args.curr_warmup, args.curr_add_every)
             last_unlocked = n_unlocked if n_unlocked is not None else model.n_d
+            use_boot = not (args.no_bootstrap or args.boot_loss_off)
             use_m2m = torch.rand(1, generator=gen, device=device).item() < args.mem2mem_frac
             with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
                 if use_m2m:
                     W = ncts[torch.randint(len(ncts), (1,), generator=gen, device=device).item()]
                     loss, parts = mem2mem_rollout_loss(model, z1, acts, n_ctx=W, device=device,
                                                        gen=gen, max_frames=args.max_frames,
-                                                       bootstrap=not args.no_bootstrap,
+                                                       bootstrap=use_boot,
                                                        n_d_unlocked=n_unlocked,
-                                                       use_ff9=not args.no_ff9)
+                                                       use_ff9=not args.no_ff9,
+                                                       ff9_norm_flow=args.ff9_norm_flow)
                     agg["mem2mem"] += float(loss.detach()); agg["n_m"] += 1
                     agg["flow"] += parts["flow"]; agg["ff9"] += parts["ff9"]
+                    agg["flow_norm"] += parts["flow_norm"]
                 else:
                     off = int(torch.randint(0, clip_len - N + 1, (1,), generator=gen, device=device))
                     a = acts[:, off:off + N] if acts is not None else None
@@ -200,11 +219,13 @@ def main():
         vloss /= max(1, nb)
         nm, nn = max(1, agg["n_m"]), max(1, agg["n_n"])
         print(f"Epoch {epoch+1}/{args.epochs} | val(normal): {vloss:.5f} | "
-              f"train mem2mem: {agg['mem2mem']/nm:.5f} (flow {agg['flow']/nm:.4f} ff9 {agg['ff9']/nm:.4f}) "
+              f"train mem2mem: {agg['mem2mem']/nm:.5f} (flow {agg['flow']/nm:.4f} "
+              f"flow_norm {agg['flow_norm']/nm:.4f} ff9 {agg['ff9']/nm:.4f}) "
               f"| train normal: {agg['normal']/nn:.5f} | d_unlocked {last_unlocked}/{model.n_d} "
               f"| lr {opt.param_groups[0]['lr']:.2e}")
         wlog.log({"val/loss_normal": vloss, "train/mem2mem": agg["mem2mem"]/nm,
-                  "train/mem2mem_flow": agg["flow"]/nm, "train/mem2mem_ff9": agg["ff9"]/nm,
+                  "train/mem2mem_flow": agg["flow"]/nm, "train/mem2mem_flow_norm": agg["flow_norm"]/nm,
+                  "train/mem2mem_ff9": agg["ff9"]/nm,
                   "train/normal": agg["normal"]/nn, "train/d_unlocked": last_unlocked,
                   "lr": opt.param_groups[0]["lr"]}, step=epoch)
         torch.save({"model_state_dict": model.state_dict(), "config": asdict(cfg)}, args.checkpoint)

@@ -66,7 +66,12 @@ def _newhalf_loss(model, *, old_part, tau_old, new_part, tau_new_idx, d_new_idx,
     fixed tau and the finest d across the main and both bootstrap sub-step forwards, so the new half reads
     a consistent scene+memory while only its own (tau, d) advance along the trajectory.
 
-    Returns (loss, new_mem) — new_mem is the graph-attached new-half memory from the MAIN forward.
+    Returns (loss, new_mem, flow_norm). new_mem is the graph-attached new-half memory from the MAIN
+    forward. flow_norm is the ramp-weighted PURE x-prediction (d_min flow) loss over ALL new-half tokens
+    regardless of whether each token's gradient comes from flow or bootstrap — i.e. the loss magnitude as
+    if bootstrap were off. It is the FF9 normalizer basis the rollout-only (no-boot) winner used; using it
+    keeps the FF9 term's effective weight invariant to enabling the bootstrap (whose smaller
+    self-distillation term otherwise dilutes the mixed mean and silently down-weights the memory objective).
     """
     d_min_idx = model.n_d - 1
     tau_new = model._tau_value(tau_new_idx)[..., None, None]               # (B, half, 1, 1)
@@ -112,7 +117,8 @@ def _newhalf_loss(model, *, old_part, tau_old, new_part, tau_new_idx, d_new_idx,
         per_token = flow_loss
 
     w = (1 - model.config.ramp_min) * tau_new + model.config.ramp_min     # ramp weight, Eq. 8
-    return (w * per_token).mean(), new_mem
+    flow_norm = (w * flow_loss).mean()   # pure-flow magnitude (bootstrap-independent) — FF9 norm basis
+    return (w * per_token).mean(), new_mem, flow_norm
 
 
 @torch.no_grad()
@@ -126,7 +132,7 @@ def _sample_modes(B, device, gen, force_mode):
 
 def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
                          tbptt_frames=None, max_frames=None, gen=None, force_mode=None,
-                         bootstrap=True, n_d_unlocked=None, use_ff9=True):
+                         bootstrap=True, n_d_unlocked=None, use_ff9=True, ff9_norm_flow=False):
     """One mem->mem rollout over a long clip. Returns (total_loss, parts_dict).
 
     z1:          (B, T, L, D) clean latents (T should be long, e.g. up to 5*max_temporal_length).
@@ -146,6 +152,11 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
     use_ff9:     include the explicit FF9 sufficiency term. False -> memory is trained ONLY by the rollout
                  flow loss (in the 50% full-noise mode the new half can only be reconstructed from carried
                  memory, so that flow term IS the memory signal). Ablation: is FF9 needed at all?
+    ff9_norm_flow: normalize the FF9 term by the PURE d_min flow magnitude (``flow_norm``) instead of the
+                 mixed flow+bootstrap diffusion mean. Keeps FF9's effective weight invariant to whether
+                 the bootstrap is on — required for a fair bootstrap A/B (the mixed mean is diluted by the
+                 smaller bootstrap self-distillation term, which silently down-weights memory). Default
+                 False = mixed mean (faithful to model.loss).
 
     Loss = shortcut-forcing diffusion on the new half (flow at the finest step + bootstrap distillation
     at coarser steps) [+ FF9 sufficiency (new-half memories) when use_ff9], normalized like model.loss.
@@ -181,7 +192,7 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
 
     total = z1.new_zeros(())
     n_terms = 0
-    sum_flow = sum_ff9 = 0.0
+    sum_flow = sum_ff9 = sum_flow_norm = 0.0
 
     s = half  # next window starts here: window [s, s+W), old half [s, s+half) == carried frames
     while s + W <= end:
@@ -212,7 +223,7 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
         memory_in = torch.cat([old_mem, blank_half], dim=1)   # old=real(graph), new=blank
 
         # ---- shortcut-forcing diffusion loss on the NEW half only (flow + bootstrap) ----
-        flow, new_mem = _newhalf_loss(
+        flow, new_mem, flow_norm = _newhalf_loss(
             model, old_part=old_part, tau_old=tau_old, new_part=new_part,
             tau_new_idx=tau_new_idx, d_new_idx=d_new_idx, z1_new=z1_win[:, half:],
             af_win=af(s, s + W), memory_in=memory_in,
@@ -223,13 +234,17 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
             mem_sub = z1.new_zeros(B, half + k, new_mem.shape[-2], new_mem.shape[-1])
             mem_sub[:, :half] = new_mem
             ff9 = model._ff9_loss(z1_sub, mem_sub, af(new_a, new_b + k), k)
-            scale = (flow.detach() / ff9.detach().clamp(min=1e-8))   # normalize like model.loss
+            # FF9 normalizer basis: mixed diffusion (faithful to model.loss) by default; pure d_min flow
+            # magnitude under ff9_norm_flow, so the bootstrap can't dilute FF9's effective weight.
+            norm_basis = flow_norm if ff9_norm_flow else flow
+            scale = (norm_basis.detach() / ff9.detach().clamp(min=1e-8))
             slide_loss = flow + scale * ff9
             sum_ff9 += float(ff9.detach())
         else:
             slide_loss = flow
         total = total + slide_loss
         sum_flow += float(flow.detach())
+        sum_flow_norm += float(flow_norm.detach())
         n_terms += 1
 
         # ---- carry: next old half = current new-half memories (with near-clean GT latents next time) ----
@@ -239,6 +254,6 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
         s += half
 
     n_terms = max(1, n_terms)
-    parts = {"flow": sum_flow / n_terms, "ff9": sum_ff9 / n_terms, "n_slides": float(n_terms),
-             "n_ctx": float(W)}
+    parts = {"flow": sum_flow / n_terms, "flow_norm": sum_flow_norm / n_terms,
+             "ff9": sum_ff9 / n_terms, "n_slides": float(n_terms), "n_ctx": float(W)}
     return total / n_terms, parts
