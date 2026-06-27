@@ -33,6 +33,15 @@ import wlog                                                                     
 from rollout import mem2mem_rollout_loss                                        # noqa: E402
 
 
+def step_curriculum(p, n_d, warmup, add_every):
+    """Number of FINEST step sizes unlocked at training fraction p in [0,1). 1 (only d_min) for the
+    warmup, then +1 every ``add_every`` of training, capped at n_d. Finest-first so a coarse step's
+    bootstrap target (a one-finer step) is always already trained."""
+    if p < warmup:
+        return 1
+    return min(n_d, 2 + int((p - warmup) / add_every))
+
+
 def valid_n_ctx(N, clip_len):
     """Powers of two in [4, N] that fit at least one slide of the clip (need >= 1.5*n_ctx frames)."""
     out, w = [], 4
@@ -59,6 +68,14 @@ def main():
     p.add_argument("--no-bootstrap", action="store_true",
                    help="Disable the shortcut bootstrap distillation in the rollout new-half loss "
                         "(finest-step flow only). Default: bootstrap ON (matches the normal diffusion loss).")
+    p.add_argument("--no-curriculum", action="store_true",
+                   help="Disable the step-size curriculum (sample all d steps from step 0). "
+                        "Default: ramp d finest-first (only d_min for --curr-warmup, then +1 step every "
+                        "--curr-add-every of training).")
+    p.add_argument("--curr-warmup", type=float, default=0.15,
+                   help="Fraction of training with ONLY d_min (pure flow, no bootstrap) before unlocking.")
+    p.add_argument("--curr-add-every", type=float, default=0.025,
+                   help="After warmup, unlock the next coarser step every this fraction of training.")
     p.add_argument("--max-frames", type=int, default=None, help="Cap rollout length (memory/footprint).")
     p.add_argument("--val-fraction", type=float, default=0.05)
     p.add_argument("--max-episodes", type=int, default=None, help="Use only the first N episodes (smoke).")
@@ -128,19 +145,31 @@ def main():
             outs = [encode_frames(tok, frames[:, i:i + tok_T]) for i in range(0, frames.shape[1], tok_T)]
         return torch.cat(outs, dim=1).float()  # (B, clip_len, n_latents, bottleneck) fp32 for the rollout
 
+    gstep = 0
+    last_unlocked = 1
     for epoch in range(args.epochs):
         model.train()
         agg = {"normal": 0.0, "mem2mem": 0.0, "flow": 0.0, "ff9": 0.0, "n_m": 0, "n_n": 0}
         for batch in train_loader:
             frames, acts = _split_batch(batch, device)
             z1 = encode(frames)
+            # step-size curriculum: only d_min while no_bootstrap; ramp finest-first otherwise.
+            if args.no_bootstrap:
+                n_unlocked = 1
+            elif args.no_curriculum:
+                n_unlocked = None
+            else:
+                n_unlocked = step_curriculum(gstep / total_steps, model.n_d,
+                                             args.curr_warmup, args.curr_add_every)
+            last_unlocked = n_unlocked if n_unlocked is not None else model.n_d
             use_m2m = torch.rand(1, generator=gen, device=device).item() < args.mem2mem_frac
             with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
                 if use_m2m:
                     W = ncts[torch.randint(len(ncts), (1,), generator=gen, device=device).item()]
                     loss, parts = mem2mem_rollout_loss(model, z1, acts, n_ctx=W, device=device,
                                                        gen=gen, max_frames=args.max_frames,
-                                                       bootstrap=not args.no_bootstrap)
+                                                       bootstrap=not args.no_bootstrap,
+                                                       n_d_unlocked=n_unlocked)
                     agg["mem2mem"] += float(loss.detach()); agg["n_m"] += 1
                     agg["flow"] += parts["flow"]; agg["ff9"] += parts["ff9"]
                 else:
@@ -151,7 +180,7 @@ def main():
             opt.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            opt.step(); sched.step()
+            opt.step(); sched.step(); gstep += 1
 
         # --- light val: normal shortcut-forcing loss on a fixed window (monitor) ---
         model.eval()
@@ -167,10 +196,12 @@ def main():
         nm, nn = max(1, agg["n_m"]), max(1, agg["n_n"])
         print(f"Epoch {epoch+1}/{args.epochs} | val(normal): {vloss:.5f} | "
               f"train mem2mem: {agg['mem2mem']/nm:.5f} (flow {agg['flow']/nm:.4f} ff9 {agg['ff9']/nm:.4f}) "
-              f"| train normal: {agg['normal']/nn:.5f} | lr {opt.param_groups[0]['lr']:.2e}")
+              f"| train normal: {agg['normal']/nn:.5f} | d_unlocked {last_unlocked}/{model.n_d} "
+              f"| lr {opt.param_groups[0]['lr']:.2e}")
         wlog.log({"val/loss_normal": vloss, "train/mem2mem": agg["mem2mem"]/nm,
                   "train/mem2mem_flow": agg["flow"]/nm, "train/mem2mem_ff9": agg["ff9"]/nm,
-                  "train/normal": agg["normal"]/nn, "lr": opt.param_groups[0]["lr"]}, step=epoch)
+                  "train/normal": agg["normal"]/nn, "train/d_unlocked": last_unlocked,
+                  "lr": opt.param_groups[0]["lr"]}, step=epoch)
         torch.save({"model_state_dict": model.state_dict(), "config": asdict(cfg)}, args.checkpoint)
     print(f"saved -> {args.checkpoint}")
 

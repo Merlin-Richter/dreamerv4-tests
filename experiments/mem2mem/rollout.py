@@ -34,15 +34,24 @@ def _tau_d_consts(model):
     return K_max, tau_ctx_idx, d_idx_val
 
 
-def _sample_tau_d(model, B, T, device, gen):
-    """model.sample_tau_d, but threaded through the rollout's generator for reproducibility.
-    d ~ U{0..n_d-1}; tau ~ U on the grid implied by d (snapped to the d_min grid). tau_idx=0
-    (step=0) is a valid grid point for every d, so forcing tau=0 later stays on-distribution."""
-    d_idx = torch.randint(0, model.n_d, (B, T), device=device, generator=gen)
+def _sample_tau_d(model, B, T, device, gen, n_d_unlocked=None):
+    """model.sample_tau_d, but threaded through the rollout's generator for reproducibility, with an
+    optional step-size CURRICULUM. d ~ U over the ``n_d_unlocked`` FINEST steps (d_idx in
+    {n_d-n_d_unlocked .. n_d-1}); tau ~ U on the grid implied by d (snapped to the d_min grid).
+
+    Why finest-first: a coarse step's bootstrap target is two d/2 (one-finer) steps of the model. If we
+    unlock steps finest-first, the finer step a coarse step distils from is ALWAYS already trained, so we
+    never distil from an untrained step. n_d_unlocked=1 => only d_min => pure flow (no bootstrap).
+    None => all n_d steps (no curriculum). tau_idx=0 (step=0) is a valid grid point for every d, so
+    forcing tau=0 later stays on-distribution."""
+    n_d = model.n_d
+    k = n_d if n_d_unlocked is None else max(1, min(n_d, int(n_d_unlocked)))
+    off = torch.randint(0, k, (B, T), device=device, generator=gen)  # 0..k-1
+    d_idx = (n_d - 1) - off                                          # the k finest steps
     K = torch.pow(2, d_idx)
     step = (torch.rand((B, T), device=device, generator=gen) * K).long()
     step = torch.minimum(step, K - 1)
-    tau_idx = step * torch.pow(2, model.n_d - 1 - d_idx)  # snap to the d_min grid
+    tau_idx = step * torch.pow(2, n_d - 1 - d_idx)  # snap to the d_min grid
     return tau_idx, d_idx
 
 
@@ -72,7 +81,10 @@ def _newhalf_loss(model, *, old_part, tau_old, new_part, tau_new_idx, d_new_idx,
     new_mem = mem_out[:, half:]
     flow_loss = (z_hat_new - z1_new) ** 2
 
-    if bootstrap:
+    # Skip the two bootstrap sub-step forwards when there is no coarse step in the batch (all frames at
+    # d_min -> pure flow): the whole curriculum warmup, and any all-min batch. Saves 2 forwards/slide.
+    do_boot = bootstrap and bool((d_new_idx != d_min_idx).any())
+    if do_boot:
         with torch.no_grad():
             half_d_idx = (d_new_idx + 1).clamp(max=d_min_idx)             # one step finer (d/2)
             half_d = model._d_value(half_d_idx)[..., None, None]
@@ -114,7 +126,7 @@ def _sample_modes(B, device, gen, force_mode):
 
 def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
                          tbptt_frames=None, max_frames=None, gen=None, force_mode=None,
-                         bootstrap=True):
+                         bootstrap=True, n_d_unlocked=None):
     """One mem->mem rollout over a long clip. Returns (total_loss, parts_dict).
 
     z1:          (B, T, L, D) clean latents (T should be long, e.g. up to 5*max_temporal_length).
@@ -128,6 +140,9 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
     bootstrap:   include the shortcut bootstrap distillation (coarser d/2 steps) in the new-half
                  denoising loss, exactly like the normal windowed model.loss. Applies to BOTH the
                  clean-context and the full-noise (memory-only) modes. False -> finest-step flow only.
+    n_d_unlocked: step-size CURRICULUM — sample d only from the ``n_d_unlocked`` FINEST steps (the
+                 trainer ramps this 1 -> n_d over training). 1 => d_min only => pure flow (the bootstrap
+                 forwards are skipped). None => all steps. See _sample_tau_d for the finest-first rationale.
 
     Loss = shortcut-forcing diffusion on the new half (flow at the finest step + bootstrap distillation
     at coarser steps) + FF9 sufficiency (new-half memories), normalized like model.loss.
@@ -186,7 +201,7 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
                               torch.full((B, half), tau_ctx_idx, device=device, dtype=torch.long))
         # new half: snapped (tau, d) shortcut grid (clean mode) or pure noise tau=0 with sampled d
         # (noise mode -> memory is the only scene carrier; d still varies to train coarse steps-from-noise).
-        tau_new_idx, d_new_idx = _sample_tau_d(model, B, half, device, gen)
+        tau_new_idx, d_new_idx = _sample_tau_d(model, B, half, device, gen, n_d_unlocked=n_d_unlocked)
         tau_new_idx = torch.where(modes.view(B, 1), torch.zeros_like(tau_new_idx), tau_new_idx)
         tau_new = model._tau_value(tau_new_idx)[..., None, None]
         new_part = (1 - tau_new) * z0[:, half:] + tau_new * z1_win[:, half:]
