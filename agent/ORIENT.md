@@ -24,7 +24,20 @@ gained the learnable per-head `logit_scale`, tokenizer decoder gained a sigmoid 
 terminal frame gets a sampled τ, trainers moved to required `--frames/--tokenizer/--checkpoint`. **All
 pre-sync checkpoints are architecture-incompatible — retrained.**
 
-## Just finished (latest session, 2026-06-26)
+## Just finished (latest session, 2026-06-27)
+- **mem2mem rollout-only experiment DONE — WIN** (`experiments/mem2mem-rollout-only/`, task done). Trained
+  with `--mem2mem-frac 1.0` (the mem→mem sliding rollout ALONE, no normal-window batches; log confirms
+  `train normal: 0.00000`). ferranti job 411133 (2h51m, 50ep), ckpt `dynamics_mem2mem_rollout.pt`.
+  Recall @ window=8 max_k=64 position_acc (mean / tail k≥14 / k=64): rollout-only **0.992 / 0.988 / 1.000**
+  — FLAT to k=64, ≥ the 50/50 model (0.988/0.984/0.984), ≫ FF9 (0.375/0.111) and vanilla (0.040/0.033).
+  **The normal shortcut-forcing loss is not needed for the retention win — the mem→mem rollout is sufficient.**
+  Minor cost: in-window val(normal) 0.005 vs 0.0027. Work on branch `exp/mem2mem-rollout-only` (NOT merged
+  to master). EXPERIMENTS: `mem2mem-rollout-only`.
+- **New cluster wrapper `scripts/pull_file.sh`** — rsync ONE arbitrary repo-relative file (e.g. a checkpoint
+  in `checkpoints/<env>/`) back from the cluster; fills the gap where `pull_results` only syncs `runs/<run>/`
+  (previously needed a cp-into-runs hack). Tested (happy path + BAD_REF/BAD_CONFIG error paths). README updated.
+
+## Just finished (prior session, 2026-06-26)
 - **Working tree committed as a verified rollback point** (`786e6ce`): the in-flight `--window`/`max_ctx`
   eval tooling (dynamics `rollout_init`/`generate` knob, recall `window=` + CLI + meta block, NEW
   `plot_recall.py` + `sheets.py` with specs), CLAUDE.md docs, and done→archive task moves. Verified

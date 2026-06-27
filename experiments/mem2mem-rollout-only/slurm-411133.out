@@ -1,0 +1,70 @@
+=== job mem2mem-rollout-only on mlcbm003 | jobid 411133 | Fri Jun 26 17:03:17 CEST 2026 ===
+NVIDIA H100 80GB HBM3, 81559 MiB
+=== commit: 2951ee688c689d4e32466310bdb9c201e5bcdb0e ===
+=== reusing cached venv /weka/martius/mot936/venvs/venv-b05c6eb3f672f99e ===
+=== running: python -u experiments/mem2mem/train_mem2mem.py --frames data/gridworld.npy --tokenizer checkpoints/gridworld/tokenizer.pt --checkpoint checkpoints/gridworld/dynamics_mem2mem_rollout.pt --epochs 50 --batch-size 64 --clip-len 64 --ff9 3 --n-memory 4 --mem2mem-frac 1.0 --wandb --wandb-project dreamerv4-gridworld --wandb-name gw-dyn-mem2mem-rollout-only ===
+device=cuda params=7.75M n_actions=2 clip_len=64 n_ctx choices=[4, 8, 16] mem2mem_frac=1.0
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/martius/mot936/.netrc.
+wandb: Currently logged in as: merlin_ (models-eberhard-karls-universit-t-t-bingen) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run vxckxh7p
+wandb: Tracking run with wandb version 0.26.1
+wandb: Run data is saved locally in /weka/martius/mot936/dreamerv4-tests/wandb/run-20260626_170325-vxckxh7p
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run gw-dyn-mem2mem-rollout-only
+wandb: ⭐️ View project at https://wandb.ai/models-eberhard-karls-universit-t-t-bingen/dreamerv4-gridworld
+wandb: 🚀 View run at https://wandb.ai/models-eberhard-karls-universit-t-t-bingen/dreamerv4-gridworld/runs/vxckxh7p
+Epoch 1/50 | val(normal): 0.03219 | train mem2mem: 0.32826 (flow 0.1706 ff9 0.5335) | train normal: 0.00000 | lr 1.21e-04
+Epoch 2/50 | val(normal): 0.01908 | train mem2mem: 0.08217 (flow 0.0429 ff9 0.2080) | train normal: 0.00000 | lr 2.41e-04
+Epoch 3/50 | val(normal): 0.01318 | train mem2mem: 0.05109 (flow 0.0265 ff9 0.1625) | train normal: 0.00000 | lr 3.00e-04
+Epoch 4/50 | val(normal): 0.01174 | train mem2mem: 0.04134 (flow 0.0214 ff9 0.1376) | train normal: 0.00000 | lr 3.00e-04
+Epoch 5/50 | val(normal): 0.01164 | train mem2mem: 0.03469 (flow 0.0180 ff9 0.1141) | train normal: 0.00000 | lr 3.00e-04
+Epoch 6/50 | val(normal): 0.01045 | train mem2mem: 0.03164 (flow 0.0165 ff9 0.1063) | train normal: 0.00000 | lr 3.00e-04
+Epoch 7/50 | val(normal): 0.01003 | train mem2mem: 0.03018 (flow 0.0157 ff9 0.1034) | train normal: 0.00000 | lr 3.00e-04
+Epoch 8/50 | val(normal): 0.00958 | train mem2mem: 0.02743 (flow 0.0143 ff9 0.0950) | train normal: 0.00000 | lr 3.00e-04
+Epoch 9/50 | val(normal): 0.00880 | train mem2mem: 0.02723 (flow 0.0141 ff9 0.0964) | train normal: 0.00000 | lr 3.00e-04
+Epoch 10/50 | val(normal): 0.00884 | train mem2mem: 0.02502 (flow 0.0131 ff9 0.0905) | train normal: 0.00000 | lr 3.00e-04
+Epoch 11/50 | val(normal): 0.00844 | train mem2mem: 0.02336 (flow 0.0121 ff9 0.0906) | train normal: 0.00000 | lr 3.00e-04
+Epoch 12/50 | val(normal): 0.00801 | train mem2mem: 0.02043 (flow 0.0106 ff9 0.0850) | train normal: 0.00000 | lr 3.00e-04
+Epoch 13/50 | val(normal): 0.00869 | train mem2mem: 0.01804 (flow 0.0094 ff9 0.0751) | train normal: 0.00000 | lr 3.00e-04
+Epoch 14/50 | val(normal): 0.00857 | train mem2mem: 0.01948 (flow 0.0101 ff9 0.0759) | train normal: 0.00000 | lr 3.00e-04
+Epoch 15/50 | val(normal): 0.00844 | train mem2mem: 0.01171 (flow 0.0061 ff9 0.0447) | train normal: 0.00000 | lr 3.00e-04
+Epoch 16/50 | val(normal): 0.00704 | train mem2mem: 0.01347 (flow 0.0069 ff9 0.0486) | train normal: 0.00000 | lr 3.00e-04
+Epoch 17/50 | val(normal): 0.00800 | train mem2mem: 0.01042 (flow 0.0054 ff9 0.0348) | train normal: 0.00000 | lr 3.00e-04
+Epoch 18/50 | val(normal): 0.00764 | train mem2mem: 0.00920 (flow 0.0047 ff9 0.0290) | train normal: 0.00000 | lr 3.00e-04
+Epoch 19/50 | val(normal): 0.00718 | train mem2mem: 0.01322 (flow 0.0068 ff9 0.0453) | train normal: 0.00000 | lr 3.00e-04
+Epoch 20/50 | val(normal): 0.00789 | train mem2mem: 0.00755 (flow 0.0039 ff9 0.0219) | train normal: 0.00000 | lr 3.00e-04
+Epoch 21/50 | val(normal): 0.00699 | train mem2mem: 0.00723 (flow 0.0037 ff9 0.0207) | train normal: 0.00000 | lr 3.00e-04
+Epoch 22/50 | val(normal): 0.00761 | train mem2mem: 0.01374 (flow 0.0071 ff9 0.0452) | train normal: 0.00000 | lr 3.00e-04
+Epoch 23/50 | val(normal): 0.00658 | train mem2mem: 0.00796 (flow 0.0041 ff9 0.0239) | train normal: 0.00000 | lr 3.00e-04
+Epoch 24/50 | val(normal): 0.00821 | train mem2mem: 0.00702 (flow 0.0036 ff9 0.0201) | train normal: 0.00000 | lr 3.00e-04
+Epoch 25/50 | val(normal): 0.00636 | train mem2mem: 0.00963 (flow 0.0050 ff9 0.0291) | train normal: 0.00000 | lr 3.00e-04
+Epoch 26/50 | val(normal): 0.00845 | train mem2mem: 0.01118 (flow 0.0058 ff9 0.0355) | train normal: 0.00000 | lr 3.00e-04
+Epoch 27/50 | val(normal): 0.00670 | train mem2mem: 0.00846 (flow 0.0043 ff9 0.0252) | train normal: 0.00000 | lr 3.00e-04
+Epoch 28/50 | val(normal): 0.00703 | train mem2mem: 0.00598 (flow 0.0031 ff9 0.0160) | train normal: 0.00000 | lr 3.00e-04
+Epoch 29/50 | val(normal): 0.00654 | train mem2mem: 0.00641 (flow 0.0033 ff9 0.0181) | train normal: 0.00000 | lr 3.00e-04
+Epoch 30/50 | val(normal): 0.00591 | train mem2mem: 0.00571 (flow 0.0029 ff9 0.0152) | train normal: 0.00000 | lr 3.00e-04
+Epoch 31/50 | val(normal): 0.00657 | train mem2mem: 0.00570 (flow 0.0029 ff9 0.0153) | train normal: 0.00000 | lr 3.00e-04
+Epoch 32/50 | val(normal): 0.00626 | train mem2mem: 0.00754 (flow 0.0039 ff9 0.0224) | train normal: 0.00000 | lr 3.00e-04
+Epoch 33/50 | val(normal): 0.00690 | train mem2mem: 0.00668 (flow 0.0034 ff9 0.0184) | train normal: 0.00000 | lr 3.00e-04
+Epoch 34/50 | val(normal): 0.00604 | train mem2mem: 0.00657 (flow 0.0034 ff9 0.0190) | train normal: 0.00000 | lr 3.00e-04
+Epoch 35/50 | val(normal): 0.00660 | train mem2mem: 0.00496 (flow 0.0026 ff9 0.0128) | train normal: 0.00000 | lr 3.00e-04
+Epoch 36/50 | val(normal): 0.00737 | train mem2mem: 0.00599 (flow 0.0031 ff9 0.0159) | train normal: 0.00000 | lr 3.00e-04
+Epoch 37/50 | val(normal): 0.00835 | train mem2mem: 0.00793 (flow 0.0041 ff9 0.0239) | train normal: 0.00000 | lr 3.00e-04
+Epoch 38/50 | val(normal): 0.00559 | train mem2mem: 0.00687 (flow 0.0035 ff9 0.0190) | train normal: 0.00000 | lr 3.00e-04
+Epoch 39/50 | val(normal): 0.00999 | train mem2mem: 0.00981 (flow 0.0051 ff9 0.0290) | train normal: 0.00000 | lr 3.00e-04
+Epoch 40/50 | val(normal): 0.00655 | train mem2mem: 0.01074 (flow 0.0055 ff9 0.0326) | train normal: 0.00000 | lr 3.00e-04
+Epoch 41/50 | val(normal): 0.00688 | train mem2mem: 0.00599 (flow 0.0031 ff9 0.0166) | train normal: 0.00000 | lr 2.93e-04
+Epoch 42/50 | val(normal): 0.00647 | train mem2mem: 0.00581 (flow 0.0030 ff9 0.0162) | train normal: 0.00000 | lr 2.71e-04
+Epoch 43/50 | val(normal): 0.00618 | train mem2mem: 0.00570 (flow 0.0029 ff9 0.0159) | train normal: 0.00000 | lr 2.38e-04
+Epoch 44/50 | val(normal): 0.00578 | train mem2mem: 0.00570 (flow 0.0029 ff9 0.0157) | train normal: 0.00000 | lr 1.97e-04
+Epoch 45/50 | val(normal): 0.00540 | train mem2mem: 0.00597 (flow 0.0031 ff9 0.0168) | train normal: 0.00000 | lr 1.50e-04
+Epoch 46/50 | val(normal): 0.00502 | train mem2mem: 0.00505 (flow 0.0026 ff9 0.0136) | train normal: 0.00000 | lr 1.04e-04
+Epoch 47/50 | val(normal): 0.00537 | train mem2mem: 0.00443 (flow 0.0023 ff9 0.0110) | train normal: 0.00000 | lr 6.26e-05
+Epoch 48/50 | val(normal): 0.00548 | train mem2mem: 0.00420 (flow 0.0022 ff9 0.0103) | train normal: 0.00000 | lr 2.96e-05
+Epoch 49/50 | val(normal): 0.00503 | train mem2mem: 0.00421 (flow 0.0022 ff9 0.0101) | train normal: 0.00000 | lr 8.32e-06
+Epoch 50/50 | val(normal): 0.00545 | train mem2mem: 0.00426 (flow 0.0022 ff9 0.0104) | train normal: 0.00000 | lr 1.00e-06
+saved -> checkpoints/gridworld/dynamics_mem2mem_rollout.pt
+[1;34mwandb[0m: 
+[1;34mwandb[0m: 🚀 View run [33mgw-dyn-mem2mem-rollout-only[0m at: [34mhttps://wandb.ai/models-eberhard-karls-universit-t-t-bingen/dreamerv4-gridworld/runs/vxckxh7p[0m
+[1;34mwandb[0m: Find logs at: [1;35mwandb/run-20260626_170325-vxckxh7p/logs[0m
+=== done mem2mem-rollout-only rc=0 Fri Jun 26 19:54:09 CEST 2026 ===
