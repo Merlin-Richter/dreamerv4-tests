@@ -32,6 +32,31 @@ step-size curriculum** so we never distil a coarse step from an untrained finer 
   Retention is already near-ceiling, so the more telling test is **few-step inference**: recall at K=2
   (and K=1) — the bootstrap ladder should help the model take fewer/coarser steps without quality loss.
 
+## Result (2026-06-27) — NEGATIVE: the bootstrap HURT retention; not needed for few-step either.
+Job 411221 COMPLETED (2h21m, 36ep, clean/stable: val 0.0047, flow 0.0014). Curriculum ramped 1→8 by
+ep11 as designed; `train normal: 0.00000` (rollout-only). BUT recall collapsed vs the plain no-boot
+rollout-only winner. position_acc mean (window=8, max_k=64):
+
+| K | no-boot rollout-only (50ep) | boot+curriculum (36ep) |
+|---|----------------------------:|-----------------------:|
+| 4 | 0.992 | 0.472 |
+| 2 | 1.000 | 0.516 |
+| 1 | 0.999 | 0.502 |
+
+Two findings:
+1. **The plain no-boot model already does single-step K=1 inference near-perfectly (0.999).** The
+   bootstrap's whole motivation (few-step inference) does not apply on this task — there was nothing to fix.
+2. **Bootstrap+curriculum HALVED retention at every K.** Mechanism: final FF9 train loss is **0.054 vs
+   the no-boot run's 0.010** (5× worse memory sufficiency) — recall tracks FF9, not flow. The bootstrap
+   drove flow LOWER (0.0014 vs 0.0022) at the cost of memory. Plausible cause: FF9 is normalized by
+   `flow.detach()/ff9.detach()`, so lower flow shrinks FF9's effective weight → the bootstrap inadvertently
+   down-weighted the memory objective. The model spent capacity on denoising quality, not memory.
+
+Caveats (confounds): boot ran 36 epochs vs no-boot's 50; and the flow↔ff9 normalization interaction above.
+A confound-free check would be boot @ 50ep — but since no-boot is already at ceiling incl. K=1, there is
+no upside to pursue. CONCLUSION: keep the simple rollout-only + FF9 (finest-step flow, no bootstrap).
+Overlay: `compare_w8_k64_ablations.png`. Per-K JSONs: outputs/recall/recall_{boot,noboot}_K{1,2}.json.
+
 ## Status
-- [2026-06-27] submitted: branch `exp/mem2mem-rollout-only` SHA `3be2108`, ferranti **job 411221**,
-  36 epochs, 4h wall. bootstrap ON + curriculum ON (warmup 0.15, add_every 0.025, n_d=8 → full at 0.325).
+- [2026-06-27] DONE. branch SHA `3be2108`, ferranti job 411221 (36ep, 2h21m). bootstrap+curriculum ON.
+  Result above. Checkpoint `dynamics_mem2mem_rollout_boot.pt` (kept for reference; NOT the winner).

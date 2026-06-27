@@ -24,7 +24,22 @@ gained the learnable per-head `logit_scale`, tokenizer decoder gained a sigmoid 
 terminal frame gets a sampled τ, trainers moved to required `--frames/--tokenizer/--checkpoint`. **All
 pre-sync checkpoints are architecture-incompatible — retrained.**
 
-## Just finished (latest session, 2026-06-27)
+## Just finished (latest session, 2026-06-27, part 2 — bootstrap + FF9 ablations)
+On branch `exp/mem2mem-rollout-only`. Added shortcut **bootstrap distillation** to the rollout new-half
+loss (audited correct, EXPERIMENTS `V-newhalf-loss`) + a finest-first **step-size curriculum**, and ran
+two ferranti jobs (~3h each, rollout-only):
+- **mem2mem-rollout-boot (411221, flow+FF9+bootstrap+curriculum, 36ep):** NEGATIVE. Recall HALVED vs the
+  no-boot winner (position_acc @K=4 0.47 vs 0.99; @K=1 0.50 vs **0.999**). Final FF9 loss 0.054 vs 0.010
+  (5× worse memory sufficiency) — the bootstrap lowered flow, and the flow/ff9 normalization then
+  down-weighted FF9, undertraining memory. The plain no-boot model already does K=1 near-perfectly, so the
+  bootstrap was unmotivated here. **Keep the simple rollout-only + FF9 (no bootstrap).**
+- **mem2mem-rollout-noff9 (411270, --no-ff9, 36ep):** FF9 NECESSARY. Without it recall = chance at every k;
+  training also unstable. The rollout flow loss alone (even the 50% full-noise mode) does not carry position.
+New code is behind flags (`bootstrap=`/`--no-bootstrap`, `n_d_unlocked`/`--no-curriculum`,
+`use_ff9=`/`--no-ff9`); defaults ON but the winner config is `--no-bootstrap` (or just the original code).
+New tool `scripts/pull_file.sh` used to pull both checkpoints.
+
+## Just finished (latest session, 2026-06-27, part 1)
 - **mem2mem rollout-only experiment DONE — WIN** (`experiments/mem2mem-rollout-only/`, task done). Trained
   with `--mem2mem-frac 1.0` (the mem→mem sliding rollout ALONE, no normal-window batches; log confirms
   `train normal: 0.00000`). ferranti job 411133 (2h51m, 50ep), ckpt `dynamics_mem2mem_rollout.pt`.

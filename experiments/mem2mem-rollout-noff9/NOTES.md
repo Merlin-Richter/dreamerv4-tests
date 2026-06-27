@@ -31,6 +31,19 @@ Recall @ window=8, max_k=64 (+ few-step K=2/1), 4-way vs: rollout-boot (411221, 
 rollout-only no-boot (`dynamics_mem2mem_rollout.pt`), and the baselines. Question: does retention survive
 without FF9?
 
+## Result (2026-06-27) — FF9 is NECESSARY: without it, retention = chance.
+Job 411270 COMPLETED (36ep). `ff9 0.0000` confirmed throughout (FF9 cleanly dropped); rollout-only.
+Training was UNSTABLE: val(normal) climbed 0.006→0.022 right when the curriculum fully unlocked (ep11,
+full bootstrap, no FF9), plateaued ~0.015–0.02, then the LR cosine decay pulled it back to 0.009 by ep36.
+Recall @ window=8 max_k=64 K=4: position_acc **~0.03–0.08 at EVERY k incl. k=2** = chance (1/36≈0.028),
+i.e. the model behaves like vanilla — memory carries nothing. (Oracle self-test 1.0, instrument fine.)
+
+Conclusion: the rollout flow loss alone — even with the 50% full-noise mode that *should* force memory
+use, and even though the relay gradient verifiably flows — does NOT train the memory tokens to carry
+hidden position. The explicit FF9 sufficiency term is doing the load-bearing work. Caveat: the run was
+also unstable, so "FF9 needed" is partly entangled with "no-FF9 needs different HPs"; but chance-level
+retention even at small k is strong evidence FF9 is required on this task. ckpt
+`dynamics_mem2mem_rollout_noff9.pt`; curve recall_dynamics_mem2mem_rollout_noff9.json.
+
 ## Status
-- [2026-06-27] submitted: branch `exp/mem2mem-rollout-only` SHA `0d1cdca`, ferranti **job 411270**,
-  36 epochs, 4h wall, --no-ff9 (bootstrap + curriculum ON). Parallel with 411221 (flow+ff9).
+- [2026-06-27] DONE. branch SHA `0d1cdca`, ferranti job 411270 (36ep), --no-ff9. Result above.
