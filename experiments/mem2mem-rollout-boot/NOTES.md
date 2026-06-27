@@ -33,4 +33,5 @@ step-size curriculum** so we never distil a coarse step from an untrained finer 
   (and K=1) — the bootstrap ladder should help the model take fewer/coarser steps without quality loss.
 
 ## Status
-- (to fill: SHA, job id, result)
+- [2026-06-27] submitted: branch `exp/mem2mem-rollout-only` SHA `3be2108`, ferranti **job 411221**,
+  36 epochs, 4h wall. bootstrap ON + curriculum ON (warmup 0.15, add_every 0.025, n_d=8 → full at 0.325).
