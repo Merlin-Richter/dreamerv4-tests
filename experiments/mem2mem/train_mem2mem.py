@@ -56,6 +56,9 @@ def main():
     p.add_argument("--n-memory", type=int, default=4)
     p.add_argument("--ff9", type=int, default=3, metavar="K")
     p.add_argument("--mem2mem-frac", type=float, default=0.5, help="P(batch uses mem->mem vs normal).")
+    p.add_argument("--no-bootstrap", action="store_true",
+                   help="Disable the shortcut bootstrap distillation in the rollout new-half loss "
+                        "(finest-step flow only). Default: bootstrap ON (matches the normal diffusion loss).")
     p.add_argument("--max-frames", type=int, default=None, help="Cap rollout length (memory/footprint).")
     p.add_argument("--val-fraction", type=float, default=0.05)
     p.add_argument("--max-episodes", type=int, default=None, help="Use only the first N episodes (smoke).")
@@ -90,7 +93,7 @@ def main():
     nparams = sum(p.numel() for p in model.parameters())
     ncts = valid_n_ctx(N, clip_len)
     print(f"device={device} params={nparams/1e6:.2f}M n_actions={n_actions} clip_len={clip_len} "
-          f"n_ctx choices={ncts} mem2mem_frac={args.mem2mem_frac}")
+          f"n_ctx choices={ncts} mem2mem_frac={args.mem2mem_frac} bootstrap={not args.no_bootstrap}")
 
     train_ds = ChunkClipDataset(raw, train_idx, clip_len, actions=actions)
     val_ds = ChunkClipDataset(raw, val_idx, clip_len, actions=actions)
@@ -136,7 +139,8 @@ def main():
                 if use_m2m:
                     W = ncts[torch.randint(len(ncts), (1,), generator=gen, device=device).item()]
                     loss, parts = mem2mem_rollout_loss(model, z1, acts, n_ctx=W, device=device,
-                                                       gen=gen, max_frames=args.max_frames)
+                                                       gen=gen, max_frames=args.max_frames,
+                                                       bootstrap=not args.no_bootstrap)
                     agg["mem2mem"] += float(loss.detach()); agg["n_m"] += 1
                     agg["flow"] += parts["flow"]; agg["ff9"] += parts["ff9"]
                 else:

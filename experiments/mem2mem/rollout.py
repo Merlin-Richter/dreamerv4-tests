@@ -34,10 +34,73 @@ def _tau_d_consts(model):
     return K_max, tau_ctx_idx, d_idx_val
 
 
-def _flow_loss(model, z_hat_new, z1_new, tau_new):
-    """x-prediction flow MSE on the new half, ramp-weighted by w(tau) (matches model.loss)."""
-    w = (1 - model.config.ramp_min) * tau_new + model.config.ramp_min  # (B,h,1,1)
-    return (w * (z_hat_new - z1_new) ** 2).mean()
+def _sample_tau_d(model, B, T, device, gen):
+    """model.sample_tau_d, but threaded through the rollout's generator for reproducibility.
+    d ~ U{0..n_d-1}; tau ~ U on the grid implied by d (snapped to the d_min grid). tau_idx=0
+    (step=0) is a valid grid point for every d, so forcing tau=0 later stays on-distribution."""
+    d_idx = torch.randint(0, model.n_d, (B, T), device=device, generator=gen)
+    K = torch.pow(2, d_idx)
+    step = (torch.rand((B, T), device=device, generator=gen) * K).long()
+    step = torch.minimum(step, K - 1)
+    tau_idx = step * torch.pow(2, model.n_d - 1 - d_idx)  # snap to the d_min grid
+    return tau_idx, d_idx
+
+
+def _newhalf_loss(model, *, old_part, tau_old, new_part, tau_new_idx, d_new_idx, z1_new,
+                  af_win, memory_in, positions, half, bootstrap):
+    """Shortcut-forcing diffusion loss on the NEW half, holding the OLD half fixed as context.
+
+    Mirrors ``DynamicsModel.loss``'s diffusion term, restricted to the new half: at the finest step
+    (d_idx == n_d-1) it is the x-prediction flow MSE; at coarser steps it distils two d/2 steps of the
+    model itself (stop-grad bootstrap target, Eq. 7) so the new half learns the full shortcut ladder,
+    exactly like the normal windowed loss. The OLD half (context: near-clean GT or pure noise) keeps its
+    fixed tau and the finest d across the main and both bootstrap sub-step forwards, so the new half reads
+    a consistent scene+memory while only its own (tau, d) advance along the trajectory.
+
+    Returns (loss, new_mem) — new_mem is the graph-attached new-half memory from the MAIN forward.
+    """
+    d_min_idx = model.n_d - 1
+    tau_new = model._tau_value(tau_new_idx)[..., None, None]               # (B, half, 1, 1)
+    d_old = torch.full_like(tau_old, d_min_idx)                            # context held at finest d
+    z_tilde = torch.cat([old_part, new_part], dim=1)
+    tau_col = torch.cat([tau_old, tau_new_idx], dim=1)
+    d_col = torch.cat([d_old, d_new_idx], dim=1)
+
+    z_hat, mem_out = model(z_tilde, tau_col, d_col, af_win, memory_in=memory_in,
+                           positions=positions, return_memory=True)
+    z_hat_new = z_hat[:, half:]
+    new_mem = mem_out[:, half:]
+    flow_loss = (z_hat_new - z1_new) ** 2
+
+    if bootstrap:
+        with torch.no_grad():
+            half_d_idx = (d_new_idx + 1).clamp(max=d_min_idx)             # one step finer (d/2)
+            half_d = model._d_value(half_d_idx)[..., None, None]
+            tau_inc = torch.pow(2, (model.n_d - 2 - d_new_idx).clamp(min=0))
+            tau2_idx = (tau_new_idx + tau_inc).clamp(max=model.K_max - 1)
+            tau2 = model._tau_value(tau2_idx)[..., None, None]
+            d_col_half = torch.cat([d_old, half_d_idx], dim=1)
+            # first d/2 step from the new half (old half fixed as context)
+            y1 = model(z_tilde, tau_col, d_col_half, af_win, memory_in=memory_in,
+                       positions=positions)[:, half:]
+            b1 = (y1 - new_part) / (1 - tau_new)
+            z_prime_new = new_part + b1 * half_d
+            # second d/2 step from tau2 (advance only the new half)
+            z_tilde2 = torch.cat([old_part, z_prime_new], dim=1)
+            tau_col2 = torch.cat([tau_old, tau2_idx], dim=1)
+            y2 = model(z_tilde2, tau_col2, d_col_half, af_win, memory_in=memory_in,
+                       positions=positions)[:, half:]
+            b2 = (y2 - z_prime_new) / (1 - tau2)
+            v_target = (b1 + b2) / 2
+        v_pred = (z_hat_new - new_part) / (1 - tau_new)
+        boot_loss = (1 - tau_new) ** 2 * (v_pred - v_target) ** 2
+        is_min = (d_new_idx == d_min_idx)[..., None, None]
+        per_token = torch.where(is_min, flow_loss, boot_loss)
+    else:
+        per_token = flow_loss
+
+    w = (1 - model.config.ramp_min) * tau_new + model.config.ramp_min     # ramp weight, Eq. 8
+    return (w * per_token).mean(), new_mem
 
 
 @torch.no_grad()
@@ -50,7 +113,8 @@ def _sample_modes(B, device, gen, force_mode):
 
 
 def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
-                         tbptt_frames=None, max_frames=None, gen=None, force_mode=None):
+                         tbptt_frames=None, max_frames=None, gen=None, force_mode=None,
+                         bootstrap=True):
     """One mem->mem rollout over a long clip. Returns (total_loss, parts_dict).
 
     z1:          (B, T, L, D) clean latents (T should be long, e.g. up to 5*max_temporal_length).
@@ -61,8 +125,12 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
                  (truncated BPTT; default 2*max_temporal_length). Bounds memory footprint.
     max_frames:  stop after this many frames from t=0 (default min(5*N, 10*W)).
     force_mode:  None -> per-element 50/50 clean/noise; "noise"/"clean" -> force (for tests).
+    bootstrap:   include the shortcut bootstrap distillation (coarser d/2 steps) in the new-half
+                 denoising loss, exactly like the normal windowed model.loss. Applies to BOTH the
+                 clean-context and the full-noise (memory-only) modes. False -> finest-step flow only.
 
-    Loss = flow (new half) + FF9 sufficiency (new-half memories), normalized like model.loss.
+    Loss = shortcut-forcing diffusion on the new half (flow at the finest step + bootstrap distillation
+    at coarser steps) + FF9 sufficiency (new-half memories), normalized like model.loss.
     """
     assert model.n_memory > 0, "mem2mem needs n_memory > 0"
     N = model.config.max_temporal_length
@@ -108,7 +176,7 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
             old_mem = old_mem.detach()
             relay_depth = 0
 
-        # ---- build the window's noised latents (B, W, L, D) + per-frame tau ----
+        # ---- build the window's noised latents (B, W, L, D) + per-frame (tau, d) ----
         z1_win = z1[:, s:s + W]
         z0 = torch.randn(z1_win.shape, device=device, generator=gen)
         # old half: clean mode -> near-clean GT; noise mode -> pure noise.
@@ -116,22 +184,22 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
         old_part = m[:, :1] * z0[:, :half] + (1 - m[:, :1]) * old_clean   # noise vs near-clean
         tau_old = torch.where(modes.view(B, 1), torch.zeros(B, half, device=device, dtype=torch.long),
                               torch.full((B, half), tau_ctx_idx, device=device, dtype=torch.long))
-        # new half: clean mode -> sampled-signal noised; noise mode -> pure noise.
-        tau_new_idx = torch.randint(0, K_max, (B, half), device=device, generator=gen)
+        # new half: snapped (tau, d) shortcut grid (clean mode) or pure noise tau=0 with sampled d
+        # (noise mode -> memory is the only scene carrier; d still varies to train coarse steps-from-noise).
+        tau_new_idx, d_new_idx = _sample_tau_d(model, B, half, device, gen)
         tau_new_idx = torch.where(modes.view(B, 1), torch.zeros_like(tau_new_idx), tau_new_idx)
-        tau_new = (tau_new_idx.float() / K_max).view(B, half, 1, 1)
+        tau_new = model._tau_value(tau_new_idx)[..., None, None]
         new_part = (1 - tau_new) * z0[:, half:] + tau_new * z1_win[:, half:]
 
-        z_tilde = torch.cat([old_part, new_part], dim=1)
-        tau_col = torch.cat([tau_old, tau_new_idx], dim=1)
         memory_in = torch.cat([old_mem, blank_half], dim=1)   # old=real(graph), new=blank
 
-        z_hat, mem_out = model(z_tilde, tau_col, d_col_W, af(s, s + W), memory_in=memory_in,
-                               positions=torch.arange(W, device=device), return_memory=True)
-
-        # ---- loss on NEW half only ----
-        flow = _flow_loss(model, z_hat[:, half:], z1_win[:, half:], tau_new)
-        new_mem = mem_out[:, half:]   # (B, half, M, E) — graph-attached; carried + FF9-scored
+        # ---- shortcut-forcing diffusion loss on the NEW half only (flow + bootstrap) ----
+        flow, new_mem = _newhalf_loss(
+            model, old_part=old_part, tau_old=tau_old, new_part=new_part,
+            tau_new_idx=tau_new_idx, d_new_idx=d_new_idx, z1_new=z1_win[:, half:],
+            af_win=af(s, s + W), memory_in=memory_in,
+            positions=torch.arange(W, device=device), half=half, bootstrap=bootstrap)
+        # new_mem: (B, half, M, E) — graph-attached; carried + FF9-scored
         if k > 0 and new_b + k <= T:
             z1_sub = z1[:, new_a:new_b + k]                          # (B, half+k, L, D)
             mem_sub = z1.new_zeros(B, half + k, new_mem.shape[-2], new_mem.shape[-1])
