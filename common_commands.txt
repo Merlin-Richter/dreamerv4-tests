@@ -1,0 +1,24 @@
+# common_commands.txt — handy one-liners for this repo. Run from the repo ROOT (Git Bash).
+
+# ── Memory Maze: play as a human ──────────────────────────────────────────────────────────────
+# Opens the Memory Maze 3D maze in a window and lets you play with the keyboard.
+#   Controls: Up = forward | Left/Right = turn | Up+Left / Up+Right = forward-while-turning | no key = stand still.
+#   Task: the image BORDER colour tells you which object to find; touch the matching object for +1, then the
+#   next target colour is shown. The maze layout & object positions are FIXED all episode, so remembering
+#   where things are lets you stop re-exploring (that's the memory test). Episode reward = targets reached.
+#   Uses the dedicated play venv external/memory-maze/.venv (Python 3.12; gym+pygame+mujoco+dm_control).
+#   run_gui auto-sets MUJOCO_GL=glfw (GPU windowed rendering) on Windows — no display server needed.
+external/memory-maze/.venv/Scripts/python.exe external/memory-maze/gui/run_gui.py --env "memory_maze:MemoryMaze-9x9-HD-v0"
+
+#   Variants — swap the --env id:
+#     size/difficulty:  MemoryMaze-9x9-HD-v0 | -11x11-HD-v0 | -13x13-HD-v0 | -15x15-HD-v0   (15x15 = human-hard)
+#     drop "-HD" for the raw 64x64 model-resolution view; "-Top-v0" for a top-down camera.
+#   Window size / speed:   add   --size 900 900   (window pixels)   and/or   --fps 8   (action rate).
+#   Record a playthrough:  cd external/memory-maze && .venv/Scripts/python.exe gui/run_gui.py --record --record_mp4   (saves to ./log)
+
+# ── One-time setup (already done; here for reproducibility on a fresh clone) ───────────────────
+# Memory Maze needs Python 3.12 (pygame/mujoco have no wheels for 3.14); numpy 2.x needs a tiny shim
+# because the unmaintained gym 0.26 references the removed np.bool8 (added via a sitecustomize.py in the venv).
+#   py -3.12 -m venv external/memory-maze/.venv
+#   external/memory-maze/.venv/Scripts/python.exe -m pip install -U pip
+#   external/memory-maze/.venv/Scripts/python.exe -m pip install -e external/memory-maze gym pygame pillow imageio imageio-ffmpeg
