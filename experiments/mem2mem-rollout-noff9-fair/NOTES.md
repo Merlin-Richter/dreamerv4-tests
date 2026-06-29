@@ -141,7 +141,42 @@ Merlin's intuition vindicated. (Also: the init relay explosion the probes measur
 in this stable d_min-only config — so the normalizer wasn't even needed for success; arm 2 checks if it's
 neutral/helpful.)
 
+## Result — ARM 2 (no-FF9 + per-hop relay grad-clip 0.05) + FINAL VERDICT
+Job 412510 completed clean (50ep, rc=0, val 0.0055). The normalizer behaved exactly as designed: **clip
+fraction 0.133 in epoch 1, then 0.000 every epoch after** — it tamed the init relay explosion, then the
+relay self-regularized below the cap and the clip disengaged (matches the trained-model factor ≈1 from
+probe_relay_decay.py).
+
+Final recall (w8, max_k64), position_acc:
+
+| model | K=4 mean | tail (k≥14) | k=64 | K=2 | K=1 | colour@k64 |
+|---|---:|---:|---:|---:|---:|---:|
+| **Arm 1 — no-FF9, no normalizer** (412506) | **0.989** | 0.988 | 0.984 | 0.999 | 0.999 | ~0.84 |
+| **Arm 2 — no-FF9 + relay-clip 0.05** (412510) | **0.985** | 0.980 | 0.953 | 0.996 | 1.000 | ~0.78 |
+| winner — rollout-only WITH FF9 (411133) | 0.992 | 0.988 | 1.000 | — | — | ~0.95 |
+| old confounded no-FF9 (411270) | 0.044 | 0.041 | 0.031 | — | — | ~0.19 |
+| vanilla (no memory) | 0.042 | 0.035 | 0.031 | — | — | ~0.19 |
+
+**Verdict:**
+1. **FF9 is NOT necessary on GridWorld.** Clean no-FF9 (arm 1) is near-ceiling and flat to k=64 (0.989),
+   matching the FF9 winner (0.992). The 411270 "FF9 necessary → chance" was the CONFOUNDS
+   (bootstrap+curriculum+instability+36ep), NOT a missing FF9. The 50% full-noise rollout mode alone
+   teaches memory to carry hidden position; the relay gradient flows (probes) and learning succeeds.
+   Merlin's intuition vindicated.
+2. **The per-hop relay normalizer is ~neutral here** (arm 2 ≈ arm 1, 0.985 vs 0.989; within eval noise).
+   The init relay explosion (probe_relay_decay.py: ~3×/hop, 88 @W=4) is a transient that the stable
+   d_min-only config rides out via global grad-clip; the normalizer engaged only in epoch 1 then idled.
+   It's harmless → keep it as an OFF-by-default flag for harder/longer-relay envs (e.g. Memory Maze),
+   where the init explosion may actually bite.
+3. **Residual FF9 edge:** on the long-horizon STATIC attribute (ball colour past the window) FF9 keeps
+   ~0.95@k64 vs no-FF9's ~0.78–0.84 — a small advantage. Position (the dynamic state) is matched without it.
+
+Visuals: `compare_w8_k64_noff9.png` (3-panel 5-way overlay); occlusion sheets
+`sheets_{arm1_noff9clean,arm2_noff9clip,ref_vanilla}/sheet_occlusion.png` — both memory arms' belief
+(bottom) tracks the true square (top) cell-for-cell through 16 occluded frames; vanilla's belief collapses
+(bg/colour/position scramble) once the window evicts.
+
 ## Status
-- [2026-06-29] ARM 1 DONE (above). ARM 2 (412510, +relay-grad-clip 0.05) still running (~1.5h left); wait
-  re-armed after a ControlMaster socket drop. Eval pending on arm 2 → final 4-way recall overlay
-  (arm1, arm2, winner, old 411270) + occlusion sheets.
+- [2026-06-29] DONE. Both arms completed clean on ferranti (412506, 412510) @ SHAs 8f54d09 / e266bea.
+  Checkpoints pulled, recall (K=4/2/1) + overlay + occlusion sheets produced. Verdict above: FF9 not
+  necessary on GridWorld (411270 was confounds); relay normalizer neutral-but-harmless. Task → done.

@@ -2,7 +2,20 @@
 
 Rewritten: 2026-06-26.
 
-## IN FLIGHT (2026-06-29 — FAIR no-FF9 ablation, TWO parallel ferranti jobs 412506 + 412510)
+## DONE (2026-06-29 — FAIR no-FF9 ablation) — FF9 is NOT necessary on GridWorld
+Both arms completed clean (412506 no-norm, 412510 +relay-grad-clip 0.05; winner-config-minus-FF9, 50ep).
+**Recall w8 max_k64 position_acc: Arm 1 (no norm) K4 0.989 / K2 0.999 / K1 0.999; Arm 2 (relay-clip) K4
+0.985 / K2 0.996 / K1 1.000; winner WITH FF9 0.992; old confounded 411270 0.044; vanilla 0.042.** Clean
+no-FF9 matches the FF9 winner and is flat to k=64 ⇒ the 50% full-noise rollout mode ALONE trains memory;
+the 411270 "FF9 necessary → chance" was the CONFOUNDS (bootstrap+curriculum+instability+36ep), not a
+missing FF9 (Merlin vindicated). Relay gradient verified to flow behind the window (probes), but EXPLODES
+~3×/hop at init (88 @W=4) — the per-hop relay grad-norm (arm 2) tamed it (clip 0.133 epoch1 → 0.000 after)
+yet was ~neutral on recall (stable d_min config rode out the transient via global clip); keep it OFF-by-
+default for harder/longer-relay envs (Memory Maze). Residual FF9 edge only on long-horizon ball COLOUR
+(~0.95 vs ~0.8 @k64). Visuals in `experiments/mem2mem-rollout-noff9-fair/` (compare_w8_k64_noff9.png +
+occlusion sheets). Task → done. EXPERIMENTS: `mem2mem-rollout-noff9-fair`.
+
+## (superseded) IN FLIGHT (2026-06-29 — FAIR no-FF9 ablation, TWO parallel ferranti jobs 412506 + 412510)
 Re-testing the 411270 "FF9 is necessary" result, which Merlin flagged as conceptually off (the 50%
 full-noise rollout mode should train memory even without FF9, *if* the relay gradient flows back behind
 the window). **Investigation:** (1) the relay gradient IS healthy — `test_autograd.py` passes; a

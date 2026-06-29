@@ -43,3 +43,13 @@ Decision:
   - **Arm 1** (no normalizer): job **412506** @ SHA `8f54d09` (--no-bootstrap --no-ff9, 50ep).
   - **Arm 2** (+ per-hop relay grad-norm `--relay-grad-clip 0.05`): job **412510** @ SHA `e266bea`.
   Eval pending on completion → 4-way recall vs winner (with FF9) + old 411270.
+
+## Result (2026-06-29) — DONE: FF9 NOT necessary on GridWorld
+Both arms completed clean on ferranti (412506 no-norm @ 8f54d09; 412510 +relay-grad-clip 0.05 @ e266bea).
+Recall w8 max_k64 position_acc: Arm 1 K4 0.989 / K2 0.999 / K1 0.999; Arm 2 K4 0.985 / K2 0.996 / K1 1.000;
+winner WITH FF9 0.992; old confounded 411270 0.044; vanilla 0.042. Clean no-FF9 matches the FF9 winner and
+is flat to k=64 ⇒ the 50% full-noise rollout mode alone trains memory; 411270's chance result was the
+confounds (bootstrap+curriculum+instability+36ep), not a missing FF9. Relay gradient verified to flow
+behind the window (probes); it explodes ~3×/hop at init but the normalizer (arm 2) is ~neutral (clip fired
+only epoch 1) — keep OFF-by-default for harder envs. Residual FF9 edge only on long-horizon ball colour.
+Write-up + visuals: experiments/mem2mem-rollout-noff9-fair/ (compare_w8_k64_noff9.png + occlusion sheets).
