@@ -60,9 +60,12 @@ Recall @ window=8, max_k=64 (K=4, +K=2/1), overlay vs: winner (with FF9), old co
 - **partial** ⇒ FF9 helps but isn't strictly required; quantify the gap.
 
 ## Provenance
-- Branch `exp/mem2mem-rollout-only`, SHA `<FILL>`. Cluster ferranti (H100).
-- Job `<FILL>` → `dynamics_mem2mem_rollout_noff9_clean.pt`.
+- Branch `exp/mem2mem-rollout-only`, SHA `8f54d097a3ed10b15e2c7603e42000f4494f0c01`. Cluster ferranti (H100).
+- Job **412506** (`--name noff9clean`, 5h) → `dynamics_mem2mem_rollout_noff9_clean.pt`.
+  Log: `runs/noff9clean/slurm-412506.out`.
 - Compare against: winner `dynamics_mem2mem_rollout.pt` (411133, with FF9) + old confounded no-FF9 (411270).
 
 ## Status
-- [2026-06-29] Relay gradient verified healthy WITHOUT FF9 (probe_relay_grad.py). Submitting clean run.
+- [2026-06-29] SUBMITTED. Relay gradient verified healthy WITHOUT FF9 (probe_relay_grad.py: init-only
+  |grad| 0.499 relay-on / 0.0 detached). Job 412506 on ferranti @ SHA 8f54d09. Eval pending → recall
+  overlay vs winner + old 411270.

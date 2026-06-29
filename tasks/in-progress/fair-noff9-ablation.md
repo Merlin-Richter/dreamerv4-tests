@@ -37,5 +37,5 @@ Decision:
 - If partial → quantify the gap; FF9 helps but isn't strictly required.
 
 ## Status
-- [2026-06-29] in-progress. Relay gradient verified healthy WITHOUT FF9 (probe above). Launching the clean
-  run on ferranti (JOB_ID + SHA recorded in experiments/mem2mem-rollout-noff9-fair/NOTES.md).
+- [2026-06-29] in-progress. Relay gradient verified healthy WITHOUT FF9 (probe above). Clean run SUBMITTED:
+  ferranti job **412506** @ SHA `8f54d09` (--no-bootstrap --no-ff9, 50ep). Eval pending on completion.
