@@ -30,35 +30,27 @@ probe eval. This task produces only the tokenizer (the latent space); dynamics i
   show swapped colors unless told the data is RGB — not the model's concern.
 
 ## Pipeline (steps to execute)
-1. **Download** the full 9x9 offline dataset onto ferranti (~100GB) into `data/memmaze9x9_raw/` (gitignored).
+1. **Download** 10% (one folder) of the full 9x9 offline dataset onto ferranti (~10GB) into `data/memmaze9x9_raw/` (gitignored).
    - The source is a Google Drive folder. Headless download needs `gdown`/`rclone`; GDrive folder pulls of
-     this size can hit quota throttling. **[OPEN]** Who runs the download and how (Merlin interactively vs an
-     unattended `gdown`/`rclone` job)? The cluster wrappers do NOT cover arbitrary downloads.
-   - The dataset ships pre-split: 29k train + 1k eval trajectories (keep the split — see step 2).
-2. **Convert** the per-trajectory `.npz` files -> a single mmappable `.npy` on the cluster.
-   - New script (experiment-local, e.g. `experiments/memmaze-tokenizer/convert_memmaze.py`): iterate the
-     `.npz` files, take `image` (1001,64,64,3) uint8 **as-is (RGB, channels untouched)**, write incrementally
+     this size can hit quota throttling.
+   - The dataset ships pre-split: 29k train + 1k eval trajectories. Try this download using gdown or similar and if we hit quota, just train on what we got. how val is split is irrelevant, we can use our normal slit
+2. **Convert** the per-trajectory `.npz` files -> a single mmappable `.npy` on the cluster. (we are not sure what the extracted zip actually contains)
+   - (If we need to convert): New script (experiment-local, e.g. `experiments/memmaze-tokenizer/convert_memmaze.py`): iterate the
+     `.npz` files, take rollouts of `images` (1001,64,64,3) uint8 **as-is (RGB, channels untouched)**, write incrementally
      into a preallocated `np.memmap` of shape `(N, 1001, 64, 64, 3)` uint8 so the converter stays within RAM.
-   - Output: `data/memmaze9x9.npy` (train, 29k traj ~= 357GB) + `data/memmaze9x9_val.npy` (1k traj) — both
-     gitignored, on /weka (546T free, fine). The trainer can also self-split via `--val-fraction`, but using
-     the official 29k/1k split is cleaner. **[OPEN]** confirm: official split vs trainer `--val-fraction`.
-   - **[OPEN]** Keep all 1001 frames/trajectory, or subsample to shrink the 357GB (e.g. every-2nd frame)?
-     The tokenizer only needs diverse frames + a >=64-frame window for temporal layers; full is simplest but
-     large and makes /weka mmap I/O the likely throughput bottleneck.
+   - Output: `data/memmaze9x9.npy`
+     gitignored, on /weka (546T free, fine). The trainer self-split via `--val-fraction`
 3. **Expose the config.** `train_tokenizer.py` currently only CLI-exposes `img_input_H/W` and
    `--context-length` (=`max_temporal_length`); `n_latents/bottleneck_dim/embedding_dim/depth/n_heads` are
-   hardcoded to defaults. To run the LOCKED config we must parameterize them. **[OPEN] choose one:**
-   - (a) Add CLI args to `src/training/train_tokenizer.py` (+ update its spec `specs/training/...`) — touches
-     a spec-backed file (Merlin owns the spec).
-   - (b) Experiment-local wrapper under `experiments/memmaze-tokenizer/` that imports `AutoEncoder` and the
-     trainer's data/LPIPS helpers and builds the custom `AutoEncoderConfig` (keeps `src/` untouched).
+   hardcoded to defaults. To run the LOCKED config we must parameterize them. Add CLI args to `src/training/train_tokenizer.py` (+ update its spec `specs/training/...`) — touches
+     a spec-backed file
    Recommendation to consider: (a) is cleaner long-term (the dims are legitimately env-dependent), (b) keeps
    the spec-driven `src/` pristine until this graduates.
 4. **Train** on ferranti H100 with the LOCKED config + `--lpips`, `--context-length 64`.
-   - **[OPEN]** epochs, batch size, LR. The model is much bigger than the GridWorld tokenizer (512-d, 12
+   - epochs, batch size, LR. The model is much bigger than the GridWorld tokenizer (512-d, 12
      layers, 64-frame temporal window, 96 spatial tokens/frame = 64 patches + 32 latents) AND clips are
-     64 frames, so activation memory is large — batch size needs tuning on the H100 (start small, grow).
-     **[OPEN]** keep MAE mask range (`mae_min/max_mask` 0.0/0.9) or adjust for 3D scenes?
+     64 frames, so activation memory is large — batch size needs searching on the H100 (first make a process that searches what the highest batch size effective for training with this config is).
+     keep MAE mask range (`mae_min/max_mask` 0.0/0.9)
 5. **Eval / validity** (no GridWorld closed-form readout exists for Memory Maze):
    - reconstruction sheets (`--save-recon`) eyeballed for sharpness, val recon MSE + LPIPS, and a
      latent-collapse check (latent activation variance / no mean-image collapse — the QK-norm temperature
@@ -80,8 +72,8 @@ probe eval. This task produces only the tokenizer (the latent space); dynamics i
 A frozen Memory Maze 9x9 tokenizer checkpoint that reconstructs held-out frames cleanly (sharp recon sheets,
 low val recon/LPIPS, no latent collapse), trained on ferranti from the converted single-`.npy` dataset, with
 provenance (branch + SHA + job id + config) recorded in `experiments/memmaze-tokenizer/NOTES.md` and a one-
-line entry in `agent/EXPERIMENTS.md`. Resolve all **[OPEN]** items before launching.
+line entry in `agent/EXPERIMENTS.md`.
 
 ## Provenance (to fill at execution)
 - Branch / SHA: `<fill>`. Cluster ferranti. Job: `<fill>` -> `checkpoints/memmaze/tokenizer.pt`.
-- Dataset: `data/memmaze9x9.npy` (+ `_val`) converted from the GDrive 9x9 offline set.
+- Dataset: `data/memmaze9x9.npy` converted from the GDrive 9x9 offline set.
