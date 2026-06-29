@@ -29,6 +29,42 @@ across slides (new_mem copies old_mem forward, its WRITE gradient arriving only 
 be readable to reconstruct ~8 future frames. FF9 may act as a dense scaffold that bootstraps the memory
 representation; without it the relay must learn the whole carry from a sparse self-referential signal.
 
+## Relay gradient stability — does the memory-construction gradient vanish or explode? (`probe_relay_decay.py`)
+Measured the per-hop backward factor of the relay BPTT chain (loss@slide s → read old_mem → its
+construction @ s-1 → …), forced full-noise, no-ff9/no-boot/d_min, tbptt OFF (raw chain), W∈{4,8,16}.
+Metric = geometric-mean |grad m_(deeper)| / |grad m_(shallower)| per hop (>1 explodes backward, <1 vanishes).
+
+| | W=16 (4 hops*) | W=8 (8 hops*) | W=4 (16 hops*) |
+|---|---|---|---|
+| **random init** | 3.00 → 81× | 2.72 → 3.0e3× | 2.31 → **6.8e5×** |
+| **trained winner** | 1.34 → 3.2× | 0.94 → 0.6× | 0.85 → 0.1× |
+
+(*hops kept before the trainer's tbptt detach at 2N=32 frames = 2N/half.) **Forward** |m_i| is stable in
+both (per-hop ratio ≈1.0) — only the magnitude scale grows with training (|m|~40–80 random → ~350–850 trained).
+
+Findings:
+1. **At RANDOM INIT the relay EXPLODES backward** (factor 2.3–3.0/hop), catastrophically for small windows:
+   a W=4 relay compounds ~7e5× across its 16 tbptt hops. So early in training the relay gradient is wild,
+   and `clip_grad_norm_(…, 1.0)` then rescales the whole step to the deepest-hop blow-up → the early relay
+   signal for small windows is effectively noise. NOT vanishing — the opposite.
+2. **Training SELF-REGULARIZES the relay to ≈ unit per-hop factor** (0.85–1.34). The converged winner has a
+   well-conditioned, near-isometric relay (mild vanish for small W, mild explode for large W) — consistent
+   with its flat-to-k=64 recall. So at convergence the chain is stable and no normalizer is required.
+3. **Do we have a normalizer?** No DEDICATED per-hop relay normalizer — the carried memory is the RAW
+   residual stream (`out_norm` is applied only to the latent output, not to the written memory token).
+   What bounds the chain instead: (a) **TBPTT truncation** at 2N=32 frames caps the hop count; (b) **global
+   `clip_grad_norm_=1.0`** caps explosion at the param level (but globally, so a blown-up relay drowns other
+   signals); (c) **pre-RMSNorm + QK-norm** keep the forward/in-network path stable (forward |m| ratio ≈1.0);
+   (d) **training itself** is the real regularizer (→ factor ≈1).
+
+Implication for this ablation: FF9 may help not only as a denser signal but by giving stable, bounded
+per-frame gradients that let the memory representation FORM, after which the relay self-regularizes.
+Without FF9 the relay must self-organize from the noise-mode signal alone, whose early-training gradient is
+the exploding chain above (worst for W=4). **If the clean no-FF9 run is unstable, the fix to try is a
+per-hop relay normalizer** — e.g. a backward hook renormalizing the gradient crossing each slide boundary,
+RMSNorm on the carried memory before re-injection, dropping W=4 from the n_ctx choices, or a longer LR
+warmup. (Not changing training now — flagged for Merlin pending the run's stability.)
+
 ## Design — clean isolation (winner config minus FF9)
 The rollout-only WINNER (`dynamics_mem2mem_rollout.pt`, job 411133) gets 0.99 recall WITH FF9 using the
 `--no-bootstrap` sampler (d_min only, uniform τ, no curriculum). This run = that config + `--no-ff9`, so
