@@ -261,6 +261,20 @@ def main():
                              "also --save-recon selection). The train/val split is fixed (seed 0).")
     parser.add_argument("--context-length", type=int, default=None,
                         help="Clip length L (= AutoEncoderConfig.max_temporal_length). Default: config value.")
+    # Model dims (env-dependent). Default None = keep the AutoEncoderConfig dataclass default (GridWorld);
+    # the Memory-Maze run overrides these to the larger LOCKED config.
+    parser.add_argument("--embedding-dim", type=int, default=None,
+                        help="Transformer width (AutoEncoderConfig.embedding_dim). Default: config value (256).")
+    parser.add_argument("--depth", type=int, default=None,
+                        help="Attention layer count (3x[spatial,temporal,spatial]; temporal at i%%3==1). "
+                             "Default: config value (9).")
+    parser.add_argument("--n-heads", type=int, default=None,
+                        help="Attention heads (embedding_dim must be divisible by this). Default: config value (16).")
+    parser.add_argument("--n-latents", type=int, default=None,
+                        help="Latent tokens per frame. Default: config value (4).")
+    parser.add_argument("--bottleneck-dim", type=int, default=None,
+                        help="Per-latent channel dim; frame bottleneck = n_latents x bottleneck_dim. "
+                             "Default: config value (64).")
     parser.add_argument("--val-offset", type=int, default=0, help="Fixed start offset for val chunks.")
     parser.add_argument("--val-fraction", type=float, default=0.05)
     parser.add_argument("--max-episodes", type=int, default=None,
@@ -330,7 +344,18 @@ def main():
         raise ValueError("--context-length must be positive.")
     if t < chunk_len:
         raise ValueError(f"Episode length T={t} must be >= context length L={chunk_len}.")
-    cfg = AutoEncoderConfig(img_input_H=h, img_input_W=w, max_temporal_length=chunk_len)
+    # Model dims are env-dependent: unset CLI flags keep the dataclass default (GridWorld); the Memory-Maze
+    # run overrides via --embedding-dim/--depth/--n-heads/--n-latents/--bottleneck-dim.
+    cfg_overrides = dict(img_input_H=h, img_input_W=w, max_temporal_length=chunk_len)
+    for attr, val in (("embedding_dim", args.embedding_dim), ("depth", args.depth),
+                      ("n_heads", args.n_heads), ("n_latents", args.n_latents),
+                      ("bottleneck_dim", args.bottleneck_dim)):
+        if val is not None:
+            cfg_overrides[attr] = val
+    cfg = AutoEncoderConfig(**cfg_overrides)
+    print(f"AutoEncoderConfig: embedding_dim={cfg.embedding_dim} depth={cfg.depth} n_heads={cfg.n_heads} "
+          f"n_latents={cfg.n_latents} bottleneck_dim={cfg.bottleneck_dim} L={cfg.max_temporal_length} "
+          f"img={cfg.img_input_H}x{cfg.img_input_W}")
 
     train_ds = ChunkClipDataset(raw, train_idx, chunk_len, start_offset=0)
     val_ds = ChunkClipDataset(raw, val_idx, chunk_len, start_offset=args.val_offset % (chunk_len + 1))

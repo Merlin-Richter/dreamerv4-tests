@@ -8,6 +8,12 @@ Reconstruction loss (MSE, optional LPIPS) over T-frame clips.
   checkpoint; also loaded by the viewers); `--resume <in.pt>` (optional, load weights to start FROM);
   `--epochs --batch-size --lr --seed`;
   `--lpips` (perceptual term); `--wandb*`; `--test-checkpoint` (show recon strips instead of training).
+- **Model dims are env-dependent CLI overrides** (default = the `AutoEncoderConfig` dataclass default, i.e.
+  GridWorld): `--embedding-dim --depth --n-heads --n-latents --bottleneck-dim`, plus `--context-length`
+  (= `max_temporal_length`) and `--img` size inferred from the frames. A larger env (e.g. Memory Maze:
+  `--n-latents 32 --bottleneck-dim 16 --embedding-dim 512 --depth 12 --context-length 64 --lpips`) is
+  configured purely from flags; `src/` stays env-agnostic. The chosen dims are persisted in the checkpoint
+  `config`, so downstream models/viewers reconstruct the right architecture.
 - Produces `<checkpoint>.pt = {config, model_state_dict}` + recon-strip images.
 
 ## Behavior
