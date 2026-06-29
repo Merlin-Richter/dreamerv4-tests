@@ -36,9 +36,16 @@ failure mode). Frozen -> `checkpoints/memmaze/tokenizer.pt` (pulled local).
 ## Provenance (fill at execution)
 - Config-exposure commit SHA: `db412935` (branch `exp/mem2mem-rollout-only`).
 - Prep job (bs-search + download train-part0 + convert): ferranti **job 412622** @ SHA `db412935`
-  (`bash experiments/memmaze-tokenizer/cluster_prep.sh train-part0`, --hours 3 --cpus 8). Submitted 2026-06-29.
-  -> recommended --batch-size `<fill>`, `data/memmaze9x9.npy` `<fill>`.
-- train job: `<fill>` @ SHA `<fill>` -> `checkpoints/memmaze/tokenizer.pt`
+  (`cluster_prep.sh train-part0`, --hours 3 --cpus 8). DONE rc=0, ~13 min total.
+  - **bs-search (H100, LOCKED cfg, LPIPS on):** bs1 10.9GB/12.4clips/s · bs4 38.5GB/16.2 · bs8 75.2GB/17.4 ·
+    bs12 OOM. **MAX batch = 8**; throughput plateaus past bs4 (LPIPS-VGG-bound). Using **bs=6** for the run
+    (~56GB, headroom; no speed cost since plateaued).
+  - **data:** train-part0 = **2900 trajectories**, each `image` (1001,64,64,3) uint8 -> `data/memmaze9x9.npy`
+    (2900,1001,64,64,3) **35.7 GB** on /weka. Convert ~3.5 min @ ~14 traj/s. README format confirmed (key 'image').
+- Validation run (real-data smoke, 600 eps x 3 ep, bs6, full LOCKED cfg, LPIPS, grad-spike 5.0): ferranti
+  **job 412625** @ SHA `db412935` -> `checkpoints/memmaze/tokenizer_val.pt`. Purpose: real /weka epoch time +
+  stability + initial recon/latent-collapse health, before sizing the full run.
+- Full train job: `<fill>` @ SHA `<fill>` -> `checkpoints/memmaze/tokenizer.pt`
 
 NOTE (flagged to Merlin): the prep job holds an H100 while doing CPU/IO-only download+convert (the
 wrappers only expose the GPU partition). One-time; acceptable. bs-search runs first so the GPU isn't
