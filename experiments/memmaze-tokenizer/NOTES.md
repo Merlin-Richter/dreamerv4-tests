@@ -45,7 +45,14 @@ failure mode). Frozen -> `checkpoints/memmaze/tokenizer.pt` (pulled local).
 - Validation run (real-data smoke, 600 eps x 3 ep, bs6, full LOCKED cfg, LPIPS, grad-spike 5.0): ferranti
   **job 412625** @ SHA `db412935` -> `checkpoints/memmaze/tokenizer_val.pt`. Purpose: real /weka epoch time +
   stability + initial recon/latent-collapse health, before sizing the full run.
-- Full train job: `<fill>` @ SHA `<fill>` -> `checkpoints/memmaze/tokenizer.pt`
+- **Validation result (412625, 600 eps x 3, bs6):** val MSE 0.00496 -> 0.00154 -> 0.00078 (halving/epoch,
+  NOT plateaued); latent_cos 0.327/0.341/0.382 (<0.7 => NO collapse); pred_std ~0.15 (>0.04 => real content);
+  1/1425 steps skipped (stable). Real throughput 2.74 it/s @bs6 = 16.4 clips/s (compute-bound on LPIPS, NOT
+  /weka-IO-bound) => ~40 min/epoch on full train-part0. GREEN — proceed to full run.
+- **Full train job:** ferranti **job 412635** @ SHA `be1258e`
+  (`train_and_recon.sh 15` = 15 epochs bs6 LOCKED cfg + LPIPS + grad-spike 5.0 + W&B, then a recon sheet),
+  --hours 13 --cpus 8. Merlin chose 15 epochs on the 10% shard. -> `checkpoints/memmaze/tokenizer.pt` +
+  `experiments/memmaze-tokenizer/_recon_memmaze.png`. W&B: transformer-C-tokenizer / memmaze-tok-full.
 
 NOTE (flagged to Merlin): the prep job holds an H100 while doing CPU/IO-only download+convert (the
 wrappers only expose the GPU partition). One-time; acceptable. bs-search runs first so the GPU isn't

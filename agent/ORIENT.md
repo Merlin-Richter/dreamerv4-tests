@@ -10,13 +10,16 @@ tokenizer. Done so far: exposed model-dim CLI args in `train_tokenizer.py` (+spe
 runs from flags without polluting spec-backed `src/`; smoke-tested the override path on the 4070. Wrote
 `experiments/memmaze-tokenizer/` prep scripts. **Resolved the download:** GDrive 9x9 = 11 single zips
 (`eval.zip` + `train-part0..9.zip`), so "one folder ~= 10%" = one `train-partN.zip` (~2.9k traj, ~10GB);
-single-file `gdown` dodges the 50-file folder limit. Submitted **job 412622** @ SHA `db412935`
-(`cluster_prep.sh train-part0` = bs-search + download + convert -> `data/memmaze9x9.npy`).
-**NEXT when it lands:** read the bs-search max batch size from the log, then submit the real train run
-(LPIPS, `--context-length 64`, the LOCKED dims), validate via recon sheets + latent-collapse health
-(no closed-form readout exists for Memory Maze), freeze -> `checkpoints/memmaze/tokenizer.pt`.
-Decisions made (reversible, flagged to Merlin): start with 10% (train-part0) not the full 100GB; prep
-job holds an H100 for CPU/IO download (wrappers only expose the GPU partition). EXPERIMENTS: `memmaze-tokenizer`.
+single-file `gdown` dodges the 50-file folder limit. **Prep DONE** (job 412622): bs-search max batch=8 (use bs6, LPIPS-bound ~17 clips/s); train-part0 =
+2900 traj -> `data/memmaze9x9.npy` (35.7GB on /weka). **Validation DONE** (job 412625, 600 eps x3): val MSE
+0.005->0.0008 (descending), latent_cos 0.33-0.38 (NO collapse), pred_std 0.15, stable; real ~40 min/epoch.
+**FULL RUN IN FLIGHT: ferranti job 412635** @ SHA `be1258e` (`train_and_recon.sh 15` = 15 epochs bs6 LOCKED
+cfg + LPIPS + W&B, then a recon sheet), --hours 13, ETA ~11h. Merlin chose 15 epochs on the 10% shard.
+**NEXT when it lands:** pull `checkpoints/memmaze/tokenizer.pt` (pull_file) + the recon sheet; eyeball recon
+sharpness + final val MSE/latent health; freeze; finalize NOTES/EXPERIMENTS; task -> done. (Dynamics on
+Memory Maze is the follow-up, needs a Memory-Maze recall/probe eval built from the npz labels.)
+Reversible decisions (flagged, Merlin OK'd): 10% shard (not full 100GB); prep job held an H100 for CPU/IO
+download (wrappers only expose the GPU partition). EXPERIMENTS: `memmaze-tokenizer`.
 
 ## DONE (2026-06-29 — FAIR no-FF9 ablation) — FF9 is NOT necessary on GridWorld
 Both arms completed clean (412506 no-norm, 412510 +relay-grad-clip 0.05; winner-config-minus-FF9, 50ep).
