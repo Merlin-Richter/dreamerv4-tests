@@ -2,6 +2,20 @@
 
 Rewritten: 2026-06-26.
 
+## IN FLIGHT (2026-06-29 — FAIR no-FF9 ablation, ferranti job 412506)
+Re-testing the 411270 "FF9 is necessary" result, which Merlin flagged as conceptually off (the 50%
+full-noise rollout mode should train memory even without FF9, *if* the relay gradient flows back behind
+the window). **Investigation: the relay gradient IS healthy** — `test_autograd.py` passes and a new
+training-scale probe (`experiments/mem2mem-rollout-noff9-fair/probe_relay_grad.py`, real config,
+use_ff9=False/bootstrap=False/d_min) gives init-only-frame |grad| **0.499 relay-on / 0.0 detached**. So
+no-FF9 collapse is NOT a severed-gradient bug; **411270 was CONFOUNDED** (bootstrap+curriculum+instability+
+36ep — same stack as the discredited boot run). Clean re-run = winner config minus FF9 (`--no-bootstrap
+--no-ff9 --mem2mem-frac 1.0`, 50ep) → job **412506** @ SHA `8f54d09`, ckpt
+`dynamics_mem2mem_rollout_noff9_clean.pt`. NEXT when it lands: pull + recall w8 max_k64 (K=4/2/1) vs winner
+(with FF9) + old 411270 + baselines. Pre-registered: near-ceiling ⇒ FF9 not necessary (Merlin vindicated);
+still chance ⇒ FF9 genuinely load-bearing despite the gradient flowing (dense scaffold). Task
+`tasks/in-progress/fair-noff9-ablation.md`; NOTES `experiments/mem2mem-rollout-noff9-fair/`.
+
 ## What we're doing right now and why
 Rebuild merged + spec→code sync done. Two campaigns just completed — both WINS:
 1. **Retrain r2 (DONE):** dynamics with 5× data (5000 eps) + fixed LR schedule (warmup→flat→cosine
