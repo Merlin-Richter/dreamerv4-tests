@@ -34,7 +34,12 @@ latent-collapse health (latent_cos < 0.7 escaped, pred_std > 0.04 content — th
 failure mode). Frozen -> `checkpoints/memmaze/tokenizer.pt` (pulled local).
 
 ## Provenance (fill at execution)
-- Config-exposure commit SHA: `<fill>`
-- bs-search job: `<fill>` -> recommended --batch-size `<fill>`
-- download+convert job: `<fill>` -> `data/memmaze9x9.npy` (parts: train-part0)
+- Config-exposure commit SHA: `db412935` (branch `exp/mem2mem-rollout-only`).
+- Prep job (bs-search + download train-part0 + convert): ferranti **job 412622** @ SHA `db412935`
+  (`bash experiments/memmaze-tokenizer/cluster_prep.sh train-part0`, --hours 3 --cpus 8). Submitted 2026-06-29.
+  -> recommended --batch-size `<fill>`, `data/memmaze9x9.npy` `<fill>`.
 - train job: `<fill>` @ SHA `<fill>` -> `checkpoints/memmaze/tokenizer.pt`
+
+NOTE (flagged to Merlin): the prep job holds an H100 while doing CPU/IO-only download+convert (the
+wrappers only expose the GPU partition). One-time; acceptable. bs-search runs first so the GPU isn't
+idle the whole time.

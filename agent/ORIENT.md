@@ -2,6 +2,22 @@
 
 Rewritten: 2026-06-26.
 
+## IN FLIGHT (2026-06-29 — Memory Maze 9x9 tokenizer, new env) — ferranti job 412622
+Extending the pipeline from GridWorld to the real 3D Memory Maze env (task
+`tasks/in-progress/memmaze-tokenizer-train.md`, all big decisions LOCKED by Merlin). Step 1 = a FROZEN
+tokenizer. Done so far: exposed model-dim CLI args in `train_tokenizer.py` (+spec) so the LOCKED config
+(`embedding_dim=512 depth=12 n_heads=16 n_latents=32 bottleneck_dim=16 L=64`, LPIPS on, fg-weight off)
+runs from flags without polluting spec-backed `src/`; smoke-tested the override path on the 4070. Wrote
+`experiments/memmaze-tokenizer/` prep scripts. **Resolved the download:** GDrive 9x9 = 11 single zips
+(`eval.zip` + `train-part0..9.zip`), so "one folder ~= 10%" = one `train-partN.zip` (~2.9k traj, ~10GB);
+single-file `gdown` dodges the 50-file folder limit. Submitted **job 412622** @ SHA `db412935`
+(`cluster_prep.sh train-part0` = bs-search + download + convert -> `data/memmaze9x9.npy`).
+**NEXT when it lands:** read the bs-search max batch size from the log, then submit the real train run
+(LPIPS, `--context-length 64`, the LOCKED dims), validate via recon sheets + latent-collapse health
+(no closed-form readout exists for Memory Maze), freeze -> `checkpoints/memmaze/tokenizer.pt`.
+Decisions made (reversible, flagged to Merlin): start with 10% (train-part0) not the full 100GB; prep
+job holds an H100 for CPU/IO download (wrappers only expose the GPU partition). EXPERIMENTS: `memmaze-tokenizer`.
+
 ## DONE (2026-06-29 — FAIR no-FF9 ablation) — FF9 is NOT necessary on GridWorld
 Both arms completed clean (412506 no-norm, 412510 +relay-grad-clip 0.05; winner-config-minus-FF9, 50ep).
 **Recall w8 max_k64 position_acc: Arm 1 (no norm) K4 0.989 / K2 0.999 / K1 0.999; Arm 2 (relay-clip) K4
