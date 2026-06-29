@@ -132,7 +132,8 @@ def _sample_modes(B, device, gen, force_mode):
 
 def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
                          tbptt_frames=None, max_frames=None, gen=None, force_mode=None,
-                         bootstrap=True, n_d_unlocked=None, use_ff9=True, ff9_norm_flow=False):
+                         bootstrap=True, n_d_unlocked=None, use_ff9=True, ff9_norm_flow=False,
+                         relay_grad_clip=None):
     """One mem->mem rollout over a long clip. Returns (total_loss, parts_dict).
 
     z1:          (B, T, L, D) clean latents (T should be long, e.g. up to 5*max_temporal_length).
@@ -152,6 +153,12 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
     use_ff9:     include the explicit FF9 sufficiency term. False -> memory is trained ONLY by the rollout
                  flow loss (in the 50% full-noise mode the new half can only be reconstructed from carried
                  memory, so that flow term IS the memory signal). Ablation: is FF9 needed at all?
+    relay_grad_clip: None (default, OFF -> byte-identical) or a float C. Per-hop relay GRADIENT
+                 normalizer: a backward hook on each carried memory tensor scales its gradient DOWN per
+                 batch element so ||grad_b|| <= C (scale-down only; well-behaved/converged grads pass
+                 untouched). Combats the measured backward explosion through the relay (~2-3x/hop at init,
+                 catastrophic for small windows) without changing the forward pass or inference. Per-epoch
+                 clip stats are stashed on model._relay_clip_stats for logging.
     ff9_norm_flow: normalize the FF9 term by the PURE d_min flow magnitude (``flow_norm``) instead of the
                  mixed flow+bootstrap diffusion mean. Keeps FF9's effective weight invariant to whether
                  the bootstrap is on — required for a fair bootstrap A/B (the mixed mean is diluted by the
@@ -172,6 +179,24 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
     max_frames = min(5 * N, 10 * W) if max_frames is None else max_frames
     end = min(T, max_frames)
 
+    # Per-hop relay gradient normalizer (OFF by default => no hook => byte-identical). Scales each
+    # carried memory tensor's gradient DOWN per batch element to ||grad_b|| <= C, taming the backward
+    # explosion through the relay. Stats stashed on the model for per-epoch logging.
+    clip_stats = {"hooks": 0, "clipped": 0, "sum_norm": 0.0}
+    model._relay_clip_stats = clip_stats
+
+    def _relay_hook(grad):
+        n = grad.flatten(1).norm(dim=1)                          # (B,) per-sequence grad norm
+        clip_stats["hooks"] += int(n.numel())
+        clip_stats["clipped"] += int((n > relay_grad_clip).sum())
+        clip_stats["sum_norm"] += float(n.sum())
+        scale = (relay_grad_clip / (n + 1e-12)).clamp(max=1.0)   # scale-down only
+        return grad * scale.view(-1, *([1] * (grad.dim() - 1)))
+
+    def _register_relay(t):
+        if relay_grad_clip is not None and t.requires_grad:
+            t.register_hook(_relay_hook)
+
     K_max, tau_ctx_idx, d_idx_val = _tau_d_consts(model)
     af_all = model.action_features(actions_idx)  # (B,T,n_act,E) or None
     blank_half = model.memory_tokens.expand(B, half, -1, -1)
@@ -187,6 +212,7 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
     _, mem_win = model(zc, tau_init, d_col_W, af(0, W), memory_in=blank_W,
                        positions=torch.arange(W, device=device), return_memory=True)
     old_mem = mem_win[:, half:]          # (B, half, M, E) — recent half, carried with graph
+    _register_relay(old_mem)             # per-hop relay grad normalizer (no-op when OFF)
     old_constructed_at = half            # clip pos of the oldest carried memory's construction
     relay_depth = half                   # frames of graph currently in the relay
 
@@ -249,6 +275,7 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
 
         # ---- carry: next old half = current new-half memories (with near-clean GT latents next time) ----
         old_mem = new_mem
+        _register_relay(old_mem)         # per-hop relay grad normalizer (no-op when OFF)
         old_constructed_at = new_a
         relay_depth += half
         s += half

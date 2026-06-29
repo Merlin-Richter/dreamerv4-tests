@@ -84,16 +84,35 @@ python -u experiments/mem2mem/train_mem2mem.py \
 - `--mem2mem-frac 1.0` ⇒ no normal-window batches (expect `train normal: 0.00000`).
 - Data: 5× `data/gridworld.npy` + frozen `tokenizer.pt` already on cluster (same as 411133/411221/411502/3).
 
+### Parallel arm 2 — + per-hop relay gradient normalizer (`--relay-grad-clip 0.05`)
+Motivated by `probe_relay_decay.py` + `measure_clip_scale.py`: at init the relay gradient EXPLODES backward
+(~2–3×/hop; real-data deepest-hop |grad| 0.03 @W=16 but **26 @W=8, 88 @W=4**), self-correcting to ~1 only
+once trained. Hypothesis: that early explosion (worst for the small windows the trainer samples), combined
+with global grad-clip rescaling the whole step to it, may stop the memory representation from forming
+WITHOUT FF9's stable dense scaffold. Arm 2 = arm 1 + a per-hop relay grad normalizer: a backward hook
+scales each carried memory tensor's gradient DOWN per sequence to ||grad_b|| ≤ C=0.05 (scale-down only;
+near-hop/converged grads ≪ C pass untouched). Training-only — forward & inference identical to arm 1 (no
+src/ change, no train/inference mismatch). C=0.05 chosen from the real-data measurement: it barely touches
+W=16/near hops, caps the catastrophic W=8/W=4 deep hops, and self-disengages as training stabilizes
+(converged grads ~1e-6 ≪ C). Verified: OFF ⇒ byte-identical (relay autograd + newhalf-loss probes pass);
+ON ⇒ forward identical, relay grad still flows (reduced not zeroed), clip engages; 2-epoch local smoke
+`relay_clip≈0.30` (taming ~30% of hops, loss decreasing). Same command as arm 1 + `--relay-grad-clip 0.05`,
+ckpt `dynamics_mem2mem_rollout_noff9_clip.pt`, wandb name `…-noff9-clip`.
+
 ## Eval plan
 Recall @ window=8, max_k=64 (K=4, +K=2/1), overlay vs: winner (with FF9), old confounded no-FF9 (411270,
 `recall_dynamics_mem2mem_rollout_noff9.json`), vanilla/copy_last. position_acc mean / tail (k≥14).
 
-## Predictions (pre-registered)
-- **near-ceiling (≈ winner)** ⇒ noise-mode relay flow loss ALONE trains memory; FF9 NOT necessary; 411270
-  negative was the confounds (Merlin vindicated).
-- **still chance** ⇒ FF9 genuinely load-bearing despite the relay gradient flowing; noise-mode signal too
-  weak/slow to learn the carry from scratch. Follow-ups: higher noise fraction, longer training, larger M.
-- **partial** ⇒ FF9 helps but isn't strictly required; quantify the gap.
+## Predictions (pre-registered) — two arms, A/B on the normalizer
+- **arm1 (no norm) near-ceiling (≈ winner)** ⇒ noise-mode relay flow loss ALONE trains memory; FF9 NOT
+  necessary; 411270 negative was the confounds (Merlin vindicated). Normalizer then irrelevant (but arm2
+  should match — a check it doesn't hurt).
+- **arm1 chance BUT arm2 (norm) near-ceiling** ⇒ the early relay-gradient EXPLOSION was the blocker; the
+  per-hop normalizer rescues no-FF9 (the normalizer hypothesis confirmed). The cleanest possible outcome.
+- **both chance** ⇒ FF9 is genuinely load-bearing as a dense short-horizon scaffold; conditioning the relay
+  gradient isn't enough. Follow-ups: higher noise fraction, longer training, larger M.
+- **both near-ceiling** ⇒ FF9 not necessary and the normalizer is harmless; prefer the simpler arm1.
+- **partial** ⇒ quantify the gap; report where each lands on the recall curve.
 
 ## Provenance
 - Branch `exp/mem2mem-rollout-only`, SHA `8f54d097a3ed10b15e2c7603e42000f4494f0c01`. Cluster ferranti (H100).

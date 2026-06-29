@@ -83,6 +83,12 @@ def main():
     p.add_argument("--no-ff9", action="store_true",
                    help="Drop the FF9 sufficiency term: memory is trained ONLY by the rollout flow loss "
                         "(50/50 clean/noise; the noise-mode flow loss is the memory signal). Ablation.")
+    p.add_argument("--relay-grad-clip", type=float, default=None, metavar="C",
+                   help="Per-hop relay GRADIENT normalizer: scale each carried memory tensor's gradient "
+                        "DOWN per batch element so ||grad_b|| <= C (scale-down only). Combats the backward "
+                        "explosion through the mem relay (~2-3x/hop at init, catastrophic for small "
+                        "windows). Default None = OFF (byte-identical). Training-only; forward/inference "
+                        "unchanged. Logs the per-epoch clip fraction.")
     p.add_argument("--no-curriculum", action="store_true",
                    help="Disable the step-size curriculum (sample all d steps from step 0). "
                         "Default: ramp d finest-first (only d_min for --curr-warmup, then +1 step every "
@@ -128,7 +134,7 @@ def main():
           f"n_ctx choices={ncts} mem2mem_frac={args.mem2mem_frac} "
           f"bootstrap={not (args.no_bootstrap or args.boot_loss_off)} "
           f"(boot_loss_off={args.boot_loss_off}) ff9_norm_flow={args.ff9_norm_flow} "
-          f"use_ff9={not args.no_ff9}")
+          f"use_ff9={not args.no_ff9} relay_grad_clip={args.relay_grad_clip}")
 
     train_ds = ChunkClipDataset(raw, train_idx, clip_len, actions=actions)
     val_ds = ChunkClipDataset(raw, val_idx, clip_len, actions=actions)
@@ -168,7 +174,7 @@ def main():
     for epoch in range(args.epochs):
         model.train()
         agg = {"normal": 0.0, "mem2mem": 0.0, "flow": 0.0, "flow_norm": 0.0, "ff9": 0.0,
-               "n_m": 0, "n_n": 0}
+               "n_m": 0, "n_n": 0, "relay_clipped": 0.0, "relay_hooks": 0.0}
         for batch in train_loader:
             frames, acts = _split_batch(batch, device)
             z1 = encode(frames)
@@ -192,7 +198,8 @@ def main():
                                                        bootstrap=use_boot,
                                                        n_d_unlocked=n_unlocked,
                                                        use_ff9=not args.no_ff9,
-                                                       ff9_norm_flow=args.ff9_norm_flow)
+                                                       ff9_norm_flow=args.ff9_norm_flow,
+                                                       relay_grad_clip=args.relay_grad_clip)
                     agg["mem2mem"] += float(loss.detach()); agg["n_m"] += 1
                     agg["flow"] += parts["flow"]; agg["ff9"] += parts["ff9"]
                     agg["flow_norm"] += parts["flow_norm"]
@@ -203,6 +210,10 @@ def main():
                     agg["normal"] += float(loss.detach()); agg["n_n"] += 1
             opt.zero_grad()
             loss.backward()
+            if use_m2m and args.relay_grad_clip is not None:
+                st = getattr(model, "_relay_clip_stats", None)
+                if st:
+                    agg["relay_clipped"] += st["clipped"]; agg["relay_hooks"] += st["hooks"]
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             opt.step(); sched.step(); gstep += 1
 
@@ -218,14 +229,16 @@ def main():
                     vloss += float(model.loss(z1[:, :N], a)); nb += 1
         vloss /= max(1, nb)
         nm, nn = max(1, agg["n_m"]), max(1, agg["n_n"])
+        relay_clip_frac = agg["relay_clipped"] / max(1.0, agg["relay_hooks"])
+        clip_str = f" | relay_clip {relay_clip_frac:.3f}" if args.relay_grad_clip is not None else ""
         print(f"Epoch {epoch+1}/{args.epochs} | val(normal): {vloss:.5f} | "
               f"train mem2mem: {agg['mem2mem']/nm:.5f} (flow {agg['flow']/nm:.4f} "
               f"flow_norm {agg['flow_norm']/nm:.4f} ff9 {agg['ff9']/nm:.4f}) "
               f"| train normal: {agg['normal']/nn:.5f} | d_unlocked {last_unlocked}/{model.n_d} "
-              f"| lr {opt.param_groups[0]['lr']:.2e}")
+              f"| lr {opt.param_groups[0]['lr']:.2e}{clip_str}")
         wlog.log({"val/loss_normal": vloss, "train/mem2mem": agg["mem2mem"]/nm,
                   "train/mem2mem_flow": agg["flow"]/nm, "train/mem2mem_flow_norm": agg["flow_norm"]/nm,
-                  "train/mem2mem_ff9": agg["ff9"]/nm,
+                  "train/mem2mem_ff9": agg["ff9"]/nm, "train/relay_clip_frac": relay_clip_frac,
                   "train/normal": agg["normal"]/nn, "train/d_unlocked": last_unlocked,
                   "lr": opt.param_groups[0]["lr"]}, step=epoch)
         torch.save({"model_state_dict": model.state_dict(), "config": asdict(cfg)}, args.checkpoint)
