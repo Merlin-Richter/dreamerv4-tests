@@ -78,3 +78,7 @@ src/probe/last_results.json
 # cluster wrapper site config (secrets: W&B key, hostnames)
 scripts/cluster.env
 src_old/
+
+# Third-party / upstream repos cloned for reference (their own git history; not ours to track).
+# Study/adapt from here; the integrated env becomes src/envs/<name>.py + specs/envs/<name>.md.
+external/
