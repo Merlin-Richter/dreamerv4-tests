@@ -94,10 +94,22 @@ Verdict against the pre-registered predictions:
 #1, even more strongly. Adding the diffusion-step / bootstrap loss is now PROVEN SAFE for retention but
 POINTLESS on GridWorld: the pure finest-step x-prediction flow + FF9 already nails single-step inference.
 
-**Decision: keep the simple rollout-only + FF9 + x-prediction.** The bootstrap is free, not harmful — but
-it buys nothing here and costs a few points, so don't ship it. The standing recommendation is unchanged;
-what changed is WHY (confound, not a real hurt). Overlay: `compare_w8_k64_4way.png`. Per-K JSONs:
-`outputs/recall/recall_{bootfair,bootctrl}_K{4,2,1}.json`.
+**Decision (GridWorld only): keep the simple rollout-only + FF9 + x-prediction.** The bootstrap is free,
+not harmful — but it buys nothing *on this env* and costs a few points, so don't ship it *for GridWorld*.
+What changed vs the old claim is WHY (confound, not a real hurt). Overlay: `compare_w8_k64_4way.png`.
+Per-K JSONs: `outputs/recall/recall_{bootfair,bootctrl}_K{4,2,1}.json`.
+
+**SCOPE — do NOT generalize this to "drop shortcut forcing."** All three configs (winner / Arm A / Arm B)
+keep the FULL diffusion-forcing loss; the A/B toggles only the *shortcut bootstrap self-distillation* on
+coarse step sizes, NOT diffusion-on-vs-off. Arm A's "boot off" trains coarse steps with flow/x-prediction
+MSE (predict clean in one big step). The reason there's no upside here is that GridWorld is DETERMINISTIC:
+the next-latent distribution is a delta, so single-step x-prediction (the conditional MEAN) is exactly
+right → K=1 nails it and the few-step shortcut has nothing to buy. On a STOCHASTIC/multimodal env a
+one-step x-prediction returns the blurred conditional mean (mode-collapse); you then need multiple
+diffusion steps to sample a sharp transition, and the bootstrap's self-consistency is the mechanism that
+keeps few-step sampling on the correct trajectory (Arm A's big-step flow MSE would itself regress to the
+mean). GridWorld can neither show that upside nor test the diffusion sampler's real job. Validating the
+bootstrap/diffusion benefit requires a stochastic env (cf. `tasks/drafts/harder-grid-env.md`).
 
 ## Status
 - [2026-06-29] DONE. Jobs 411502 (B) + 411503 (A) completed clean on ferranti @ SHA `851a7ab`. Both

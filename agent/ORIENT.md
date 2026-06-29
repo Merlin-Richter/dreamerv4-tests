@@ -37,8 +37,13 @@ boot) K4 0.968 / K2 0.980 / K1 0.999; winner (411133) 0.992; old unfair boot (41
 is GONE.** Pre-registered verdict confirmed: B≈A≈winner (no halving — old negative was the confounds, esp.
 the FF9-norm dilution: final FF9 0.013/0.0105 vs old boot's 0.054); B<A is small/consistent (~3pts, not
 catastrophic); A≥winner so the τ-shift is benign. Few-step: Arm A is already perfect @K1/K2, so the
-bootstrap's whole motivation is moot on GridWorld. **Decision UNCHANGED — keep simple rollout-only + FF9 +
-x-prediction; the bootstrap (diffusion-step ladder) is safe to add but buys nothing here.** Ckpts pulled
+bootstrap's whole motivation is moot on GridWorld. **Decision (GridWorld only) — keep simple rollout-only +
+FF9 + x-prediction; the bootstrap is safe but buys nothing HERE.** SCOPE: all arms keep full diffusion
+forcing; the A/B toggles only the shortcut *bootstrap distillation* on coarse steps, NOT diffusion on/off.
+No upside because GridWorld is DETERMINISTIC (delta next-state ⇒ single-step x-pred = the mean = correct).
+On a STOCHASTIC env, one-step x-pred mode-collapses to the conditional mean ⇒ multi-step diffusion is
+required and the bootstrap keeps few-step sampling on-trajectory. Do NOT read this as "drop shortcut
+forcing"; validating it needs a stochastic env (`tasks/drafts/harder-grid-env.md`). Ckpts pulled
 (`dynamics_mem2mem_rollout_boot_fair.pt`, `_bootctrl.pt`); `experiments/mem2mem-rollout-boot-fair/` (NOTES +
 `compare_w8_k64_4way.png`). Task → done. galvani socket still DOWN; ferranti UP (check via WSL).
 
