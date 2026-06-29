@@ -37,5 +37,9 @@ Decision:
 - If partial → quantify the gap; FF9 helps but isn't strictly required.
 
 ## Status
-- [2026-06-29] in-progress. Relay gradient verified healthy WITHOUT FF9 (probe above). Clean run SUBMITTED:
-  ferranti job **412506** @ SHA `8f54d09` (--no-bootstrap --no-ff9, 50ep). Eval pending on completion.
+- [2026-06-29] in-progress. Relay gradient verified healthy WITHOUT FF9 (probe above); also found the relay
+  gradient EXPLODES backward at init (~2-3x/hop, 88 @W=4) → motivated a normalizer arm. TWO parallel runs
+  on ferranti:
+  - **Arm 1** (no normalizer): job **412506** @ SHA `8f54d09` (--no-bootstrap --no-ff9, 50ep).
+  - **Arm 2** (+ per-hop relay grad-norm `--relay-grad-clip 0.05`): job **412510** @ SHA `e266bea`.
+  Eval pending on completion → 4-way recall vs winner (with FF9) + old 411270.

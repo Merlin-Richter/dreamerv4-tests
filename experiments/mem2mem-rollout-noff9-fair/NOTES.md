@@ -115,12 +115,16 @@ Recall @ window=8, max_k=64 (K=4, +K=2/1), overlay vs: winner (with FF9), old co
 - **partial** ⇒ quantify the gap; report where each lands on the recall curve.
 
 ## Provenance
-- Branch `exp/mem2mem-rollout-only`, SHA `8f54d097a3ed10b15e2c7603e42000f4494f0c01`. Cluster ferranti (H100).
-- Job **412506** (`--name noff9clean`, 5h) → `dynamics_mem2mem_rollout_noff9_clean.pt`.
-  Log: `runs/noff9clean/slurm-412506.out`.
+- Branch `exp/mem2mem-rollout-only`. Cluster ferranti (H100).
+- **Arm 1 (no normalizer)**: SHA `8f54d09`, job **412506** (`noff9clean`, 5h) →
+  `dynamics_mem2mem_rollout_noff9_clean.pt`. Log `runs/noff9clean/slurm-412506.out`.
+- **Arm 2 (+ per-hop relay grad-norm, C=0.05)**: SHA `e266bea`, job **412510** (`noff9clip`, 5h) →
+  `dynamics_mem2mem_rollout_noff9_clip.pt`. Log `runs/noff9clip/slurm-412510.out`. (Arm-1's job is
+  unaffected by the e266bea re-sync: the normalizer is default-OFF and byte-identical.)
 - Compare against: winner `dynamics_mem2mem_rollout.pt` (411133, with FF9) + old confounded no-FF9 (411270).
 
 ## Status
-- [2026-06-29] SUBMITTED. Relay gradient verified healthy WITHOUT FF9 (probe_relay_grad.py: init-only
-  |grad| 0.499 relay-on / 0.0 detached). Job 412506 on ferranti @ SHA 8f54d09. Eval pending → recall
-  overlay vs winner + old 411270.
+- [2026-06-29] BOTH SUBMITTED, running in parallel on ferranti. Relay gradient verified healthy WITHOUT
+  FF9 (probe_relay_grad.py: init-only |grad| 0.499 relay-on / 0.0 detached); relay EXPLODES backward at
+  init (probe_relay_decay.py / measure_clip_scale.py) → motivates arm 2's normalizer. Eval pending on
+  completion → 4-way recall overlay (arm1, arm2, winner-with-FF9, old 411270) + baselines.

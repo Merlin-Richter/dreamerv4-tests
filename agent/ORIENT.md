@@ -2,19 +2,27 @@
 
 Rewritten: 2026-06-26.
 
-## IN FLIGHT (2026-06-29 — FAIR no-FF9 ablation, ferranti job 412506)
+## IN FLIGHT (2026-06-29 — FAIR no-FF9 ablation, TWO parallel ferranti jobs 412506 + 412510)
 Re-testing the 411270 "FF9 is necessary" result, which Merlin flagged as conceptually off (the 50%
 full-noise rollout mode should train memory even without FF9, *if* the relay gradient flows back behind
-the window). **Investigation: the relay gradient IS healthy** — `test_autograd.py` passes and a new
-training-scale probe (`experiments/mem2mem-rollout-noff9-fair/probe_relay_grad.py`, real config,
-use_ff9=False/bootstrap=False/d_min) gives init-only-frame |grad| **0.499 relay-on / 0.0 detached**. So
-no-FF9 collapse is NOT a severed-gradient bug; **411270 was CONFOUNDED** (bootstrap+curriculum+instability+
-36ep — same stack as the discredited boot run). Clean re-run = winner config minus FF9 (`--no-bootstrap
---no-ff9 --mem2mem-frac 1.0`, 50ep) → job **412506** @ SHA `8f54d09`, ckpt
-`dynamics_mem2mem_rollout_noff9_clean.pt`. NEXT when it lands: pull + recall w8 max_k64 (K=4/2/1) vs winner
-(with FF9) + old 411270 + baselines. Pre-registered: near-ceiling ⇒ FF9 not necessary (Merlin vindicated);
-still chance ⇒ FF9 genuinely load-bearing despite the gradient flowing (dense scaffold). Task
-`tasks/in-progress/fair-noff9-ablation.md`; NOTES `experiments/mem2mem-rollout-noff9-fair/`.
+the window). **Investigation:** (1) the relay gradient IS healthy — `test_autograd.py` passes; a
+training-scale probe (`probe_relay_grad.py`, real config, use_ff9=False) gives init-only-frame |grad|
+**0.499 relay-on / 0.0 detached**. So no-FF9 collapse is NOT a severed-gradient bug; **411270 was
+CONFOUNDED** (bootstrap+curriculum+instability+36ep). (2) BUT the relay gradient **EXPLODES backward at
+init** (`probe_relay_decay.py` / `measure_clip_scale.py`: ~2–3×/hop; real-data deepest-hop |grad| 0.03
+@W=16 but 26 @W=8, **88 @W=4**), self-correcting to ~1 once trained — a candidate reason no-FF9 fails
+(early explosion + global grad-clip may stop the representation forming without FF9's dense scaffold).
+**No dedicated relay normalizer exists** (carried memory = raw residual stream; only TBPTT(2N) + global
+clip + pre-norm + training self-regularize). So running TWO arms in parallel:
+- **Arm 1** (clean, winner-minus-FF9): `--no-bootstrap --no-ff9 --mem2mem-frac 1.0` 50ep → job **412506**
+  @ SHA `8f54d09`, ckpt `dynamics_mem2mem_rollout_noff9_clean.pt`.
+- **Arm 2** (+ NEW per-hop relay grad-norm): adds `--relay-grad-clip 0.05` (backward hook scales each
+  carried memory's gradient down per-seq to ≤C; training-only, OFF=byte-identical, forward/inference
+  unchanged) → job **412510** @ SHA `e266bea`, ckpt `dynamics_mem2mem_rollout_noff9_clip.pt`.
+NEXT when they land: pull both + 4-way recall w8 max_k64 (K=4/2/1) vs winner (with FF9) + old 411270 +
+baselines. Pre-registered: arm1 near-ceiling ⇒ FF9 not needed (Merlin vindicated); arm1 chance & arm2
+near-ceiling ⇒ the relay explosion was the blocker, normalizer rescues it; both chance ⇒ FF9 is a needed
+dense scaffold. Task `tasks/in-progress/fair-noff9-ablation.md`; NOTES `experiments/mem2mem-rollout-noff9-fair/`.
 
 ## What we're doing right now and why
 Rebuild merged + spec→code sync done. Two campaigns just completed — both WINS:
