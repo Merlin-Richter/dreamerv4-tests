@@ -123,8 +123,25 @@ Recall @ window=8, max_k=64 (K=4, +K=2/1), overlay vs: winner (with FF9), old co
   unaffected by the e266bea re-sync: the normalizer is default-OFF and byte-identical.)
 - Compare against: winner `dynamics_mem2mem_rollout.pt` (411133, with FF9) + old confounded no-FF9 (411270).
 
+## Result — ARM 1 (no-FF9, NO normalizer): FF9 is NOT necessary; the old 411270 negative was the confounds
+Job 412506 completed clean (50ep, rc=0, STABLE — val 0.0051, ff9 0.0000, train normal 0.0, d_unlocked 1/8;
+none of 411270's instability because bootstrap+curriculum are OFF here). Recall w8 max_k64 position_acc:
+
+| model | K=4 mean | tail(k≥14) | K=2 | K=1 |
+|---|---:|---:|---:|---:|
+| **Arm 1 — no-FF9, no normalizer (412506)** | **0.989** | 0.988 | 0.999 | 0.999 |
+| winner — rollout-only WITH FF9 (411133) | 0.992 | 0.988 | — | — |
+| old confounded no-FF9 (411270) | 0.044 | 0.041 | — | — |
+| vanilla | 0.042 | 0.035 | — | — |
+
+⇒ Near-ceiling, flat to k=64, matching the FF9 winner. **The 50% full-noise rollout mode alone trains
+memory to carry hidden state — FF9 is redundant on this task.** 411270's chance recall was the
+bootstrap+curriculum+instability+36ep confounds (exactly like the discredited boot run), NOT a missing FF9.
+Merlin's intuition vindicated. (Also: the init relay explosion the probes measured did NOT block learning
+in this stable d_min-only config — so the normalizer wasn't even needed for success; arm 2 checks if it's
+neutral/helpful.)
+
 ## Status
-- [2026-06-29] BOTH SUBMITTED, running in parallel on ferranti. Relay gradient verified healthy WITHOUT
-  FF9 (probe_relay_grad.py: init-only |grad| 0.499 relay-on / 0.0 detached); relay EXPLODES backward at
-  init (probe_relay_decay.py / measure_clip_scale.py) → motivates arm 2's normalizer. Eval pending on
-  completion → 4-way recall overlay (arm1, arm2, winner-with-FF9, old 411270) + baselines.
+- [2026-06-29] ARM 1 DONE (above). ARM 2 (412510, +relay-grad-clip 0.05) still running (~1.5h left); wait
+  re-armed after a ControlMaster socket drop. Eval pending on arm 2 → final 4-way recall overlay
+  (arm1, arm2, winner, old 411270) + occlusion sheets.
