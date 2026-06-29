@@ -22,7 +22,7 @@ and studying memory tokens that carry state past the window.
 2. Print the task tree: `find tasks -type f` (or `ls -R tasks`). Folder = state, filename = description;
    open a task file only when you act on it.
 3. Skim `agent/EXPERIMENTS.md` (the short experiment index).
-4. Run `bash scripts/cluster_health.sh` to see if the sockets are alive. If dead and you need cluster for training -> just write to the human.
+4. Run `cluster_health.sh` **in WSL** — `wsl.exe -e bash -lc "cd /mnt/c/.../transformer && bash scripts/cluster_health.sh"` (the ControlMaster socket is WSL-namespaced; running it in Windows Git-Bash ALWAYS reports the socket DOWN even when the cluster is up — see §5). Only `open_master.sh` (Merlin) opening DOWN means the socket is actually dead; if dead and you need cluster for training -> just write to the human.
 5. If anything is running on the cluster, reconcile: `bash scripts/job_status.sh --cluster <ferranti|galvani>`
    (in WSL — see §5). Process finished jobs before new work.
 6. State in one line what you're about to do. If you can't, the state files failed — tell Merlin.

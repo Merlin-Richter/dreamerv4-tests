@@ -40,3 +40,13 @@ winner → the τ-shift is the culprit, not the bootstrap.
 
 ## Status
 - [2026-06-27] in-progress. Jobs submitted to ferranti (IDs + SHA recorded in the experiment NOTES).
+
+## Result (2026-06-29) — DONE
+Both jobs completed clean on ferranti (50ep, rc=0). Recall w8 max_k64 (K=4/2/1, n_roll=64):
+Arm A (control, boot OFF) K4 0.998 / K2 1.000 / K1 1.000; Arm B (fair boot) K4 0.968 / K2 0.980 / K1 0.999;
+winner 0.992; old unfair boot (411221) 0.472. Pre-registered verdict CONFIRMED: B≈A≈winner (the old
+"bootstrap halves retention" was the confounds — chiefly the FF9-normalizer dilution: final FF9
+0.013/0.0105 vs old boot's 0.054); B<A small/consistent (~3pts, not catastrophic); A≥winner so the
+τ-shift is benign. Few-step: Arm A already perfect @K1/K2 ⇒ bootstrap motivation moot on GridWorld.
+Decision unchanged: keep rollout-only + FF9 + x-prediction (bootstrap is free but pointless here).
+Full write-up: experiments/mem2mem-rollout-boot-fair/NOTES.md + compare_w8_k64_4way.png.

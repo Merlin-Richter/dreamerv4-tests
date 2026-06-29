@@ -24,20 +24,23 @@ gained the learnable per-head `logit_scale`, tokenizer decoder gained a sigmoid 
 terminal frame gets a sampled τ, trainers moved to required `--frames/--tokenizer/--checkpoint`. **All
 pre-sync checkpoints are architecture-incompatible — retrained.**
 
-## IN FLIGHT (2026-06-27, part 3 — FAIR bootstrap A/B)
+## DONE (2026-06-27→29, part 3 — FAIR bootstrap A/B) — bootstrap is FREE, not harmful
 On `exp/mem2mem-rollout-only` @ SHA `851a7ab`. Merlin pushed back on the part-2 "bootstrap hurt" claim
-(shortcut forcing logically shouldn't hurt). Re-read the diff: the 411221 negative was CONFOUNDED by 3
-changes riding with the bootstrap — (1) FF9 normalizer diluted by the small boot self-distillation term
-(scaler = mixed flow+boot mean instead of pure flow → silently down-weights memory ~2.4×; the WINNER was
-the non-standard one, using pure flow), (2) new-half τ resampled onto the d-snapped grid (~25% at τ=0 vs
-<1%; intrinsic to bootstrap), (3) 36 vs 50 ep. NOT evidence shortcut forcing hurts. Corrected the old boot
-NOTES. Launched a clean 2-arm factorial (both 50ep, FF9 normalized by pure d_min flow via new
-`--ff9-norm-flow`; τ held identical via curriculum in both): **Arm B (fair boot) job 411502** vs **Arm A
-(control, `--boot-loss-off`) job 411503**, ferranti. A vs B = pure bootstrap-gradient effect; A vs winner =
-τ-shift. New flags + `flow_norm` logging behind defaults (byte-identical when off). Verified locally
-(probe |diff|=0, relay grad intact, both smoke clean). NEXT when jobs land: pull both ckpts, recall A/B
-@ w8 max_k64 (+K=2/1) 4-way vs winner + old boot. Pre-registered: expect B≈A≈winner ⇒ bootstrap is free.
-Task `tasks/in-progress/fair-bootstrap-ablation.md`. galvani socket still DOWN.
+(shortcut forcing logically shouldn't hurt). The 411221 negative was CONFOUNDED by 3 changes riding with
+the bootstrap — (1) FF9 normalizer diluted by the small boot self-distillation term (mixed flow+boot mean
+vs pure flow → down-weights memory ~2.4×; the WINNER was the non-standard pure-flow one), (2) new-half τ
+resampled onto the d-snapped grid (~25% at τ=0; intrinsic to bootstrap), (3) 36 vs 50 ep. Ran a clean
+2-arm factorial (both 50ep, FF9 normalized by pure d_min flow via `--ff9-norm-flow`; τ held identical via
+curriculum in both): **Arm B (fair boot) 411502** vs **Arm A (control `--boot-loss-off`) 411503**, ferranti.
+**RESULT (recall w8 max_k64, position_acc): Arm A (boot OFF) K4 0.998 / K2 1.000 / K1 1.000; Arm B (fair
+boot) K4 0.968 / K2 0.980 / K1 0.999; winner (411133) 0.992; old unfair boot (411221) 0.472 — the collapse
+is GONE.** Pre-registered verdict confirmed: B≈A≈winner (no halving — old negative was the confounds, esp.
+the FF9-norm dilution: final FF9 0.013/0.0105 vs old boot's 0.054); B<A is small/consistent (~3pts, not
+catastrophic); A≥winner so the τ-shift is benign. Few-step: Arm A is already perfect @K1/K2, so the
+bootstrap's whole motivation is moot on GridWorld. **Decision UNCHANGED — keep simple rollout-only + FF9 +
+x-prediction; the bootstrap (diffusion-step ladder) is safe to add but buys nothing here.** Ckpts pulled
+(`dynamics_mem2mem_rollout_boot_fair.pt`, `_bootctrl.pt`); `experiments/mem2mem-rollout-boot-fair/` (NOTES +
+`compare_w8_k64_4way.png`). Task → done. galvani socket still DOWN; ferranti UP (check via WSL).
 
 ## Just finished (latest session, 2026-06-27, part 2 — bootstrap + FF9 ablations)
 On branch `exp/mem2mem-rollout-only`. Added shortcut **bootstrap distillation** to the rollout new-half
