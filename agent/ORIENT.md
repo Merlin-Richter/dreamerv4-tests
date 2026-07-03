@@ -2,24 +2,19 @@
 
 Rewritten: 2026-06-26.
 
-## IN FLIGHT (2026-06-29 — Memory Maze 9x9 tokenizer, new env) — ferranti job 412622
-Extending the pipeline from GridWorld to the real 3D Memory Maze env (task
-`tasks/in-progress/memmaze-tokenizer-train.md`, all big decisions LOCKED by Merlin). Step 1 = a FROZEN
-tokenizer. Done so far: exposed model-dim CLI args in `train_tokenizer.py` (+spec) so the LOCKED config
-(`embedding_dim=512 depth=12 n_heads=16 n_latents=32 bottleneck_dim=16 L=64`, LPIPS on, fg-weight off)
-runs from flags without polluting spec-backed `src/`; smoke-tested the override path on the 4070. Wrote
-`experiments/memmaze-tokenizer/` prep scripts. **Resolved the download:** GDrive 9x9 = 11 single zips
-(`eval.zip` + `train-part0..9.zip`), so "one folder ~= 10%" = one `train-partN.zip` (~2.9k traj, ~10GB);
-single-file `gdown` dodges the 50-file folder limit. **Prep DONE** (job 412622): bs-search max batch=8 (use bs6, LPIPS-bound ~17 clips/s); train-part0 =
-2900 traj -> `data/memmaze9x9.npy` (35.7GB on /weka). **Validation DONE** (job 412625, 600 eps x3): val MSE
-0.005->0.0008 (descending), latent_cos 0.33-0.38 (NO collapse), pred_std 0.15, stable; real ~40 min/epoch.
-**FULL RUN IN FLIGHT: ferranti job 412635** @ SHA `be1258e` (`train_and_recon.sh 15` = 15 epochs bs6 LOCKED
-cfg + LPIPS + W&B, then a recon sheet), --hours 13, ETA ~11h. Merlin chose 15 epochs on the 10% shard.
-**NEXT when it lands:** pull `checkpoints/memmaze/tokenizer.pt` (pull_file) + the recon sheet; eyeball recon
-sharpness + final val MSE/latent health; freeze; finalize NOTES/EXPERIMENTS; task -> done. (Dynamics on
-Memory Maze is the follow-up, needs a Memory-Maze recall/probe eval built from the npz labels.)
-Reversible decisions (flagged, Merlin OK'd): 10% shard (not full 100GB); prep job held an H100 for CPU/IO
-download (wrappers only expose the GPU partition). EXPERIMENTS: `memmaze-tokenizer`.
+## DONE (2026-06-30 — Memory Maze 9x9 tokenizer) — FROZEN, ready for dynamics
+Full run **412635 COMPLETED rc=0** (15ep bs6 LOCKED cfg, 10h16m, @ `be1258e`). **Final: val MSE 0.000074
+(fg 0.00013 / bg 0.000033), latent_cos 0.235 (NO collapse), pred_std 0.16, 25/6887 skips — healthy.**
+Checkpoint pulled + load-verified (config == LOCKED 512/12/16, n_latents=32 bottleneck_dim=16 L=64, 82.3M
+params) -> `checkpoints/memmaze/tokenizer.pt`, **FROZEN**. Recon sheet pulled
+(`experiments/memmaze-tokenizer/_recon_memmaze.png`, gitignored; 6 real-vs-recon strips, pixel MSE
+0.00008): geometry/colors/objects (incl. the blue target sphere) faithful; only high-freq wall texture
+slightly smoothed — acceptable at the 512-d/frame bottleneck. W&B `o9ldtn6t`. Task -> done; full details
+in `experiments/memmaze-tokenizer/NOTES.md`.
+**NEXT (needs Merlin's task):** Memory Maze dynamics + memory model on these latents (dims must match
+n_latents=32 bottleneck_dim=16) + a Memory-Maze recall/probe eval built from the npz labels
+(`agent_pos`, `maze_layout`, `target_*`). Note: val MSE was still descending at ep15 — more
+data (train-part1..9) / epochs would sharpen further if ever needed (reversible).
 
 ## DONE (2026-06-29 — FAIR no-FF9 ablation) — FF9 is NOT necessary on GridWorld
 Both arms completed clean (412506 no-norm, 412510 +relay-grad-clip 0.05; winner-config-minus-FF9, 50ep).

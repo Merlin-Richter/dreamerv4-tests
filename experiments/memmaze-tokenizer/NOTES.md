@@ -57,3 +57,19 @@ failure mode). Frozen -> `checkpoints/memmaze/tokenizer.pt` (pulled local).
 NOTE (flagged to Merlin): the prep job holds an H100 while doing CPU/IO-only download+convert (the
 wrappers only expose the GPU partition). One-time; acceptable. bs-search runs first so the GPU isn't
 idle the whole time.
+
+## RESULT — full run 412635 DONE (2026-06-30, rc=0, 10h16m)
+- **Final (epoch 15):** train MSE 0.000217 | **val MSE 0.000074** (fg_mse 0.000130, bg_mse 0.000033,
+  fg_frac 0.422) | latent_cos **0.235** (<0.7 = escaped, NO collapse) | pred_std **0.1595** (>0.04 =
+  content) | skipped 25/6887 steps | final lr 1.23e-5. ~41 min/epoch, matching the validation estimate.
+- Best-by-val/fg_mse checkpoint saved at epoch 15 (still improving at the end; more data/epochs would
+  help but quality is already sufficient) -> `checkpoints/memmaze/tokenizer.pt` (329 MB, **pulled local**,
+  loads clean, config verified == LOCKED: 512/12/16, n_latents=32, bottleneck_dim=16, L=64; 82.3M params).
+- **Recon sheet** `_recon_memmaze.png` (6 input/recon strips, L=64, seed 1; mean per-pixel MSE 0.00008;
+  pulled local, gitignored). Eyeballed early/mid/late frames across strips: wall geometry, corridor
+  perspective, block colors, floor/sky, and small objects (blue target sphere, distant orbs) are all
+  faithful; the only visible loss is slight smoothing of high-frequency wall textures (maze-line
+  patterns) — expected at a 512-d/frame bottleneck. No mean-image collapse.
+- W&B: `transformer-C-tokenizer / memmaze-tok-full` (run `o9ldtn6t`).
+- **Tokenizer is now FROZEN.** Follow-up (separate task): Memory Maze dynamics + memory model on these
+  latents (must match n_latents=32, bottleneck_dim=16) + a recall/probe eval from the npz labels.
