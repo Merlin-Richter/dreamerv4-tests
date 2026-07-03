@@ -2,6 +2,27 @@
 
 Rewritten: 2026-06-26.
 
+## IN FLIGHT (2026-07-03 — Memory Maze dynamics campaign, kicked off by Merlin)
+Goal: train TWO dynamics arms on the frozen memmaze tokenizer's latents — **vanilla** (baseline) and
+**mem2mem ROLLOUT-ONLY [LOCKED by Merlin]** (`--mem2mem-frac 1.0 --no-bootstrap` + FF9, the 411133
+winner). Merlin DELEGATED spec edits + task management for this campaign (memory:
+feedback-spec-edit-delegation). Done this session:
+- **Latent disk cache** (task done): train_dynamics.py + spec — tokenizer encodes once per
+  (frames, tokenizer) combo into fp16 `<frames>.latents-<sha12>.npy`; training never holds the
+  tokenizer (VRAM + compute + 12x dataset shrink). `--encode-online` / `--build-latent-cache-only` /
+  `--cache-batch`. mem2mem trainer ported. Window-invariance probe: GridWorld latent cos 0.9975,
+  window-delta recon MSE 6x below recon error ⇒ arbitrary-offset slicing safe.
+- **Model-dim CLI args** exposed in both trainers (+spec): `--embedding-dim/--depth/--n-heads/
+  --n-registers` (+ `--context-length` in mem2mem trainer).
+- **Cluster jobs in flight (ferranti):** prep **415098** @ `7d86b8d` (extract actions/labels from raw
+  npz + build memmaze latent cache + memmaze invariance probe; `experiments/memmaze-dynamics/prep.sh`);
+  calibration **415100** @ `37330e6` (`bs_search.py`, synthetic latents, both arms).
+- **Config (proposed to Merlin, he was AFK — proceeding, REVERSIBLE, flag before/at submit):**
+  512/12/16 (~45M) both arms; window 32; mem2mem clip 128, n_memory 8, ff9 3; budget ~24h/arm sized
+  from calibration. Tasks: `memmaze-dynamics-{prep(in-progress),vanilla,mem2mem}(backlog)`.
+**NEXT:** when 415098+415100 land: read probe + throughput numbers, size epochs, submit both training
+jobs (record JOB_IDs + SHA in `experiments/memmaze-dynamics/NOTES.md`), pull actions/labels local.
+
 ## DONE (2026-06-30 — Memory Maze 9x9 tokenizer) — FROZEN, ready for dynamics
 Full run **412635 COMPLETED rc=0** (15ep bs6 LOCKED cfg, 10h16m, @ `be1258e`). **Final: val MSE 0.000074
 (fg 0.00013 / bg 0.000033), latent_cos 0.235 (NO collapse), pred_std 0.16, 25/6887 skips — healthy.**
