@@ -32,3 +32,6 @@ once per epoch, and the DataLoader streams the full pixel npy (memmaze: 35.7GB) 
   builds, cache-hit training runs WITHOUT the tokenizer in VRAM, loss curve ~matches online path.
 - Window-invariance probe numbers recorded (GridWorld local; memmaze in the prep task).
 - mem2mem trainer consumes the cache.
+
+## RESULT (2026-07-03)
+DONE. Cache implemented in train_dynamics.py (+spec updated under delegated authority): fp16 <frames>.latents-<sha12>.npy + json meta, atomic build, --encode-online/--build-latent-cache-only/--cache-batch. GridWorld 4070 verification: cache builds (40ep/5s), cache-vs-online 2-epoch losses match (val 0.0347 vs 0.0336), gate tests green. Window-invariance probe (experiments/memmaze-dynamics/probe_window_invariance.py): latent cos 0.9975, window-delta recon MSE 1.3e-6 << recon-vs-GT 8.2e-6 -> Merlin claim CONFIRMED on GridWorld. mem2mem trainer ported to cache (rollout-only smoke green).

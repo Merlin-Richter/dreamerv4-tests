@@ -1,9 +1,13 @@
 """
 Train the Dreamer-4 dynamics model on the frozen tokenizer's latents.
 
-Pipeline per step:
-  frames (B, L, H, W, 3)
-    --frozen tokenizer encoder-->  clean latents z1 (B, L, n_latents, bottleneck_dim)
+Latents come from an ON-DISK CACHE by default: the first run for a (frames, tokenizer) combo encodes
+the whole dataset once (fp16, `<frames>.latents-<tokhash>.npy` next to the frames) and every run —
+including that first one — then trains from the mmapped latents with NO tokenizer on the GPU.
+`--encode-online` restores the legacy per-batch pixels->latents path.
+
+Pipeline per step (cache path):
+  latents z1 (B, L, n_latents, bottleneck_dim)  [precomputed by the frozen tokenizer encoder]
     --shortcut forcing loss-->     train the dynamics transformer to denoise each frame from
                                    its causal history.
 
@@ -26,7 +30,9 @@ canonical src/models/dynamics_model.py stays untouched until the idea graduates.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
+import json
 import os
 import random
 import sys
@@ -56,8 +62,10 @@ class ChunkClipDataset(Dataset):
 
     Mirrors the tokenizer's dataset so clip boundaries shift across epochs.
 
-    ``frames`` stays memory-mapped uint8 on disk (``np.load(..., mmap_mode="r")``); each clip is
+    ``frames`` stays memory-mapped on disk (``np.load(..., mmap_mode="r")``); each clip is
     converted to float32 only on access, so the full dataset is never materialized in RAM.
+    Accepts EITHER uint8 pixel frames (N, T, H, W, 3) — scaled to [0,1] float — OR precomputed
+    fp16 latents (N, T, n_latents, bottleneck_dim) from the latent cache, passed through as float32.
     ``episode_indices`` selects this split's episodes without copying (fancy-indexing a memmap
     would silently pull the whole subset into memory). ``actions`` is the full (N, T) tensor,
     indexed with the same absolute episode indices.
@@ -90,8 +98,11 @@ class ChunkClipDataset(Dataset):
 
     def __getitem__(self, idx: int):
         ep, start = self._pairs[idx]
-        clip_u8 = np.asarray(self.frames[ep, start:start + self.chunk_len])
-        clip = torch.from_numpy(clip_u8.astype(np.float32) / 255.0)
+        clip_np = np.asarray(self.frames[ep, start:start + self.chunk_len])
+        if clip_np.dtype == np.uint8:   # pixel frames -> [0,1] float32
+            clip = torch.from_numpy(clip_np.astype(np.float32) / 255.0)
+        else:                           # precomputed latents (fp16 cache) -> float32 as-is
+            clip = torch.from_numpy(clip_np.astype(np.float32))
         if self.actions is None:
             return clip
         act = self.actions[ep, start:start + self.chunk_len].clone()
@@ -167,6 +178,94 @@ def encode_frames(tokenizer: AutoEncoder, frames: torch.Tensor) -> torch.Tensor:
 
     A single frozen-tokenizer encode pass (clips are <= the model/tokenizer temporal window)."""
     return tokenizer.encoder(frames)
+
+
+def _file_sha256(path: Path, n_hex: int = 12) -> str:
+    """First ``n_hex`` hex chars of the file's sha256 (streamed; identifies a tokenizer ckpt)."""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 22), b""):
+            h.update(chunk)
+    return h.hexdigest()[:n_hex]
+
+
+def latent_cache_paths(frames_path: Path, tokenizer_path: Path) -> "tuple[Path, Path]":
+    """(npy, json-meta) cache paths for this (frames file, tokenizer ckpt) combo, next to the frames."""
+    key = _file_sha256(tokenizer_path)
+    npy = frames_path.with_name(f"{frames_path.stem}.latents-{key}.npy")
+    meta = frames_path.with_name(f"{frames_path.stem}.latents-{key}.json")
+    return npy, meta
+
+
+def ensure_latent_cache(frames_path: Path, tokenizer_path: Path, device: str,
+                        batch_episodes: int = 4) -> Path:
+    """Return the latent-cache .npy for (frames, tokenizer), building it once if missing.
+
+    Cache HIT (npy + meta exist, episode/time shape matches the frames): return immediately —
+    the tokenizer is never loaded, freeing its VRAM + per-batch encode compute for the whole run.
+    Cache MISS: load the frozen tokenizer, encode the entire dataset in non-overlapping windows of
+    the tokenizer's ``max_temporal_length`` (trailing partial window encoded as-is; the encoder is
+    eval-mode + deterministic, MAE dropout off), store fp16 ``(N, T, n_latents, bottleneck_dim)``
+    via ``open_memmap`` and atomically rename into place (parallel jobs may both build; last rename
+    wins, contents identical). fp16 is exact for bf16-computed values, ~12x smaller than uint8 pixels
+    for memmaze.
+
+    Because the causal encoder sees only its own window, a frame's latent depends on the window
+    start; downstream chunking slices the cache at ARBITRARY offsets (Merlin 2026-07-03: per-frame
+    reconstruction gives no pressure to use temporal context, so latents are ~window-invariant —
+    measured by experiments/memmaze-dynamics/probe_window_invariance.py, and the GridWorld mem2mem
+    winner already trained on boundary-crossing latents).
+    """
+    frames_path, tokenizer_path = Path(frames_path), Path(tokenizer_path)
+    npy, meta_p = latent_cache_paths(frames_path, tokenizer_path)
+    raw = np.load(frames_path, mmap_mode="r")
+    if npy.is_file() and meta_p.is_file():
+        lat = np.load(npy, mmap_mode="r")
+        if lat.shape[:2] == raw.shape[:2]:
+            print(f"[latent-cache] HIT {npy.name}  {lat.shape} {lat.dtype}")
+            return npy
+        print(f"[latent-cache] STALE (cache {lat.shape[:2]} != frames {raw.shape[:2]}) -> rebuild")
+    payload = torch.load(tokenizer_path, map_location="cpu", weights_only=False)
+    tok_T = int(payload["config"]["max_temporal_length"])
+    n_lat = int(payload["config"]["n_latents"])
+    bdim = int(payload["config"]["bottleneck_dim"])
+    del payload
+    tokenizer = load_tokenizer(tokenizer_path, device)
+    n, t = raw.shape[:2]
+    use_amp = device == "cuda"
+    print(f"[latent-cache] MISS -> encoding {n} eps x {t} frames in windows of {tok_T} "
+          f"-> {npy.name} (fp16, ({n}, {t}, {n_lat}, {bdim}))", flush=True)
+    tmp = npy.with_name(npy.name + f".tmp{os.getpid()}")
+    out = np.lib.format.open_memmap(tmp, mode="w+", dtype=np.float16, shape=(n, t, n_lat, bdim))
+    t0 = time.perf_counter()
+    with torch.no_grad():
+        for e0 in range(0, n, batch_episodes):
+            e1 = min(n, e0 + batch_episodes)
+            clip = torch.from_numpy(
+                np.asarray(raw[e0:e1]).astype(np.float32) / 255.0).to(device)
+            zs = []
+            for w0 in range(0, t, tok_T):
+                with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
+                    z = encode_frames(tokenizer, clip[:, w0:w0 + tok_T])
+                zs.append(z.float().cpu())
+            out[e0:e1] = torch.cat(zs, dim=1).numpy().astype(np.float16)
+            if e1 % max(batch_episodes * 25, 1) < batch_episodes or e1 == n:
+                dt = time.perf_counter() - t0
+                print(f"[latent-cache]   {e1}/{n} eps  ({e1 / max(dt, 1e-9):.1f} eps/s)", flush=True)
+    out.flush()
+    del out
+    meta_p.write_text(json.dumps({
+        "frames": str(frames_path.name), "frames_shape": list(raw.shape),
+        "tokenizer": str(tokenizer_path), "tokenizer_sha256_12": _file_sha256(tokenizer_path),
+        "window": tok_T, "dtype": "float16",
+        "latents_shape": [n, t, n_lat, bdim],
+    }, indent=2))
+    os.replace(tmp, npy)
+    del tokenizer
+    if device == "cuda":
+        torch.cuda.empty_cache()
+    print(f"[latent-cache] BUILT {npy.name} in {time.perf_counter() - t0:.0f}s", flush=True)
+    return npy
 
 
 def run_test_checkpoint(args: argparse.Namespace) -> None:
@@ -326,6 +425,16 @@ def main():
                         help="Cap the number of TRAINING episodes (subset, for fast iteration). "
                              "Default: all. Val split is unaffected. Subset is the first "
                              "--max-episodes of the fixed seed-0 train permutation (reproducible).")
+    parser.add_argument("--encode-online", action="store_true",
+                        help="Bypass the latent disk cache: keep the tokenizer on the GPU and encode "
+                             "pixels -> latents per batch (the legacy path; debug/AB only).")
+    parser.add_argument("--build-latent-cache-only", action="store_true",
+                        help="Build the latent cache for (--frames, --tokenizer) if missing, then exit "
+                             "without training (for prep jobs, so parallel training jobs don't race "
+                             "to build it).")
+    parser.add_argument("--cache-batch", type=int, default=4,
+                        help="Episodes per encode batch while BUILDING the latent cache (default 4; "
+                             "raise on big GPUs for a faster one-time build).")
     wlog.add_args(parser)
     args = parser.parse_args()
     # Enable TF32 for any fp32 matmuls outside the bf16 autocast region (free on H100).
@@ -342,8 +451,6 @@ def main():
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
-    tokenizer = load_tokenizer(args.tokenizer, device)
-
     # Memory-mapped uint8; clips are converted to float32 per-batch in the dataset, so RAM
     # stays at ~the touched pages instead of a full 4x float32 copy of the dataset.
     raw = np.load(args.frames, mmap_mode="r")
@@ -352,6 +459,24 @@ def main():
     n, t, h, w, c = raw.shape
     if n < 2:
         raise ValueError(f"Need at least 2 episodes to split train/val, got n={n}.")
+
+    # Latent source: DEFAULT is the on-disk latent cache (tokenizer runs ONCE per (frames, tokenizer)
+    # combo, then never occupies VRAM again; the dataset is ~12x smaller than pixels). --encode-online
+    # keeps the legacy per-batch pixels->latents path.
+    tokenizer = None
+    if args.encode_online:
+        tokenizer = load_tokenizer(args.tokenizer, device)
+        n_latents = tokenizer.encoder.n_latents
+        bottleneck_dim = tokenizer.encoder.bottleneck_proj.out_features
+        data_arr = raw
+    else:
+        cache = ensure_latent_cache(args.frames, args.tokenizer, device,
+                                    batch_episodes=args.cache_batch)
+        if args.build_latent_cache_only:
+            print("[latent-cache] --build-latent-cache-only: done.")
+            return
+        data_arr = np.load(cache, mmap_mode="r")   # (N, T, n_latents, bottleneck_dim) fp16
+        n_latents, bottleneck_dim = int(data_arr.shape[2]), int(data_arr.shape[3])
 
     # Optional discrete actions, aligned per frame with `raw`.
     actions_path = args.actions
@@ -378,15 +503,13 @@ def main():
         train_idx = train_idx[:args.max_episodes]
         print(f"[--max-episodes] capping training to {len(train_idx)} episodes (val unchanged).")
 
-    # Build dynamics config; tokenizer-tied dims come from the tokenizer checkpoint.
+    # Build dynamics config; tokenizer-tied dims come from the tokenizer checkpoint (online path)
+    # or from the latent cache's trailing dims (cache path) — the two always agree by construction.
     base = DynamicsModelConfig()
     chunk_len = args.context_length if args.context_length is not None else base.max_temporal_length
     if t < chunk_len:
         raise ValueError(f"Episode length T={t} must be >= clip length L={chunk_len}.")
 
-    # Read tokenizer dims from its loaded modules so the two models always agree.
-    n_latents = tokenizer.encoder.n_latents
-    bottleneck_dim = tokenizer.encoder.bottleneck_proj.out_features
     cfg = DynamicsModelConfig(
         max_temporal_length=chunk_len,
         n_latents=n_latents,
@@ -396,8 +519,8 @@ def main():
         ff9_k=args.ff9,
     )
 
-    train_ds = ChunkClipDataset(raw, train_idx, chunk_len, start_offset=0, actions=actions)
-    val_ds = ChunkClipDataset(raw, val_idx, chunk_len,
+    train_ds = ChunkClipDataset(data_arr, train_idx, chunk_len, start_offset=0, actions=actions)
+    val_ds = ChunkClipDataset(data_arr, val_idx, chunk_len,
                               start_offset=args.val_offset % (chunk_len + 1), actions=actions)
     if len(train_ds) == 0 or len(val_ds) == 0:
         raise ValueError(f"No clips with L={chunk_len}; try shorter clips or smaller --val-offset.")
@@ -490,7 +613,8 @@ def main():
             batch_x, batch_a = _split_batch(batch, device)
             n_train_samples += batch_x.shape[0]
             with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
-                z1 = encode_frames(tokenizer, batch_x)  # frozen, no grad
+                # cache path: batch_x IS the latents; online path: encode pixels (frozen, no grad)
+                z1 = batch_x if tokenizer is None else encode_frames(tokenizer, batch_x)
                 loss, parts = model.loss(z1, batch_a, return_parts=True)
             opt.zero_grad()
             loss.backward()
@@ -512,7 +636,7 @@ def main():
             for batch in tqdm(val_loader, desc="Val", leave=False, position=1, mininterval=1.0):
                 batch_x, batch_a = _split_batch(batch, device)
                 with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
-                    z1 = encode_frames(tokenizer, batch_x)
+                    z1 = batch_x if tokenizer is None else encode_frames(tokenizer, batch_x)
                     loss, parts = model.loss(z1, batch_a, return_parts=True)
                     val_loss += loss.item()
                     for name, value in parts.items():

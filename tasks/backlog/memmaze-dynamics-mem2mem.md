@@ -5,7 +5,8 @@ Requested by Merlin 2026-07-03. Runs in parallel with `memmaze-dynamics-vanilla`
 ## Goal
 Port the GridWorld headline win to the real 3D memory env: memory-token dynamics trained with the
 mem->mem sliding-rollout signal (`experiments/mem2mem/train_mem2mem.py` + `rollout.py`), on the cached
-memmaze latents. GridWorld winner config = rollout-heavy + FF9, NO bootstrap (`--no-bootstrap`),
+memmaze latents. **[LOCKED by Merlin 2026-07-03]: the structure to train is mem2mem ROLLOUT-ONLY** —
+the 411133 winner config: `--mem2mem-frac 1.0 --no-bootstrap` + FF9 (no normal-window batches).
 relay-grad-clip OFF by default (watch for the init relay explosion on this longer-relay env; the
 `--relay-grad-clip` flag exists if training is unstable — ORIENT 2026-06-29).
 
@@ -16,8 +17,8 @@ relay-grad-clip OFF by default (watch for the init relay explosion on this longe
 ## Open config decisions (ask Merlin with throughput data before submitting)
 - Same model-size question as vanilla (keep the two arms' transformer config IDENTICAL for a fair
   comparison; only memory/FF9/training-signal differ).
-- mem2mem specifics: `--mem2mem-frac` (GridWorld winner: 1.0 rollout-only; 50/50 also worked),
-  `--clip-len` (rollout length; GridWorld used 64 = 4x window), n_ctx choices, `--ff9 K --n-memory M`.
+- mem2mem specifics: frac LOCKED at 1.0 (rollout-only, see Goal); still open: `--clip-len` (rollout
+  length; GridWorld used 64 = 4x window), n_ctx choices, `--ff9 K --n-memory M`.
 - Compute budget: rollout training is ~sequential over the clip -> slower per sample than vanilla.
 
 ## Done means

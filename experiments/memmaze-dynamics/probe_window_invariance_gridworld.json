@@ -1,0 +1,27 @@
+{
+  "frames": "data\\gridworld.npy",
+  "tokenizer": "checkpoints\\gridworld\\tokenizer.pt",
+  "window": 16,
+  "offset": 8,
+  "n_episodes": 16,
+  "n_overlap_frames": 8,
+  "latent_cos_mean": 0.997538685798645,
+  "latent_cos_min": 0.9771787524223328,
+  "latent_rel_l2_mean": 0.05814315378665924,
+  "latent_rel_l2_max": 0.21305008232593536,
+  "latent_norm_mean": 12.60871410369873,
+  "fp16_cast_err_norm": 0.0010472513968124986,
+  "recon_mse_between_windows": 1.3330745787243359e-06,
+  "recon_mse_winA_vs_gt": 8.196762792067602e-06,
+  "recon_mse_winB_vs_gt": 8.785781574260909e-06,
+  "latent_cos_by_overlap_pos": [
+    0.9944244623184204,
+    0.9960072040557861,
+    0.9972476363182068,
+    0.9980489015579224,
+    0.997697114944458,
+    0.9988473653793335,
+    0.9993730187416077,
+    0.9986639618873596
+  ]
+}

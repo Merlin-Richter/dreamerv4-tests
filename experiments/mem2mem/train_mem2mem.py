@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from dataclasses import asdict                                                  # noqa: E402
 from models.dynamics_model import DynamicsModel, DynamicsModelConfig            # noqa: E402
 from training.train_dynamics import (ChunkClipDataset, _split_batch,            # noqa: E402
-                                     load_tokenizer, encode_frames)
+                                     ensure_latent_cache)
 import wlog                                                                     # noqa: E402
 from rollout import mem2mem_rollout_loss                                        # noqa: E402
 
@@ -122,8 +122,12 @@ def main():
     n_val = max(1, int(args.val_fraction * n_ep))
     val_idx, train_idx = perm[:n_val], perm[n_val:]
 
-    tok = load_tokenizer(args.tokenizer, device)
-    cfg = DynamicsModelConfig(n_actions=n_actions, n_memory=args.n_memory, ff9_k=args.ff9)
+    # Latent disk cache (train_dynamics.ensure_latent_cache): tokenizer encodes the dataset ONCE per
+    # (frames, tokenizer) combo; training streams mmapped fp16 latents and never holds the tokenizer.
+    cache = ensure_latent_cache(args.frames, args.tokenizer, device)
+    lat = np.load(cache, mmap_mode="r")  # (N, T, n_latents, bottleneck_dim) fp16
+    cfg = DynamicsModelConfig(n_latents=int(lat.shape[2]), bottleneck_dim=int(lat.shape[3]),
+                              n_actions=n_actions, n_memory=args.n_memory, ff9_k=args.ff9)
     assert cfg.n_memory > 0 and cfg.ff9_k > 0, "mem2mem requires n_memory>0 and ff9>0"
     N = cfg.max_temporal_length
     clip_len = max(args.clip_len, N)
@@ -136,8 +140,8 @@ def main():
           f"(boot_loss_off={args.boot_loss_off}) ff9_norm_flow={args.ff9_norm_flow} "
           f"use_ff9={not args.no_ff9} relay_grad_clip={args.relay_grad_clip}")
 
-    train_ds = ChunkClipDataset(raw, train_idx, clip_len, actions=actions)
-    val_ds = ChunkClipDataset(raw, val_idx, clip_len, actions=actions)
+    train_ds = ChunkClipDataset(lat, train_idx, clip_len, actions=actions)
+    val_ds = ChunkClipDataset(lat, val_idx, clip_len, actions=actions)
     lk = dict(num_workers=args.num_workers, pin_memory=(device == "cuda"))
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, drop_last=True, **lk)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, **lk)
@@ -159,16 +163,6 @@ def main():
     sched = LambdaLR(opt, lr_lambda)
     args.checkpoint.parent.mkdir(parents=True, exist_ok=True)
 
-    tok_T = int(getattr(tok, "config", cfg).max_temporal_length)  # tokenizer temporal window (RoPE table)
-
-    def encode(frames):
-        # The tokenizer's temporal RoPE table only spans tok_T frames, so encode the long clip in
-        # non-overlapping tok_T-frame blocks (each block gets the same <=tok_T temporal context the
-        # tokenizer was trained with) and concatenate the per-frame latents.
-        with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
-            outs = [encode_frames(tok, frames[:, i:i + tok_T]) for i in range(0, frames.shape[1], tok_T)]
-        return torch.cat(outs, dim=1).float()  # (B, clip_len, n_latents, bottleneck) fp32 for the rollout
-
     gstep = 0
     last_unlocked = 1
     for epoch in range(args.epochs):
@@ -176,8 +170,7 @@ def main():
         agg = {"normal": 0.0, "mem2mem": 0.0, "flow": 0.0, "flow_norm": 0.0, "ff9": 0.0,
                "n_m": 0, "n_n": 0, "relay_clipped": 0.0, "relay_hooks": 0.0}
         for batch in train_loader:
-            frames, acts = _split_batch(batch, device)
-            z1 = encode(frames)
+            z1, acts = _split_batch(batch, device)   # batch IS fp32 latents (from the cache)
             # step-size curriculum: only d_min while no_bootstrap (winner repro); ramp finest-first
             # otherwise. --boot-loss-off keeps the curriculum (coarse d sampled) but drops the boot term.
             if args.no_bootstrap:
@@ -222,8 +215,7 @@ def main():
         vloss, nb = 0.0, 0
         with torch.no_grad():
             for batch in val_loader:
-                frames, acts = _split_batch(batch, device)
-                z1 = encode(frames)
+                z1, acts = _split_batch(batch, device)
                 with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
                     a = acts[:, :N] if acts is not None else None
                     vloss += float(model.loss(z1[:, :N], a)); nb += 1
