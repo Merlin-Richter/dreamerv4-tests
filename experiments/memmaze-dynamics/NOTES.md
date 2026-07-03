@@ -45,4 +45,10 @@ GridWorld; memmaze probe in the prep job). JSON: `probe_window_invariance_gridwo
 
 ## Provenance
 - Prep: ferranti **415098** @ `7d86b8d`. Calibration: **415100** @ `37330e6`, **415101** @ `965268b`.
-- Training jobs: <fill>
+- Training jobs (submitted 2026-07-03 22:01, both @ SHA `1149bb4`):
+  - vanilla: ferranti **job 415103** (`train_vanilla.sh 50 64`, --hours 12) ->
+    `checkpoints/memmaze/dynamics_vanilla.pt`, W&B transformer-D-dynamics/memmaze-dyn-vanilla.
+  - mem2mem rollout-only: ferranti **job 415104** (`train_mem2mem.sh 50 4 --lr 1e-4`, --hours 36) ->
+    `checkpoints/memmaze/dynamics_mem2mem.pt`, W&B transformer-mem2mem/memmaze-dyn-mem2mem.
+- NEW wrapper `scripts/clean_untracked.sh` (git-clean specific untracked remote paths) — needed
+  because the prep job's probe JSON blocked sync_code checkout after being pulled + committed.

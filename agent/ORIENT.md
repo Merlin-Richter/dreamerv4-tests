@@ -14,14 +14,24 @@ feedback-spec-edit-delegation). Done this session:
   window-delta recon MSE 6x below recon error ⇒ arbitrary-offset slicing safe.
 - **Model-dim CLI args** exposed in both trainers (+spec): `--embedding-dim/--depth/--n-heads/
   --n-registers` (+ `--context-length` in mem2mem trainer).
-- **Cluster jobs in flight (ferranti):** prep **415098** @ `7d86b8d` (extract actions/labels from raw
-  npz + build memmaze latent cache + memmaze invariance probe; `experiments/memmaze-dynamics/prep.sh`);
-  calibration **415100** @ `37330e6` (`bs_search.py`, synthetic latents, both arms).
-- **Config (proposed to Merlin, he was AFK — proceeding, REVERSIBLE, flag before/at submit):**
-  512/12/16 (~45M) both arms; window 32; mem2mem clip 128, n_memory 8, ff9 3; budget ~24h/arm sized
-  from calibration. Tasks: `memmaze-dynamics-{prep(in-progress),vanilla,mem2mem}(backlog)`.
-**NEXT:** when 415098+415100 land: read probe + throughput numbers, size epochs, submit both training
-jobs (record JOB_IDs + SHA in `experiments/memmaze-dynamics/NOTES.md`), pull actions/labels local.
+- **Prep DONE** (415098 @ 7d86b8d): actions (2900,1001) int64 **n_actions=6** + ALL labels extracted
+  (agent_pos/dir, maze_layout, targets... — eval raw material, on /weka; small ones pulled local);
+  latent cache `memmaze9x9.latents-fe2ff8440036.npy` (fp16, 3GB) built; **memmaze window-invariance:
+  cos 0.9996, window-delta recon MSE 60x below recon error** (claim confirmed).
+- **Calibration** (415100+415101): vanilla bs64 = 140 clips/s 42.6GB; mem2mem clip128 bs4 =
+  8.7 clips/s 54GB (bs6+ OOM — the rollout holds all ~7 slides' graphs to one backward).
+- **TRAINING IN FLIGHT (ferranti, both @ SHA `1149bb4`, 50 epochs, 512/12/16=41M, W=32):**
+  - vanilla **415103** (bs64, ~11 min/epoch, ETA ~9.5h, --hours 12, W&B wj0dcogd) ->
+    `checkpoints/memmaze/dynamics_vanilla.pt`
+  - mem2mem rollout-only **415104** (clip128 bs4 **lr 1e-4** [agent call, flagged], n_memory 8,
+    ff9 3, no-bootstrap, ETA ~31h, --hours 36, W&B t4ppeqzp) -> `checkpoints/memmaze/dynamics_mem2mem.pt`
+  Both started clean: cache HIT (no tokenizer in VRAM), n_actions=6 detected.
+- **Decisions made while Merlin AFK (all REVERSIBLE, cancel+resubmit possible):** 512/12/16, W=32,
+  n_memory=8, 50ep, mem2mem lr 1e-4. New wrapper `scripts/clean_untracked.sh` (untracked remote
+  artifacts blocking sync_code checkout).
+**NEXT when they land:** pull both checkpoints, W&B curve check (mem2mem: watch relay stability /
+flow+ff9 balance), qualitative rollout sheets vs GT; then the memmaze recall/probe eval task (labels
+ready) — memory CLAIMS wait for that eval. Vanilla lands first (~9.5h): check it while mem2mem runs.
 
 ## DONE (2026-06-30 — Memory Maze 9x9 tokenizer) — FROZEN, ready for dynamics
 Full run **412635 COMPLETED rc=0** (15ep bs6 LOCKED cfg, 10h16m, @ `be1258e`). **Final: val MSE 0.000074

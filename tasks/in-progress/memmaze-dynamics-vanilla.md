@@ -22,3 +22,6 @@ Trained checkpoint `checkpoints/memmaze/dynamics_vanilla.pt` pulled + verified, 
 qualitative rollout sheet, provenance (job id + SHA + config) in `experiments/memmaze-dynamics/NOTES.md`
 + EXPERIMENTS.md line. (Recall-eval scoring is a separate follow-up task — needs the memmaze
 recall/probe eval to exist first.)
+
+## Provenance
+- ferranti job 415103 @ SHA 1149bb4 (train_vanilla.sh 50 64, --hours 12), submitted 2026-07-03. bs64 lr3e-4 W32 512/12/16 (41.0M). ~8.5h ETA.
