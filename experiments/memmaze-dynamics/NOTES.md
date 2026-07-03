@@ -31,8 +31,17 @@ GridWorld; memmaze probe in the prep job). JSON: `probe_window_invariance_gridwo
 - Round 1 (job 415100 @ 37330e6): **vanilla** 41.0M @ 512/12/16 W=32: bs64 **0.455 s/step,
   140.6 clips/s, 42.6GB** (bs128 OOM) -> use bs64. **mem2mem OOM @ bs8/clip128**: the rollout keeps
   every slide's graph until one backward (~7 slides + FF9 forwards ≈ bs×2×clip activation footprint).
-- Round 2 (job 415101 @ 965268b): fine mem2mem ladder bs {1,2,4,6}xclip128, {4,6,8}x96, {6,8,12}x64
-  -> <fill>
+- Round 2 (job 415101 @ 965268b): mem2mem clip128: bs4 = 0.462 s/step, **8.7 clips/s, 54.0GB** (bs6
+  OOM); clip96: bs6 14.8 clips/s 51.8GB; clip64: bs8 33.4 clips/s 32.1GB. **Chosen: clip128 bs4**
+  (keeps the GridWorld winner's 4x-window relay ratio; ~37 min/epoch).
+
+## Run config (50 epochs both arms = GridWorld parity; window 32; 512/12/16 = 41.0M params)
+- vanilla: bs64, lr 3e-4 (default), ~8.5h -> --hours 12.
+- mem2mem rollout-only [structure LOCKED]: clip128 bs4, **lr 1e-4** (agent judgment: bs 16x smaller
+  than GridWorld's 64 -> ~sqrt-scaled from 3e-4; conservative vs the init relay explosion at 512-d;
+  n_ctx sampled from {4,8,16,32}), n_memory 8, ff9 3, --no-bootstrap, ~31h -> --hours 36.
+- Config choices 512/12/16 + W32 + n_memory 8 were proposed to Merlin (AFK at decision time) —
+  REVERSIBLE; he can cancel + override.
 
 ## Provenance
 - Prep: ferranti **415098** @ `7d86b8d`. Calibration: **415100** @ `37330e6`, **415101** @ `965268b`.
