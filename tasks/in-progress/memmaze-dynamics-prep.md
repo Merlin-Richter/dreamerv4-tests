@@ -18,3 +18,6 @@ Requested by Merlin 2026-07-03 (prereq for the two memmaze dynamics training tas
 ## Done means
 Actions/labels npys exist on cluster (+ pulled), latent cache exists on /weka, probe numbers recorded
 in `experiments/memmaze-dynamics/NOTES.md`, provenance (job id + SHA) recorded.
+
+## Provenance
+- ferranti job 415098 @ SHA 7d86b8d (experiments/memmaze-dynamics/prep.sh, --hours 2 --cpus 8), submitted 2026-07-03. RISK flagged in prep.sh: fails fast if data/memmaze9x9_raw was cleaned (re-download via memmaze-tokenizer/cluster_prep.sh then re-run).

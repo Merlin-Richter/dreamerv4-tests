@@ -405,6 +405,12 @@ def main():
                              "Use 128 for the finest K_max schedule.")
     parser.add_argument("--context-length", type=int, default=None,
                         help="Clip length in frames. Default: DynamicsModelConfig.max_temporal_length.")
+    parser.add_argument("--embedding-dim", type=int, default=None,
+                        help="Transformer width (default: DynamicsModelConfig default; env-dependent).")
+    parser.add_argument("--depth", type=int, default=None,
+                        help="Transformer depth; use a multiple of 3 (3x[spatial,temporal,spatial]).")
+    parser.add_argument("--n-heads", type=int, default=None, help="Attention heads.")
+    parser.add_argument("--n-registers", type=int, default=None, help="Scratch register tokens/frame.")
     parser.add_argument("--val-offset", type=int, default=0)
     parser.add_argument("--val-fraction", type=float, default=0.05)
     parser.add_argument("--ff9", type=int, default=0, metavar="K",
@@ -510,6 +516,10 @@ def main():
     if t < chunk_len:
         raise ValueError(f"Episode length T={t} must be >= clip length L={chunk_len}.")
 
+    # Model-dim CLI overrides (unset = GridWorld dataclass defaults), mirroring train_tokenizer.
+    dims = {k: v for k, v in dict(embedding_dim=args.embedding_dim, depth=args.depth,
+                                  n_heads=args.n_heads, n_registers=args.n_registers).items()
+            if v is not None}
     cfg = DynamicsModelConfig(
         max_temporal_length=chunk_len,
         n_latents=n_latents,
@@ -517,6 +527,7 @@ def main():
         n_actions=n_actions,
         n_memory=(args.n_memory if args.ff9 > 0 else 0),
         ff9_k=args.ff9,
+        **dims,
     )
 
     train_ds = ChunkClipDataset(data_arr, train_idx, chunk_len, start_offset=0, actions=actions)
@@ -570,6 +581,10 @@ def main():
         print(f"Loaded weights from {args.resume}")
     else:
         model = model_cls(cfg).to(device)
+    print(f"DynamicsModel: {sum(p.numel() for p in model.parameters()) / 1e6:.2f}M params | "
+          f"dim={cfg.embedding_dim} depth={cfg.depth} heads={cfg.n_heads} L={cfg.max_temporal_length} "
+          f"n_latents={cfg.n_latents} bottleneck={cfg.bottleneck_dim} n_memory={cfg.n_memory} "
+          f"ff9_k={cfg.ff9_k} n_actions={cfg.n_actions}")
 
     # cfg is final here (resume may have replaced it from the checkpoint).
     wlog.init(args, cfg, project="transformer-D-dynamics")

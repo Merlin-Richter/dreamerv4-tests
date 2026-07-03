@@ -62,6 +62,13 @@ def main():
     p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--clip-len", type=int, default=64, help="Long-clip length fed to the rollout.")
+    p.add_argument("--context-length", type=int, default=None,
+                   help="Model temporal window (max_temporal_length). Default: dataclass default.")
+    p.add_argument("--embedding-dim", type=int, default=None,
+                   help="Transformer width (default: dataclass default; env-dependent).")
+    p.add_argument("--depth", type=int, default=None, help="Depth; multiple of 3.")
+    p.add_argument("--n-heads", type=int, default=None, help="Attention heads.")
+    p.add_argument("--n-registers", type=int, default=None, help="Scratch register tokens/frame.")
     p.add_argument("--n-memory", type=int, default=4)
     p.add_argument("--ff9", type=int, default=3, metavar="K")
     p.add_argument("--mem2mem-frac", type=float, default=0.5, help="P(batch uses mem->mem vs normal).")
@@ -126,8 +133,12 @@ def main():
     # (frames, tokenizer) combo; training streams mmapped fp16 latents and never holds the tokenizer.
     cache = ensure_latent_cache(args.frames, args.tokenizer, device)
     lat = np.load(cache, mmap_mode="r")  # (N, T, n_latents, bottleneck_dim) fp16
+    dims = {k: v for k, v in dict(max_temporal_length=args.context_length,
+                                  embedding_dim=args.embedding_dim, depth=args.depth,
+                                  n_heads=args.n_heads, n_registers=args.n_registers).items()
+            if v is not None}
     cfg = DynamicsModelConfig(n_latents=int(lat.shape[2]), bottleneck_dim=int(lat.shape[3]),
-                              n_actions=n_actions, n_memory=args.n_memory, ff9_k=args.ff9)
+                              n_actions=n_actions, n_memory=args.n_memory, ff9_k=args.ff9, **dims)
     assert cfg.n_memory > 0 and cfg.ff9_k > 0, "mem2mem requires n_memory>0 and ff9>0"
     N = cfg.max_temporal_length
     clip_len = max(args.clip_len, N)
