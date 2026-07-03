@@ -77,3 +77,6 @@ line entry in `agent/EXPERIMENTS.md`.
 ## Provenance (to fill at execution)
 - Branch / SHA: `<fill>`. Cluster ferranti. Job: `<fill>` -> `checkpoints/memmaze/tokenizer.pt`.
 - Dataset: `data/memmaze9x9.npy` converted from the GDrive 9x9 offline set.
+
+## RESULT (2026-06-30)
+DONE — ferranti 412635 @ be1258e (15ep, 10h16m, rc=0): val MSE 0.000074, latent_cos 0.235 (no collapse), pred_std 0.16; recon sheet faithful (only high-freq texture smoothing); ckpt pulled+verified -> checkpoints/memmaze/tokenizer.pt, FROZEN. Details: experiments/memmaze-tokenizer/NOTES.md
