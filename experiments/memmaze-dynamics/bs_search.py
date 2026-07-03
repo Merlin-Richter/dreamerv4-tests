@@ -50,6 +50,7 @@ def main():
     ap.add_argument("--n-memory", type=int, default=8)
     ap.add_argument("--n-actions", type=int, default=6)
     ap.add_argument("--bs", type=int, nargs="+", default=[8, 16, 32, 64, 128])
+    ap.add_argument("--arms", type=str, default="both", choices=["vanilla", "mem2mem", "both"])
     args = ap.parse_args()
 
     device = "cuda"
@@ -57,7 +58,8 @@ def main():
     print(torch.cuda.get_device_name(0))
     torch.set_float32_matmul_precision("high")
 
-    for arm in ("vanilla", "mem2mem"):
+    arms = ("vanilla", "mem2mem") if args.arms == "both" else (args.arms,)
+    for arm in arms:
         n_mem = 0 if arm == "vanilla" else args.n_memory
         ff9 = 0 if arm == "vanilla" else 3
         cfg = DynamicsModelConfig(

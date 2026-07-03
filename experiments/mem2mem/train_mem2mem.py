@@ -57,6 +57,10 @@ def main():
     p.add_argument("--frames", type=Path, required=True)
     p.add_argument("--tokenizer", type=Path, required=True)
     p.add_argument("--checkpoint", type=Path, required=True)
+    p.add_argument("--resume", type=Path, default=None,
+                   help="Load model weights to continue training FROM (chained long runs). Config "
+                        "comes from the CLI (must match the checkpoint's architecture); optimizer/LR "
+                        "state restarts.")
     p.add_argument("--epochs", type=int, default=50)
     p.add_argument("--batch-size", type=int, default=64)
     p.add_argument("--lr", type=float, default=3e-4)
@@ -143,6 +147,10 @@ def main():
     N = cfg.max_temporal_length
     clip_len = max(args.clip_len, N)
     model = DynamicsModel(cfg).to(device)
+    if args.resume is not None:
+        payload = torch.load(args.resume, map_location=device, weights_only=False)
+        model.load_state_dict(payload["model_state_dict"])
+        print(f"[resume] loaded weights from {args.resume}")
     nparams = sum(p.numel() for p in model.parameters())
     ncts = valid_n_ctx(N, clip_len)
     print(f"device={device} params={nparams/1e6:.2f}M n_actions={n_actions} clip_len={clip_len} "
