@@ -1,5 +1,9 @@
 # DESIGN: memory tokens only every Nth frame (sparse memory), reads for all frames
 
+> **SUPERSEDED (v1) by `sparse-memory-write-slots.md` (v3, Merlin 2026-07-04):**
+> memory attends only to every-nth memory set (masked temporal channel); no injection, no
+> broadcast keys. Kept for the analysis/scrutiny record.
+
 Requested by Merlin 2026-07-04 ("invent a plan for making memory tokens not exist for every frame
 but only for every nth frame ... while still making memory inform all frames and be informed by all
 past frames"). Status: DRAFT for Merlin — promoting any phase to backlog is his call.

@@ -1,5 +1,9 @@
 # DESIGN: sparse memory writes + spatial injection of the stale set + staleness conditioning
 
+> **SUPERSEDED (v2) by `sparse-memory-write-slots.md` (v3, Merlin 2026-07-04):**
+> memory attends only to every-nth memory set (masked temporal channel); no injection, no
+> broadcast keys. Kept for the analysis/scrutiny record.
+
 Proposed by Merlin 2026-07-04. Status: DRAFT under scrutiny — supersedes the READ mechanism of
 `sparse-memory-tokens.md` (Design A's temporal broadcast keys are dropped; this promotes that
 draft's Design B from "cheap prototype" to the actual design, plus staleness conditioning and a
