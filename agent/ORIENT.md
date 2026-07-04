@@ -67,16 +67,18 @@ sheets via `make_sheets.sh ... dynamics_mem2mem[_noff9].pt runs/memmaze-sheets-.
 `sheets_vanilla/`; then the memmaze recall/probe eval task (labels ready on /weka) — memory CLAIMS
 wait for that eval (3-way: vanilla / mem2mem / no-ff9).
 
-## IN FLIGHT (2026-07-04 — vanilla honest-baseline A/B, Merlin's order; task in-progress)
-Follow-up to the diagnosis below: TWO parallel ferranti jobs @ `fae4e8b`, both vanilla (n_memory=0),
-only train-time `sample_tau_d` changed via `--model-module` (`experiments/vanilla-honest-baseline/`):
-- **Arm C 415190** (Merlin): step-size curriculum, d_min-only to 33%, even unlock to 66% ->
-  `dynamics_vanilla_dcurr.pt`, W&B gw-dyn-vanilla-dcurr.
-- **Arm D 415191** (agent design): sustained p=0.5 (tau=0, d_min, GT-flow) anchor (mem2mem
-  noise-mode pressure minus memory/rollout) -> `dynamics_vanilla_tau0.pt`, W&B gw-dyn-vanilla-tau0.
-50ep bs256 seed0, 5x data, ~1h each. Pre-registered predictions in NOTES.md (D >=0.9 teacher-forced;
-C partial). When they land: pull ckpts, probe_next_pos.py (primary), recall + sheets (secondary),
-verdict vs predictions -> NOTES/EXPERIMENTS.
+## DONE (2026-07-04 — vanilla honest-baseline A/B, Merlin's order; task -> done) — Arm D WINS
+Both ferranti jobs @ `fae4e8b` completed + evaluated; BOTH pre-registered predictions confirmed:
+- **Arm D 415191 (tau0-anchor, agent design)**: sustained per-frame p=0.5 (tau=0, d_min, GT-flow)
+  anchor -> `dynamics_vanilla_tau0.pt`. Teacher-forced 1-step pos_acc ~1.0 (old vanilla 0.09),
+  free-run 0.98-1.0 flat, val/loss 0.0010 (better than old 0.0016). Recall w8: perfect in-window
+  (k<=6), chance at k>=8 = exact eviction boundary. **The honest no-memory baseline exists now.**
+- **Arm C 415190 (step-size curriculum, d_min-only to 33%, even unlock to 66%)**: marginal
+  (<=0.25 teacher-forced) — transient pressure does NOT fix it; sustained tau0-GT is the active
+  ingredient (diagnosis confirmed BY INTERVENTION).
+Numbers/sheets: `experiments/vanilla-honest-baseline/` (NOTES, results_probe.json, recall_*_w8.json,
+sheets_tau0/). OPEN for Merlin: graduate the anchor into src/+spec? retrain memmaze vanilla
+(415103's objective has the same flaw) for an honest 3-way?
 
 ## NEW FINDING (2026-07-04 — vanilla in-window diagnosis, Merlin's question; task -> done)
 Vanilla GridWorld dynamics can't predict square POSITION even in-window/fully-revealed (per

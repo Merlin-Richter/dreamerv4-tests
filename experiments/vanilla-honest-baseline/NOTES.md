@@ -93,6 +93,38 @@ python -u src/training/train_dynamics.py \
 - **Arm D (tau0): job 415191** → `checkpoints/gridworld/dynamics_vanilla_tau0.pt`, W&B
   `gw-dyn-vanilla-tau0` (logs `runs/gw-vanilla-tau0/slurm-415191.out`).
 
+## RESULT (2026-07-04) — both pre-registered predictions CONFIRMED; Arm D is the honest baseline
+
+Both jobs COMPLETED rc=0 (~20/30 min). Final val/loss (default sampler, comparable): old vanilla
+0.0016 / **Arm C 0.0019 / Arm D 0.0010** — Arm D's anchor did not hurt (helped) the standard loss.
+
+**Primary — teacher-forced 1-step pos_acc (`results_probe.json`, same seeds as the diagnosis):**
+
+| ckpt | t=2 | t=4 | t=8 | t=15 | free-run j=1..12 |
+|---|---|---|---|---|---|
+| vanilla (old) | 0.078 | 0.094 | 0.078 | 0.094 | 0.17 → 0.05 |
+| **Arm C dcurr** | 0.078 | 0.062 | 0.250 | 0.188 | 0.05–0.22 |
+| **Arm D tau0** | 0.844 | 0.984 | 1.000 | 1.000 | **0.98–1.00 flat** |
+
+**Secondary — recall w8 max_k32 position_acc:** Arm D = 1.00/1.00/0.95 at k=2/4/6 (in-window),
+collapse to ~chance at k≥8 — the EXACT eviction boundary. Textbook honest baseline: competent
+in-window, zero retention past the window (no memory tokens — as designed). Arm C ≈ chance at all
+k. Sheets (`sheets_tau0/`): free-run tracks GT through all 12 steps, crisp + right colors — the
+`sheet_normal.png` failure Merlin flagged is gone.
+
+**Verdicts:** (1) Arm D ≥0.9 prediction CONFIRMED — sustained per-frame (τ=0, d_min, GT-flow)
+pressure through the LATENT-ATTENTION pathway alone teaches the transition map, no memory tokens
+needed for in-window competence. (2) Arm C "partial at best" CONFIRMED — the transient curriculum
+(even Merlin's stronger 33/66 schedule) does not fix it; sustained pressure is the active
+ingredient, validating the diagnosis's allocation story by intervention. (3) The memory-vs-vanilla
+comparison should henceforth use Arm D-style vanilla as baseline; the memory arms' remaining edge
+is then cleanly PAST-window retention (mem2mem w8: ~1.0 at k=32/64 vs Arm D 0.03-0.08 at k≥8).
+
+**Follow-ups (Merlin decides):** graduate the τ0-anchor into src/+spec (small `sample_tau_d`
+change / config knob)? Retrain the memmaze vanilla arm (415103) with it for an honest 3-way?
+
 ## Status
 
 - [2026-07-04] designed, smoked locally, submitted 415190 (C) + 415191 (D) on ferranti @ fae4e8b.
+- [2026-07-04] both COMPLETED; ckpts pulled; probe + recall w8 + sheets done → predictions
+  confirmed, Arm D = honest baseline. Task → done.

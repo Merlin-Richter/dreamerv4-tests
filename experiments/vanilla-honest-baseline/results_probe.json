@@ -1,0 +1,308 @@
+{
+  "vanilla_ref": {
+    "teacher_forced": {
+      "2": {
+        "pos_acc": 0.078125,
+        "d_true": 2.125,
+        "copy_rate": 0.078125,
+        "col_acc": 1.0
+      },
+      "4": {
+        "pos_acc": 0.09375,
+        "d_true": 2.359375,
+        "copy_rate": 0.0625,
+        "col_acc": 1.0
+      },
+      "8": {
+        "pos_acc": 0.078125,
+        "d_true": 2.203125,
+        "copy_rate": 0.03125,
+        "col_acc": 1.0
+      },
+      "15": {
+        "pos_acc": 0.09375,
+        "d_true": 2.546875,
+        "copy_rate": 0.046875,
+        "col_acc": 0.984375
+      }
+    },
+    "free_run": {
+      "1": {
+        "pos_acc": 0.171875,
+        "d_true": 2.09375,
+        "copy_rate": 0.03125,
+        "col_acc": 1.0
+      },
+      "2": {
+        "pos_acc": 0.15625,
+        "d_true": 2.4375,
+        "copy_rate": 0.046875,
+        "col_acc": 1.0
+      },
+      "3": {
+        "pos_acc": 0.109375,
+        "d_true": 2.34375,
+        "copy_rate": 0.046875,
+        "col_acc": 0.984375
+      },
+      "4": {
+        "pos_acc": 0.09375,
+        "d_true": 2.515625,
+        "copy_rate": 0.078125,
+        "col_acc": 1.0
+      },
+      "5": {
+        "pos_acc": 0.09375,
+        "d_true": 2.265625,
+        "copy_rate": 0.015625,
+        "col_acc": 1.0
+      },
+      "6": {
+        "pos_acc": 0.140625,
+        "d_true": 2.375,
+        "copy_rate": 0.03125,
+        "col_acc": 1.0
+      },
+      "7": {
+        "pos_acc": 0.09375,
+        "d_true": 2.46875,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "8": {
+        "pos_acc": 0.03125,
+        "d_true": 2.359375,
+        "copy_rate": 0.0625,
+        "col_acc": 1.0
+      },
+      "9": {
+        "pos_acc": 0.125,
+        "d_true": 2.140625,
+        "copy_rate": 0.03125,
+        "col_acc": 0.984375
+      },
+      "10": {
+        "pos_acc": 0.046875,
+        "d_true": 2.546875,
+        "copy_rate": 0.046875,
+        "col_acc": 1.0
+      },
+      "11": {
+        "pos_acc": 0.078125,
+        "d_true": 2.40625,
+        "copy_rate": 0.046875,
+        "col_acc": 1.0
+      },
+      "12": {
+        "pos_acc": 0.046875,
+        "d_true": 2.75,
+        "copy_rate": 0.046875,
+        "col_acc": 1.0
+      }
+    }
+  },
+  "armC_dcurr": {
+    "teacher_forced": {
+      "2": {
+        "pos_acc": 0.078125,
+        "d_true": 2.375,
+        "copy_rate": 0.03125,
+        "col_acc": 1.0
+      },
+      "4": {
+        "pos_acc": 0.0625,
+        "d_true": 2.546875,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "8": {
+        "pos_acc": 0.25,
+        "d_true": 1.859375,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "15": {
+        "pos_acc": 0.1875,
+        "d_true": 2.28125,
+        "copy_rate": 0.03125,
+        "col_acc": 1.0
+      }
+    },
+    "free_run": {
+      "1": {
+        "pos_acc": 0.046875,
+        "d_true": 2.5,
+        "copy_rate": 0.03125,
+        "col_acc": 1.0
+      },
+      "2": {
+        "pos_acc": 0.21875,
+        "d_true": 2.046875,
+        "copy_rate": 0.0625,
+        "col_acc": 0.984375
+      },
+      "3": {
+        "pos_acc": 0.109375,
+        "d_true": 2.296875,
+        "copy_rate": 0.015625,
+        "col_acc": 1.0
+      },
+      "4": {
+        "pos_acc": 0.140625,
+        "d_true": 2.234375,
+        "copy_rate": 0.109375,
+        "col_acc": 1.0
+      },
+      "5": {
+        "pos_acc": 0.046875,
+        "d_true": 2.640625,
+        "copy_rate": 0.015625,
+        "col_acc": 1.0
+      },
+      "6": {
+        "pos_acc": 0.046875,
+        "d_true": 2.53125,
+        "copy_rate": 0.09375,
+        "col_acc": 1.0
+      },
+      "7": {
+        "pos_acc": 0.109375,
+        "d_true": 2.21875,
+        "copy_rate": 0.015625,
+        "col_acc": 0.984375
+      },
+      "8": {
+        "pos_acc": 0.03125,
+        "d_true": 2.390625,
+        "copy_rate": 0.015625,
+        "col_acc": 0.984375
+      },
+      "9": {
+        "pos_acc": 0.0625,
+        "d_true": 2.3125,
+        "copy_rate": 0.078125,
+        "col_acc": 1.0
+      },
+      "10": {
+        "pos_acc": 0.09375,
+        "d_true": 2.140625,
+        "copy_rate": 0.09375,
+        "col_acc": 1.0
+      },
+      "11": {
+        "pos_acc": 0.125,
+        "d_true": 2.390625,
+        "copy_rate": 0.0625,
+        "col_acc": 0.984375
+      },
+      "12": {
+        "pos_acc": 0.0625,
+        "d_true": 2.421875,
+        "copy_rate": 0.015625,
+        "col_acc": 1.0
+      }
+    }
+  },
+  "armD_tau0": {
+    "teacher_forced": {
+      "2": {
+        "pos_acc": 0.84375,
+        "d_true": 0.328125,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "4": {
+        "pos_acc": 0.984375,
+        "d_true": 0.03125,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "8": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "15": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      }
+    },
+    "free_run": {
+      "1": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "2": {
+        "pos_acc": 0.984375,
+        "d_true": 0.015625,
+        "copy_rate": 0.171875,
+        "col_acc": 1.0
+      },
+      "3": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "4": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.15625,
+        "col_acc": 1.0
+      },
+      "5": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "6": {
+        "pos_acc": 0.984375,
+        "d_true": 0.015625,
+        "copy_rate": 0.09375,
+        "col_acc": 1.0
+      },
+      "7": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "8": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.140625,
+        "col_acc": 1.0
+      },
+      "9": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "10": {
+        "pos_acc": 0.984375,
+        "d_true": 0.015625,
+        "copy_rate": 0.984375,
+        "col_acc": 1.0
+      },
+      "11": {
+        "pos_acc": 0.984375,
+        "d_true": 0.0625,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "12": {
+        "pos_acc": 0.984375,
+        "d_true": 0.015625,
+        "copy_rate": 0.171875,
+        "col_acc": 1.0
+      }
+    }
+  }
+}

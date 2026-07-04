@@ -14,3 +14,6 @@ sheets run, verdict vs the pre-registered predictions written to
 `experiments/vanilla-honest-baseline/NOTES.md` + EXPERIMENTS.md.
 
 Design/provenance/predictions: `experiments/vanilla-honest-baseline/NOTES.md`.
+
+## Result (2026-07-04)
+Both arms completed (415190/415191 @ fae4e8b) and evaluated. PREDICTIONS CONFIRMED: Arm D (tau0-anchor) teacher-forced 1-step ~1.0 (old vanilla 0.09), free-run flat 0.98-1.0, recall w8 perfect in-window + chance past eviction = the honest no-memory baseline; Arm C (curriculum) marginal (<=0.25). Sustained tau0-GT pressure is the active ingredient. Full numbers: experiments/vanilla-honest-baseline/NOTES.md.
