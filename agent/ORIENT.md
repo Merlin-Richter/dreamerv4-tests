@@ -85,6 +85,16 @@ Numbers/sheets: `experiments/vanilla-honest-baseline/` (NOTES, results_probe.jso
 sheets_tau0/). OPEN for Merlin: graduate the anchor into src/+spec? retrain memmaze vanilla
 (415103's objective has the same flaw) for an honest 3-way?
 
+## DONE (2026-07-04 — GQA dynamics, Merlin's order; task -> done) — PARITY at 4.00x smaller cache
+GQA (16 query heads share 4 KV heads) as `--model-module` experiment (`experiments/gqa-dynamics/`),
+tau0-anchor objective => single-varying-factor A/B vs `dynamics_vanilla_tau0.pt`. Pre-verified
+(causality bit-exact, cache-equiv 1.9e-06, footprint exactly 4.00x), trained ferranti 415214 @
+`7ae5d72` (17 min). RESULT: full parity (val 0.001058 vs 0.001032; probe 1.0 at t>=4; free-run 1.0;
+recall w8 identical) at a measured 4.00x smaller rollout KV cache (230 vs 922 KB) and 6.86M vs
+7.75M params. Candidate for memmaze / eviction-exempt memory-bank designs where cache binds;
+graduation to src/+spec = Merlin's call (`checkpoints/gridworld/dynamics_gqa_tau0.pt` needs the
+experiment class to load).
+
 ## NEW FINDING (2026-07-04 — vanilla in-window diagnosis, Merlin's question; task -> done)
 Vanilla GridWorld dynamics can't predict square POSITION even in-window/fully-revealed (per
 sheet_normal.png) because the diffusion-forcing objective barely ever demands prediction-from-

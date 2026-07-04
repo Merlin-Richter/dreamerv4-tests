@@ -44,3 +44,23 @@ footprint by 4x; train on gridworld as a test."
 Pull ckpt → `eval.py` (loads DynamicsModelGQA): teacher-forced probe t=2/4/8/15 + free-run,
 recall w8 max_k32, val-loss comparison vs `dynamics_vanilla_tau0.pt`; cache-bytes table. Verdict →
 EXPERIMENTS.md.
+
+## RESULT (2026-07-04) — PARITY at 4.00x smaller cache
+
+Job 415214 rc=0 (17 min). Head-to-head vs `dynamics_vanilla_tau0.pt` (MHA, same objective/recipe):
+
+| metric | MHA tau0 | **GQA tau0** |
+|---|---|---|
+| val/loss (default sampler, ep50) | 0.001032 | 0.001058 |
+| teacher-forced pos_acc t=2/4/8/15 | 0.84/0.98/1.00/1.00 | 0.86/1.00/1.00/1.00 |
+| free-run j=1..12 | 0.98-1.00 | 1.00 flat |
+| recall w8 (in-window k<=6 / past) | 1.0 / chance | 1.0/1.0/0.97 / chance |
+| rollout KV cache (full window, B=1) | 921.6 KB | **230.4 KB (4.00x)** |
+| params | 7.75M | 6.86M |
+
+GQA is behaviorally indistinguishable from full MHA on GridWorld while cutting the carrying
+cache exactly 4x (+11% fewer params, smaller attention activations). Green light for trying GQA
+where the cache actually hurts: memmaze (512-dim, W=32, 32 latents/frame) and any
+eviction-exempt memory-bank design where cache size is the binding constraint (see
+tasks/drafts/sparse-memory-tokens.md). Graduation to src/+spec = Merlin's call
+(config knob n_kv_heads or gqa_groups, default = n_heads i.e. MHA).

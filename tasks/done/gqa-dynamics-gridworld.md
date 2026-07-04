@@ -12,3 +12,9 @@ probe, recall w8. Verdict + EXPERIMENTS.md line.
 
 ## Provenance
 - ferranti **job 415214** @ SHA `7ae5d72` (50ep bs256 seed0, 5x data, --hours 4), submitted 2026-07-04 19:51. -> `checkpoints/gridworld/dynamics_gqa_tau0.pt`, W&B `gw-dyn-gqa-tau0`.
+
+## Result (2026-07-04)
+DONE — PARITY at 4.00x smaller cache. Job 415214 @ 7ae5d72 (17 min). GQA (16Q/4KV) matches
+MHA-tau0 on everything (val 0.001058 vs 0.001032; teacher-forced 1.0 at t>=4; free-run 1.0 flat;
+recall w8 identical honest-baseline shape) with the rollout KV cache measured at exactly 4.00x
+smaller (230 vs 922 KB) and 11% fewer params. Full table: experiments/gqa-dynamics/NOTES.md.
