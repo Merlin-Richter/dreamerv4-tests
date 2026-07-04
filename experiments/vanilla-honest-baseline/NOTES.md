@@ -19,10 +19,19 @@ stays uniform with the ramp applied.
 **Arm D — `DynamicsModelTau0Anchor` (agent's design):** with prob **P_ANCHOR=0.5** per frame,
 force `(tau_idx=0, d_idx=d_min)` — the frame's own latent is pure noise and the loss is the
 ground-truth flow term = plain next-frame-prediction-from-context, sustained the whole run.
-Rationale: transplant exactly the pressure that provably teaches the map in the mem2mem trainer
-(noise mode: 50% of new-half frames at τ=0 vs GT, ramp applied — recall ~1.0 even without FF9,
-see mem2mem-rollout-noff9-fair) into plain diffusion forcing, minus memory tokens, minus rollout.
-One knob, magnitude matched to a validated recipe (anchored slice ≈ 18% of ramp-weighted loss).
+Rationale: transplant the AMOUNT of (pure-noise-input → GT-target) pressure that provably teaches
+the map in the mem2mem trainer into plain diffusion forcing, minus memory tokens, minus rollout.
+One knob (anchored slice ≈ 18% of ramp-weighted loss, ramp kept at w(0)=0.1 like mem2mem).
+**PRECISION (2026-07-04, Merlin's question):** the mem2mem noise mode is NOT per-frame — it is
+per-sequence-per-slide (`_sample_modes`: rand(B)<0.5) and hides the WHOLE window (old half AND new
+half latents at τ=0), so the carried memory tokens are the only scene carrier; in the winner
+no-bootstrap config every noise-mode new-half frame gets the GT flow target. Arm D is per-frame
+i.i.d. BY DESIGN, not as an approximation: a memoryless model with a fully-hidden window would
+face an unconditionally unpredictable target (optimum = marginal mean frame — mode-averaging, no
+dynamics signal); per-frame anchoring keeps ~half the context readable so the demanded pathway is
+direct latent temporal attention (+ registers as scratch channels — the pathway Probe 2 showed is
+learnable). So mem2mem validates the pressure MAGNITUDE through the memory pathway; whether the
+same dose through the latent-attention pathway suffices is precisely what this arm tests.
 Loss formula / ramp / bootstrap untouched. NOTE (design record): coarse-d τ=0 GT anchoring was
 considered and rejected — x-pred GT at coarse d is only valid for deterministic envs, and the
 411133-era result (rollout-only, NO bootstrap, K=4 recall 0.992) shows d_min-anchoring alone
