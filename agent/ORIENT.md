@@ -67,6 +67,17 @@ sheets via `make_sheets.sh ... dynamics_mem2mem[_noff9].pt runs/memmaze-sheets-.
 `sheets_vanilla/`; then the memmaze recall/probe eval task (labels ready on /weka) — memory CLAIMS
 wait for that eval (3-way: vanilla / mem2mem / no-ff9).
 
+## IN FLIGHT (2026-07-04 — vanilla honest-baseline A/B, Merlin's order; task in-progress)
+Follow-up to the diagnosis below: TWO parallel ferranti jobs @ `fae4e8b`, both vanilla (n_memory=0),
+only train-time `sample_tau_d` changed via `--model-module` (`experiments/vanilla-honest-baseline/`):
+- **Arm C 415190** (Merlin): step-size curriculum, d_min-only to 33%, even unlock to 66% ->
+  `dynamics_vanilla_dcurr.pt`, W&B gw-dyn-vanilla-dcurr.
+- **Arm D 415191** (agent design): sustained p=0.5 (tau=0, d_min, GT-flow) anchor (mem2mem
+  noise-mode pressure minus memory/rollout) -> `dynamics_vanilla_tau0.pt`, W&B gw-dyn-vanilla-tau0.
+50ep bs256 seed0, 5x data, ~1h each. Pre-registered predictions in NOTES.md (D >=0.9 teacher-forced;
+C partial). When they land: pull ckpts, probe_next_pos.py (primary), recall + sheets (secondary),
+verdict vs predictions -> NOTES/EXPERIMENTS.
+
 ## NEW FINDING (2026-07-04 — vanilla in-window diagnosis, Merlin's question; task -> done)
 Vanilla GridWorld dynamics can't predict square POSITION even in-window/fully-revealed (per
 sheet_normal.png) because the diffusion-forcing objective barely ever demands prediction-from-

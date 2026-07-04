@@ -77,8 +77,13 @@ python -u src/training/train_dynamics.py \
 
 ## LAUNCH (filled at submit time)
 
-- (pending)
+- SHA `fae4e8bae669ce291fb338b71190b907739d884f` (branch `exp/mem2mem-rollout-only`), synced to
+  ferranti 2026-07-04 16:45.
+- **Arm C (dcurr): job 415190** → `checkpoints/gridworld/dynamics_vanilla_dcurr.pt`, W&B
+  `gw-dyn-vanilla-dcurr` (logs `runs/gw-vanilla-dcurr/slurm-415190.out`).
+- **Arm D (tau0): job 415191** → `checkpoints/gridworld/dynamics_vanilla_tau0.pt`, W&B
+  `gw-dyn-vanilla-tau0` (logs `runs/gw-vanilla-tau0/slurm-415191.out`).
 
 ## Status
 
-- [2026-07-04] designed, smoked locally, submitting.
+- [2026-07-04] designed, smoked locally, submitted 415190 (C) + 415191 (D) on ferranti @ fae4e8b.
