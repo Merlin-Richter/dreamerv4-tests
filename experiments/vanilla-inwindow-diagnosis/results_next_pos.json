@@ -1,0 +1,410 @@
+{
+  "vanilla": {
+    "teacher_forced": {
+      "2": {
+        "pos_acc": 0.078125,
+        "d_true": 2.125,
+        "copy_rate": 0.078125,
+        "col_acc": 1.0
+      },
+      "4": {
+        "pos_acc": 0.09375,
+        "d_true": 2.359375,
+        "copy_rate": 0.0625,
+        "col_acc": 1.0
+      },
+      "8": {
+        "pos_acc": 0.078125,
+        "d_true": 2.203125,
+        "copy_rate": 0.03125,
+        "col_acc": 1.0
+      },
+      "15": {
+        "pos_acc": 0.09375,
+        "d_true": 2.546875,
+        "copy_rate": 0.046875,
+        "col_acc": 0.984375
+      }
+    },
+    "free_run": {
+      "1": {
+        "pos_acc": 0.171875,
+        "d_true": 2.09375,
+        "copy_rate": 0.03125,
+        "col_acc": 1.0
+      },
+      "2": {
+        "pos_acc": 0.15625,
+        "d_true": 2.4375,
+        "copy_rate": 0.046875,
+        "col_acc": 1.0
+      },
+      "3": {
+        "pos_acc": 0.109375,
+        "d_true": 2.34375,
+        "copy_rate": 0.046875,
+        "col_acc": 0.984375
+      },
+      "4": {
+        "pos_acc": 0.09375,
+        "d_true": 2.515625,
+        "copy_rate": 0.078125,
+        "col_acc": 1.0
+      },
+      "5": {
+        "pos_acc": 0.09375,
+        "d_true": 2.265625,
+        "copy_rate": 0.015625,
+        "col_acc": 1.0
+      },
+      "6": {
+        "pos_acc": 0.140625,
+        "d_true": 2.375,
+        "copy_rate": 0.03125,
+        "col_acc": 1.0
+      },
+      "7": {
+        "pos_acc": 0.09375,
+        "d_true": 2.46875,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "8": {
+        "pos_acc": 0.03125,
+        "d_true": 2.359375,
+        "copy_rate": 0.0625,
+        "col_acc": 1.0
+      },
+      "9": {
+        "pos_acc": 0.125,
+        "d_true": 2.140625,
+        "copy_rate": 0.03125,
+        "col_acc": 0.984375
+      },
+      "10": {
+        "pos_acc": 0.046875,
+        "d_true": 2.546875,
+        "copy_rate": 0.046875,
+        "col_acc": 1.0
+      },
+      "11": {
+        "pos_acc": 0.078125,
+        "d_true": 2.40625,
+        "copy_rate": 0.046875,
+        "col_acc": 1.0
+      },
+      "12": {
+        "pos_acc": 0.046875,
+        "d_true": 2.75,
+        "copy_rate": 0.046875,
+        "col_acc": 1.0
+      }
+    }
+  },
+  "ff9": {
+    "teacher_forced": {
+      "2": {
+        "pos_acc": 0.921875,
+        "d_true": 0.171875,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "4": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "8": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "15": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      }
+    },
+    "free_run": {
+      "1": {
+        "pos_acc": 0.96875,
+        "d_true": 0.09375,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "2": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.171875,
+        "col_acc": 1.0
+      },
+      "3": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "4": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.15625,
+        "col_acc": 1.0
+      },
+      "5": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "6": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.09375,
+        "col_acc": 1.0
+      },
+      "7": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "8": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.140625,
+        "col_acc": 1.0
+      },
+      "9": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "10": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 1.0,
+        "col_acc": 1.0
+      },
+      "11": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "12": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.171875,
+        "col_acc": 1.0
+      }
+    }
+  },
+  "mem2mem_5050": {
+    "teacher_forced": {
+      "2": {
+        "pos_acc": 0.65625,
+        "d_true": 0.90625,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "4": {
+        "pos_acc": 0.984375,
+        "d_true": 0.0625,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "8": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "15": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      }
+    },
+    "free_run": {
+      "1": {
+        "pos_acc": 0.96875,
+        "d_true": 0.09375,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "2": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.171875,
+        "col_acc": 1.0
+      },
+      "3": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "4": {
+        "pos_acc": 0.984375,
+        "d_true": 0.0625,
+        "copy_rate": 0.171875,
+        "col_acc": 1.0
+      },
+      "5": {
+        "pos_acc": 0.984375,
+        "d_true": 0.0625,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "6": {
+        "pos_acc": 0.984375,
+        "d_true": 0.03125,
+        "copy_rate": 0.09375,
+        "col_acc": 1.0
+      },
+      "7": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "8": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.140625,
+        "col_acc": 1.0
+      },
+      "9": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "10": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 1.0,
+        "col_acc": 1.0
+      },
+      "11": {
+        "pos_acc": 0.984375,
+        "d_true": 0.03125,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "12": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.171875,
+        "col_acc": 1.0
+      }
+    }
+  },
+  "m2m_rollout_noff9": {
+    "teacher_forced": {
+      "2": {
+        "pos_acc": 0.875,
+        "d_true": 0.296875,
+        "copy_rate": 0.0,
+        "col_acc": 0.984375
+      },
+      "4": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "8": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "15": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      }
+    },
+    "free_run": {
+      "1": {
+        "pos_acc": 0.984375,
+        "d_true": 0.0625,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "2": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.171875,
+        "col_acc": 1.0
+      },
+      "3": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "4": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.15625,
+        "col_acc": 1.0
+      },
+      "5": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "6": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.09375,
+        "col_acc": 1.0
+      },
+      "7": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "8": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.140625,
+        "col_acc": 1.0
+      },
+      "9": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "10": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 1.0,
+        "col_acc": 1.0
+      },
+      "11": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.0,
+        "col_acc": 1.0
+      },
+      "12": {
+        "pos_acc": 1.0,
+        "d_true": 0.0,
+        "copy_rate": 0.171875,
+        "col_acc": 1.0
+      }
+    }
+  }
+}

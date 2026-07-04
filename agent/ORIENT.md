@@ -67,6 +67,22 @@ sheets via `make_sheets.sh ... dynamics_mem2mem[_noff9].pt runs/memmaze-sheets-.
 `sheets_vanilla/`; then the memmaze recall/probe eval task (labels ready on /weka) — memory CLAIMS
 wait for that eval (3-way: vanilla / mem2mem / no-ff9).
 
+## NEW FINDING (2026-07-04 — vanilla in-window diagnosis, Merlin's question; task -> done)
+Vanilla GridWorld dynamics can't predict square POSITION even in-window/fully-revealed (per
+sheet_normal.png) because the diffusion-forcing objective barely ever demands prediction-from-
+context: (GT flow target AND tau<=0.1) = 1.3% of frames = **0.4% of ramp-weighted loss**; the 25%
+of frames at tau_idx=0 get the bootstrap SELF-distill target; at the other ~75% of tau the square
+is readable from the frame's own noisy latent -> the model learns denoise+colors, never dynamics.
+PROVEN by 2 local probes (`experiments/vanilla-inwindow-diagnosis/`): teacher-forced 1-step from
+real revealed context = ~chance for vanilla at every ctx len, ~1.0 for ff9/mem2mem/no-ff9; and ff9
+in a PLAIN forward (no carried memory) = 1.0 @ tau=0 => architecture innocent, objective guilty.
+**CONFOUND FLAG for Merlin:** current "vanilla" is a weak baseline IN-window, so vanilla-vs-memory
+recall gaps overstate the memory effect — incl. the memmaze vanilla arm 415103 (its early-drift
+sheets partly this, not just "no memory"). Honest-baseline fix options (need spec edit, Merlin
+decides): force (tau_idx=0, d=d_min, GT flow) mass into sample_tau_d, and/or drop the ramp on the
+d_min flow term (deterministic envs), and/or a "vanilla-rollout" arm (mem2mem training minus
+memory tokens) for a clean 2-factor design.
+
 ## DONE (2026-06-30 — Memory Maze 9x9 tokenizer) — FROZEN, ready for dynamics
 Full run **412635 COMPLETED rc=0** (15ep bs6 LOCKED cfg, 10h16m, @ `be1258e`). **Final: val MSE 0.000074
 (fg 0.00013 / bg 0.000033), latent_cos 0.235 (NO collapse), pred_std 0.16, 25/6887 skips — healthy.**
