@@ -38,9 +38,20 @@ feedback-spec-edit-delegation). Done this session:
 - **STILL RUNNING: mem2mem rollout-only 415104** (clip128 bs4 **lr 1e-4** [agent call, flagged],
   n_memory 8, ff9 3, no-bootstrap, ETA ~31h from 2026-07-03 22:00, --hours 36, W&B t4ppeqzp) ->
   `checkpoints/memmaze/dynamics_mem2mem.pt`. @ SHA `1149bb4`, same 512/12/16 W=32 transformer.
-**NEXT when 415104 lands:** pull ckpt, W&B check (relay stability / flow+ff9 balance), sheets via
-`make_sheets.sh ... dynamics_mem2mem.pt runs/memmaze-sheets-mem2mem`, compare vs `sheets_vanilla/`;
-then the memmaze recall/probe eval task (labels ready on /weka) — memory CLAIMS wait for that eval.
+- **STILL RUNNING: mem2mem NO-FF9 415143** (launched 2026-07-04 by Merlin's ask; memory on, ff9
+  off — single-variable ablation vs 415104, `--no-ff9` + ckpt/W&B overrides) @ SHA `6858832`,
+  --hours 36, W&B 5ez6niv5 -> `checkpoints/memmaze/dynamics_mem2mem_noff9.pt`. Startup verified
+  (use_ff9=False, no ckpt clobber). Task `memmaze-dynamics-mem2mem-noff9`.
+- **Sparse-memory design DRAFTED (Merlin's ask): `tasks/drafts/sparse-memory-tokens.md`** — memory
+  tokens only every Nth frame. Core: temporal attention is slot-wise, so presence-sparsity needs a
+  broadcast-read (memory K/V as extra keys for every slot); writes stay complete iff N ≤ W−1 (every
+  frame in-window for ≥1 write). Phased: Design B write-sparsity prototype on GridWorld via
+  --model-module (no arch change) → Design A presence-sparsity in src/+spec (needs Merlin sign-off)
+  → memmaze arm → eviction-exempt memory bank extension. No-FF9 arms gate the training recipe.
+**NEXT when 415104/415143 land:** pull ckpts, W&B check (relay stability / flow+ff9 balance),
+sheets via `make_sheets.sh ... dynamics_mem2mem[_noff9].pt runs/memmaze-sheets-...`, compare vs
+`sheets_vanilla/`; then the memmaze recall/probe eval task (labels ready on /weka) — memory CLAIMS
+wait for that eval (3-way: vanilla / mem2mem / no-ff9).
 
 ## DONE (2026-06-30 — Memory Maze 9x9 tokenizer) — FROZEN, ready for dynamics
 Full run **412635 COMPLETED rc=0** (15ep bs6 LOCKED cfg, 10h16m, @ `be1258e`). **Final: val MSE 0.000074

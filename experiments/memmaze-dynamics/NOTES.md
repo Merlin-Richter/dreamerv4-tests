@@ -69,6 +69,16 @@ GridWorld; memmaze probe in the prep job). JSON: `probe_window_invariance_gridwo
   locally on the 4070 against this slice (`--frames data/memmaze9x9_val12.npy --episodes 0 1 ...`;
   NOTE: ids in the slice are POSITIONS 0..11, not original episode ids).
 
+## Third arm: mem2mem no-FF9 (launched 2026-07-04, Merlin)
+Memory on, FF9 off — the memmaze counterpart of GridWorld `mem2mem-rollout-noff9-fair` (there the
+clean no-FF9 arm MATCHED the FF9 winner). Single-variable ablation vs 415104: identical
+`train_mem2mem.sh 50 4 --lr 1e-4` plus `--no-ff9`, ckpt/W&B overridden ->
+`checkpoints/memmaze/dynamics_mem2mem_noff9.pt`. ferranti **job 415143** @ `6858832`, --hours 36,
+W&B transformer-mem2mem/`5ez6niv5`. Startup verified clean: cache HIT, use_ff9=False,
+mem2mem_frac=1.0, bootstrap=False, clip128 bs4, n_actions=6, 41.04M, checkpoint override took (no
+clobber of the running 415104 ckpt). Watch: relay stability without the FF9 scaffold. Also gates the
+sparse-memory design (`tasks/drafts/sparse-memory-tokens.md`).
+
 ## Provenance
 - Prep: ferranti **415098** @ `7d86b8d`. Calibration: **415100** @ `37330e6`, **415101** @ `965268b`.
 - Training jobs (submitted 2026-07-03 22:01, both @ SHA `1149bb4`):
