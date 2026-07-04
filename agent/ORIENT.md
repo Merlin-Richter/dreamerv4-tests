@@ -20,12 +20,17 @@ feedback-spec-edit-delegation). Done this session:
   cos 0.9996, window-delta recon MSE 60x below recon error** (claim confirmed).
 - **Calibration** (415100+415101): vanilla bs64 = 140 clips/s 42.6GB; mem2mem clip128 bs4 =
   8.7 clips/s 54GB (bs6+ OOM — the rollout holds all ~7 slides' graphs to one backward).
-- **TRAINING IN FLIGHT (ferranti, both @ SHA `1149bb4`, 50 epochs, 512/12/16=41M, W=32):**
-  - vanilla **415103** (bs64, ~11 min/epoch, ETA ~9.5h, --hours 12, W&B wj0dcogd) ->
-    `checkpoints/memmaze/dynamics_vanilla.pt`
-  - mem2mem rollout-only **415104** (clip128 bs4 **lr 1e-4** [agent call, flagged], n_memory 8,
-    ff9 3, no-bootstrap, ETA ~31h, --hours 36, W&B t4ppeqzp) -> `checkpoints/memmaze/dynamics_mem2mem.pt`
-  Both started clean: cache HIT (no tokenizer in VRAM), n_actions=6 detected.
+- **vanilla 415103 LANDED (2026-07-04, rc=0)**: 50ep 8h31m, train 0.00597 / **val 0.00431**, W&B
+  wj0dcogd healthy (steady descent, clean grad-norm). Ckpt pulled + load-verified
+  (`checkpoints/memmaze/dynamics_vanilla.pt`, locked config, 41.0M).
+- **mem2mem rollout-only 415104 still RUNNING** (clip128 bs4 **lr 1e-4** [agent call, flagged],
+  n_memory 8, ff9 3, no-bootstrap, ETA ~31h, --hours 36, W&B t4ppeqzp) ->
+  `checkpoints/memmaze/dynamics_mem2mem.pt`. Both @ SHA `1149bb4`, 512/12/16=41M, W=32.
+- **Rollout sheets (task `memmaze-rollout-sheets`, IN FLIGHT)**: NEW spec-backed
+  `src/evals/memmaze/sheets.py` + `specs/evals/memmaze/sheets.md` (TOP=GT / BOTTOM=action-conditioned
+  free-run, held-out val-split episodes, reuses gridworld drawing layer; smoke-tested local).
+  Render job ferranti **415142** @ `306e147` (in-window + past-window vanilla sheets + 12-ep val
+  frames slice for local iteration) — pull `runs/memmaze-sheets-vanilla` when done, eyeball, NOTES.
 - **Decisions made while Merlin AFK (all REVERSIBLE, cancel+resubmit possible):** 512/12/16, W=32,
   n_memory=8, 50ep, mem2mem lr 1e-4. New wrapper `scripts/clean_untracked.sh` (untracked remote
   artifacts blocking sync_code checkout).

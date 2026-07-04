@@ -43,6 +43,18 @@ GridWorld; memmaze probe in the prep job). JSON: `probe_window_invariance_gridwo
 - Config choices 512/12/16 + W32 + n_memory 8 were proposed to Merlin (AFK at decision time) —
   REVERSIBLE; he can cancel + override.
 
+## Vanilla arm LANDED (2026-07-04)
+- Job **415103 COMPLETED rc=0**: 50 epochs in 8h31m (613 s/ep), final **train 0.00597 / val 0.00431**
+  (diffusion loss only — vanilla). W&B `wj0dcogd`: steady val descent (still improving slowly at ep50),
+  grad-norm decayed cleanly, no spikes/instability. Checkpoint pulled + load-verified locally
+  (`checkpoints/memmaze/dynamics_vanilla.pt`, config == locked 512/12/16 W32, n_actions=6, n_memory=0,
+  41.0M params).
+- **Qualitative rollout sheets** (task `memmaze-rollout-sheets`): NEW spec-backed
+  `src/evals/memmaze/sheets.py` (+ `specs/evals/memmaze/sheets.md`) — TOP=GT / BOTTOM=action-conditioned
+  free-run on HELD-OUT episodes (reproduces the trainer's seed-0 val split), reuses the gridworld
+  drawing layer. Render job (`make_sheets.sh`): ferranti **415142** @ `306e147` — in-window (8ctx|24gen)
+  + past-window (8ctx|56gen) sheets + a 12-episode val frames/actions slice for local iteration.
+
 ## Provenance
 - Prep: ferranti **415098** @ `7d86b8d`. Calibration: **415100** @ `37330e6`, **415101** @ `965268b`.
 - Training jobs (submitted 2026-07-03 22:01, both @ SHA `1149bb4`):
