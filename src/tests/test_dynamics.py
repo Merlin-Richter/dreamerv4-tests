@@ -6,6 +6,8 @@ Covers the contract that matters for the rebuild:
     memory-token construction (the load-bearing "gradient flows through the memory mechanism");
   * the carrying generate runs for vanilla AND memory models, finite + correct shape, through window
     eviction (n_generate > max_temporal_length);
+  * long-context prefill: rollout_init/generate accept T_ctx > max_temporal_length (teacher-forced
+    sliding commits), advance next_pos to T_ctx, keep the cache evicted to max_ctx, and stay finite;
   * a read-only branch (rollout_step commit=False) does NOT mutate the carried cache / next_pos
     (the invariant the recall eval relies on).
 
@@ -66,6 +68,25 @@ def test_carrying_generate_and_eviction():
     print("[ok] carrying generate finite + correct shape through eviction (vanilla + memory)")
 
 
+def test_long_context_prefill():
+    """T_ctx > max_temporal_length: first window in one forward, rest teacher-forced sliding commits."""
+    B, Tctx, n_gen, L, D = 2, 20, 3, 4, 16  # Tctx=20 > W=8
+    for tag, extra in [("vanilla", {}), ("memory", dict(n_memory=2, ff9_k=2))]:
+        c = dict(BASE); c.update(extra)
+        m = DynamicsModel(DynamicsModelConfig(**c)).eval()
+        ctx = torch.randn(B, Tctx, L, D)
+        aidx = torch.randint(0, 2, (B, Tctx + n_gen))
+        with torch.no_grad():
+            st = m.rollout_init(ctx, aidx[:, :Tctx])
+            assert st["next_pos"] == Tctx, f"{tag}: next_pos {st['next_pos']} != T_ctx {Tctx}"
+            for lc in st["cache"]:
+                assert lc is None or lc["k"].shape[-2] <= st["max_ctx"], f"{tag}: cache not evicted"
+            out = m.generate(ctx, n_gen, action_idx=aidx)
+        assert out.shape == (B, n_gen, L, D), f"{tag} {out.shape}"
+        assert torch.isfinite(out).all(), f"{tag} produced non-finite latents"
+    print("[ok] long-context prefill (T_ctx > max_temporal_length) — vanilla + memory")
+
+
 def test_readonly_branch_preserves_state():
     c = dict(BASE); c.update(n_memory=2, ff9_k=2)
     m = DynamicsModel(DynamicsModelConfig(**c)).eval()
@@ -91,5 +112,6 @@ if __name__ == "__main__":
     test_forward_shape()
     test_loss_vanilla_and_ff9_gradient()
     test_carrying_generate_and_eviction()
+    test_long_context_prefill()
     test_readonly_branch_preserves_state()
     print("\nALL DYNAMICS TESTS PASSED")

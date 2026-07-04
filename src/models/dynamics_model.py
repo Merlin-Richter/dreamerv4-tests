@@ -493,6 +493,12 @@ class DynamicsModel(nn.Module):
                         the model trained with (e.g. probe memory at window 8 instead of 16).
         The context is committed at near-clean (signal=context_signal) with its WRITTEN memory tokens
         (the relay seed), at absolute positions 0..T_ctx-1, then evicted to the last max_ctx frames.
+
+        T_ctx may EXCEED ``max_temporal_length`` (long-context prefill): the first window is committed
+        in one forward exactly as above, then each remaining TRUE frame is teacher-forced one committed
+        step at a time through the sliding window (the same near-clean commit pass as
+        ``rollout_step(commit=True)``, written-memory relay included) — so a memory model absorbs
+        pre-window context into its memory tokens; a vanilla model just slides.
         """
         K = K or self.config.inference_steps
         B, T_ctx = context.shape[:2]
@@ -500,12 +506,13 @@ class DynamicsModel(nn.Module):
         max_ctx = (self.config.max_temporal_length - 1) if max_ctx is None else max_ctx
         d_idx_val = K.bit_length() - 1
         tau_ctx_idx = min(round(self.config.context_signal * self.K_max), self.K_max - 1)
+        T0 = min(T_ctx, self.config.max_temporal_length)  # first (windowed) chunk
 
-        act = self.action_features(ctx_action_idx)
-        ctx_noised = self._noise_to_ctx(context)
-        positions = torch.arange(T_ctx, device=device)
-        tau_col = torch.full((B, T_ctx), tau_ctx_idx, device=device, dtype=torch.long)
-        d_col = torch.full((B, T_ctx), d_idx_val, device=device, dtype=torch.long)
+        act = self.action_features(ctx_action_idx[:, :T0] if ctx_action_idx is not None else None)
+        ctx_noised = self._noise_to_ctx(context[:, :T0])
+        positions = torch.arange(T0, device=device)
+        tau_col = torch.full((B, T0), tau_ctx_idx, device=device, dtype=torch.long)
+        d_col = torch.full((B, T0), d_idx_val, device=device, dtype=torch.long)
 
         mem_in = None
         if self.n_memory > 0:
@@ -516,8 +523,38 @@ class DynamicsModel(nn.Module):
         self(ctx_noised, tau_col, d_col, act, memory_in=mem_in,
              positions=positions, cache=cache, commit=True)
         self._evict(cache, max_ctx)
-        return {"cache": cache, "next_pos": int(T_ctx), "K": K, "max_ctx": max_ctx,
-                "d_idx_val": d_idx_val, "tau_ctx_idx": tau_ctx_idx, "B": B, "device": device}
+        state = {"cache": cache, "next_pos": int(T0), "K": K, "max_ctx": max_ctx,
+                 "d_idx_val": d_idx_val, "tau_ctx_idx": tau_ctx_idx, "B": B, "device": device}
+        for t in range(T0, T_ctx):  # teacher-forced prefill of the beyond-window context
+            a = ctx_action_idx[:, t:t + 1] if ctx_action_idx is not None else None
+            self._commit_context_frame(state, context[:, t:t + 1], a)
+        return state
+
+    def _commit_context_frame(self, state: dict, z: torch.Tensor,
+                              action_idx: torch.Tensor = None) -> None:
+        """Teacher-forced commit of one TRUE context latent at the next absolute position: the same
+        near-clean commit pass as ``rollout_step(commit=True)`` (written-memory relay, K/V append,
+        window eviction), with the provided latent in place of a generated one. Used by
+        ``rollout_init`` to prefill context longer than the temporal window."""
+        cache, pos = state["cache"], state["next_pos"]
+        B, device = state["B"], state["device"]
+        if action_idx is not None and action_idx.dim() == 1:
+            action_idx = action_idx[:, None]
+        act = self.action_features(action_idx)
+        positions = torch.tensor([pos], device=device)
+        d_col = torch.full((B, 1), state["d_idx_val"], device=device, dtype=torch.long)
+        tau_col = torch.full((B, 1), state["tau_ctx_idx"], device=device, dtype=torch.long)
+        zc = self._noise_to_ctx(z)
+        written_mem = None
+        if self.n_memory > 0:
+            # A near-clean read of the frame against the carried cache WRITES this frame's memory.
+            mem_in = self.memory_tokens.expand(B, 1, -1, -1)
+            _, written_mem = self(zc, tau_col, d_col, act, memory_in=mem_in, positions=positions,
+                                  cache=cache, commit=False, return_memory=True)
+        self(zc, tau_col, d_col, act, memory_in=written_mem, positions=positions,
+             cache=cache, commit=True)
+        self._evict(cache, state["max_ctx"])
+        state["next_pos"] = pos + 1
 
     @torch.no_grad()
     def rollout_step(self, state: dict, action_idx: torch.Tensor = None,

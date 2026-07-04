@@ -138,6 +138,15 @@ DreamerV4 h-state analogue, aimed at the long-horizon-memory limitation.
   `rollout_step(state, action_idx=None, commit=True)` are the underlying primitives. `max_ctx` (committed
   time-columns kept; default `max_temporal_length-1`) FORCES a shorter sliding window than the model
   trained with — used by the recall/sheets evals' optional `--window` knob.
+- **Long-context prefill:** `rollout_init` (and therefore `generate`) accepts
+  `T_ctx > max_temporal_length`. The first `max_temporal_length` frames are committed in one forward
+  (identical to the short-context path — behavior for `T_ctx <= max_temporal_length` is unchanged);
+  each remaining TRUE context frame is then teacher-forced one committed step at a time
+  (`_commit_context_frame`: the same near-clean commit pass as `rollout_step(commit=True)` — for a
+  memory model, a near-clean cache-reading pass writes the frame's memory, which is injected into the
+  commit pass; K/V appended at the absolute position; window evicted). Long context thus flows into
+  the memory relay exactly as if the model had generated those frames, with the true latents
+  substituted; a vanilla model just slides (information-equivalent to the last window of context).
 
 ## Invariants
 - x-prediction in x-space; Temporal attention causal; spatial

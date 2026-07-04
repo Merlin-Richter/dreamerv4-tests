@@ -8,13 +8,14 @@ CKPT="${1:?usage: make_sheets.sh CHECKPOINT OUTDIR}"
 OUT="${2:?usage: make_sheets.sh CHECKPOINT OUTDIR}"
 mkdir -p "$OUT"
 
-# in-window rollout (n_ctx 8 | n_gen 24 = the native W=32) and past-window (n_gen 56: window slides)
+# Model prefills 64 true ctx frames (long-context rollout_init; only the last 8 are displayed).
+# in-window rollout (n_gen 24 = the native W=32) and past-window (n_gen 56: window slides)
 python -u src/evals/memmaze/sheets.py --checkpoint "$CKPT" \
   --tokenizer checkpoints/memmaze/tokenizer.pt --frames data/memmaze9x9.npy \
-  --n-samples 4 --n-ctx 8 --out-dir "$OUT/in_window"
+  --n-samples 4 --n-pre 64 --n-ctx 8 --out-dir "$OUT/in_window"
 python -u src/evals/memmaze/sheets.py --checkpoint "$CKPT" \
   --tokenizer checkpoints/memmaze/tokenizer.pt --frames data/memmaze9x9.npy \
-  --n-samples 4 --n-ctx 8 --n-gen 56 --out-dir "$OUT/past_window"
+  --n-samples 4 --n-pre 64 --n-ctx 8 --n-gen 56 --out-dir "$OUT/past_window"
 
 # 12 held-out episodes (frames+actions+ids) -> ~150MB, pullable for local sheet/eval iteration
 python -u - "$OUT" <<'PY'
