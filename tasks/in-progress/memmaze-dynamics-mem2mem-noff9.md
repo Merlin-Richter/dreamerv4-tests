@@ -24,4 +24,7 @@ sheets via `make_sheets.sh`, provenance in `experiments/memmaze-dynamics/NOTES.m
 line. Memory CLAIMS wait for the memmaze recall/probe eval — 3-way (vanilla / mem2mem / no-ff9).
 
 ## Provenance
-- (job id + SHA recorded at submit below)
+- ferranti **job 415143** @ SHA `6858832` (`train_mem2mem.sh 50 4 --lr 1e-4 --no-ff9` + ckpt/W&B
+  overrides, --hours 36), submitted 2026-07-04 08:57. W&B transformer-mem2mem/`5ez6niv5`.
+  Startup log verified: cache HIT, use_ff9=False, mem2mem_frac=1.0, bootstrap=False, clip128 bs4,
+  n_actions=6, 41.04M params, checkpoint = dynamics_mem2mem_noff9.pt (override took).
