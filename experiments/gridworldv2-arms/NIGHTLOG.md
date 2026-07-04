@@ -59,3 +59,12 @@ files. All conclusions provisional until written up with numbers.
       The weak link is the belief-UPDATE-from-memory+actions operation, not storage or reach.
   NEXT: B/C dense anchor decides whether the first-relay cliff is sparse-specific or v2-intrinsic;
   then 256-rollout re-runs of the key numbers.
+
+- 01:05 Sharpened dip timeline (desk analysis, for the dip agent to confirm): committed positions
+  are 4+k, so write@8 enters the cache exactly at k=4 — the dip's onset. Within the write@8
+  generation (k=4..11, w8) accuracy RISES with age: 0.70@k4 -> 0.75@k6 -> 0.84@k8 -> 0.94@k10
+  (inverted staleness!), then the k=12 cliff = first branch reading the RELAYED write@16.
+  So the anomaly is really two phenomena: (a) fresh-write interference (a just-written set makes
+  things WORSE than an old good one — possibly the write itself is fine but reading it at small
+  RoPE distance is undertrained or the branch over-weights it), and (b) the one-relay accuracy
+  halving. Watchers: B/C (dense anchor), D2 415232, dip agent, memmaze 415205/415104.
