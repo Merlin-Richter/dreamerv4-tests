@@ -37,4 +37,10 @@ FF9 cleanly (FF9 assumes a write every frame) — C is D's matched control; it a
    decomposition for D), NOTES/EXPERIMENTS/ORIENT, full report for Merlin.
 
 ## Provenance
-- (jobs recorded below as launched)
+- prep: 415220 FAILED (bash -c quoting; fixed via prep.sh) -> **415221 rc=0** (5000 eps + latent cache, 2 min) @ b3db367.
+- **A 415222** gwv2-vanilla-tau0 @ b3db367 (startup verified: Tau0Anchor, n_actions=7).
+- **B 415223** gwv2-m2m-ff9 @ b3db367 (verified: frac 1.0, no-bootstrap, use_ff9=True).
+- **C 415224** gwv2-m2m-noff9 @ b3db367 (verified: use_ff9=False).
+- **D 415226** gwv2-sparse-n8 @ a85eed7 (impl: experiments/sparse-write-slots/, smoke 6/6 PASS
+  incl. zero attention leak on non-write keys + grads to both inits; 2ep local train green).
+- Eval runner ready: experiments/gridworldv2-arms/eval_all.py (4 arms x w16/w8, staleness view for D).
