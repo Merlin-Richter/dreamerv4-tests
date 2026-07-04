@@ -94,6 +94,18 @@ tokenizer's 8px patch (anti-overfit). Recall is exact: 6×6 cell (chance 1/36) +
 `[col, row, dcol, drow, curtain]`; `.color`/`hidden_state()` are measurement-only (never a model input).
 Channel order is **BGR end-to-end** (RGB only for on-screen display).
 
+### GridWorldV2 env (`envs/gridworldv2.py`) — spec: `specs/envs/gridworldv2.md` (DRAFT)
+Action-driven successor: **7 actions** (0=reveal, 1=hide → curtain LATCH, square doesn't move on
+toggle ticks; 2..5 = up/down/left/right CLAMPED at walls; 6=stay), no autonomous physics — under
+occlusion the hidden position is a nonlinear function of the action stream (memory must integrate
+actions, not extrapolate ballistics). Geometry/rendering imported from v1 ⇒ the v1 readout is
+exact on v2 frames, and the **frozen v1 tokenizer works unchanged** (verified readout-exact on
+recon). State `[col,row,curtain]`. Datagen: `datagen/generate_gridworldv2.py` (alternating
+revealed/occluded runs, shared movement-run policy) → `data/gridworldv2*.npy` (n_actions=7
+auto-detected). Recall: `evals/gridworldv2/recall.py` (branch-after-commit alignment: k = occluded
+MOVEMENT actions integrated; oracle via measurement-only `render_revealed()`). Gate:
+`tests/test_gridworldv2.py`. All v2 specs are DRAFT (Merlin sign-off pending).
+
 ### Recall eval (`evals/gridworld/{recall,readout}.py`) — specs under `specs/evals/gridworld/`
 - `readout.read_square(frame)`: closed-form, exact readout of (col, row, color, bg) from one frame —
   background = median cell color, square = farthest cell, colors = nearest of 4 palette. `is_occluded` =
@@ -189,8 +201,14 @@ python -u src/evals/gridworld/plot_recall.py \
   --series "vanilla|outputs/recall/recall_dynamics_vanilla.json|tab:red" \
   --series "FF9 (carry)|outputs/recall/recall_dynamics_ff9.json|tab:green"
 
+# GridWorldV2 (action-driven; same tokenizer as v1)
+python -u src/datagen/generate_gridworldv2.py --n_episodes 5000       # -> data/gridworldv2.npy
+python -u src/evals/gridworldv2/recall.py --max-k 32 [--window 8] \
+  --checkpoint checkpoints/gridworldv2/dynamics.pt --tokenizer checkpoints/gridworld/tokenizer.pt
+
 # Gate tests (CPU OK)
 python -u src/tests/test_gridworld.py          # env geometry / physics / curtain schedule
+python -u src/tests/test_gridworldv2.py        # v2 semantics / readout compat / recall instrument
 python -u src/tests/test_gridworld_eval.py     # readout exact + recall instrument (oracle == 1.0)
 python -u src/tests/test_dynamics.py           # forward / loss+FF9 grad / carrying generate / read-only branch
 ```

@@ -4,3 +4,4 @@
 - [FF9 v2 eval inference](ff9v2-eval-inference.md) — V-T013-eval SUPPORTED: beyond-window color eval = A1+B1 (τ=0 source + static mem written once); B2 re-extract drifts; numbers + spec + load-bearing/drift probes
 - [Anchored self-rollout vs relay](anchored-selfrollout-vs-relay.md) — V-T017-C1: anchored-GT self-rollout (C1) is DAgger not a contraction map; detach SAFE here (unlike T-014, GT anchor every step); gain-probe + detach-equivalence + capacity-tension
 - [Repo reorg import surface](repo-reorg-import-surface.md) — T-019 review: 2 import patterns the recipe misses (probe.* package + data_generators.* used by frozen spine), BaseEnv/Eval interface gaps
+- [Sparse-memory spatial-inject review](sparse-memory-spatial-inject-review.md) — compounding premise CONTRADICTED by 411133 (dense flat to k=64); it's Design B + age-embed; "spatial read" is rebranding; correct falsifier = measure compounding on memmaze first
