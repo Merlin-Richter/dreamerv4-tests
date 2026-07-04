@@ -27,8 +27,16 @@ from rollout import _newhalf_loss, _sample_modes, _sample_tau_d, _tau_d_consts  
 
 
 def sparse_rollout_loss(model, z1, actions_idx=None, *, device, tbptt_frames=None,
-                        max_frames=None, gen=None, force_mode=None):
-    """One sparse write-slots rollout over a long clip. Returns (total_loss, parts_dict)."""
+                        max_frames=None, gen=None, force_mode=None, phase_r=None):
+    """One sparse write-slots rollout over a long clip. Returns (total_loss, parts_dict).
+
+    WINDOW-PHASE RANDOMIZATION (dip fix, 2026-07-05): windows start at s ≡ r (mod n) with r
+    random per call (phase_r forces it; r=0 reproduces the old write-aligned scheme). The
+    dip-investigation proved write-aligned-only windows teach the model to DELETE the write-phase
+    frame's action when integrating over a continuous cache (training histories were always
+    severed exactly at write phases). Write slots stay at ABSOLUTE p % n == 0; their index within
+    each half is o = (n - r) % n.
+    """
     n = model.SPARSE_N
     N = model.config.max_temporal_length
     B, T, L, D = z1.shape
@@ -36,6 +44,9 @@ def sparse_rollout_loss(model, z1, actions_idx=None, *, device, tbptt_frames=Non
     assert W <= N, f"W={W} exceeds max_temporal_length {N}"
     half = W // 2
     assert half == n, "slide must equal n_sparse for write alignment"
+    r = (int(torch.randint(0, n, (1,), generator=gen, device=device).item())
+         if phase_r is None else int(phase_r))
+    o = (n - r) % n
     tbptt_frames = 2 * N if tbptt_frames is None else tbptt_frames
     max_frames = min(5 * N, 10 * W) if max_frames is None else max_frames
     end = min(T, max_frames)
@@ -50,7 +61,7 @@ def sparse_rollout_loss(model, z1, actions_idx=None, *, device, tbptt_frames=Non
     M, E = model.config.n_memory, model.config.embedding_dim
 
     def build_mem_in(carried, s):
-        """(B, W, M, E): phase inits with the OLD-half write slot (window idx 0, abs pos s)
+        """(B, W, M, E): phase inits with the OLD-half write slot (window idx o, abs pos s+o)
         replaced by the carried write set. The model wrapper re-forces scratch slots anyway."""
         pos = torch.arange(s, s + W, device=device)
         is_write = (pos % n) == 0
@@ -58,24 +69,25 @@ def sparse_rollout_loss(model, z1, actions_idx=None, *, device, tbptt_frames=Non
         if carried is None:
             return base
         out = base.clone()
-        out[:, 0:1] = carried                      # window idx 0 == abs pos s, s % n == 0
+        out[:, o:o + 1] = carried                  # window idx o == abs pos s+o, (s+o) % n == 0
         return out
 
-    # ---- init window [0, W): near-clean latents, phase-init memory -> first write sets ----
-    zc = model._noise_to_ctx(z1[:, :W])
+    # ---- init window [r, r+W): near-clean latents, phase-init memory -> first write sets ----
+    zc = model._noise_to_ctx(z1[:, r:r + W])
     tau_init = torch.full((B, W), tau_ctx_idx, device=device, dtype=torch.long)
-    _, mem_win = model(zc, tau_init, d_col_W, af(0, W), memory_in=None,
-                       positions=torch.arange(W, device=device), return_memory=True)
-    old_mem = mem_win[:, half:half + 1]            # the write set at abs pos n (next old half's write)
+    _, mem_win = model(zc, tau_init, d_col_W, af(r, r + W), memory_in=None,
+                       positions=torch.arange(r, r + W, device=device), return_memory=True)
+    # the write inside the init window's SECOND half (abs pos = next-old-half's write): idx half+o
+    old_mem = mem_win[:, half + o:half + o + 1]
     relay_depth = half
 
     total = z1.new_zeros(())
     n_terms = 0
     sum_flow = sum_flow_norm = 0.0
 
-    s = half
+    s = r + half
     while s + W <= end:
-        assert s % n == 0
+        assert s % n == r
         modes = _sample_modes(B, device, gen, force_mode)   # (B,) True = full-noise
         m = modes.view(B, 1, 1, 1).float()
 
@@ -108,12 +120,12 @@ def sparse_rollout_loss(model, z1, actions_idx=None, *, device, tbptt_frames=Non
         sum_flow_norm += float(flow_norm.detach())
         n_terms += 1
 
-        # carry the NEW half's write set (index 0 of the new half == abs pos s+half, % n == 0)
-        old_mem = new_mem[:, 0:1]
+        # carry the NEW half's write set (new-half idx o == abs pos s+half+o, % n == 0)
+        old_mem = new_mem[:, o:o + 1]
         relay_depth += half
         s += half
 
     n_terms = max(1, n_terms)
     parts = {"flow": sum_flow / n_terms, "flow_norm": sum_flow_norm / n_terms,
-             "n_slides": float(n_terms), "n_ctx": float(W)}
+             "n_slides": float(n_terms), "n_ctx": float(W), "phase_r": float(r)}
     return total / n_terms, parts

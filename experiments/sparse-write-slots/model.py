@@ -40,6 +40,12 @@ def sparse_write_mask(pos_q: torch.Tensor, pos_all: torch.Tensor, n_slots: int,
     causal = pos_all[None, :] > pos_q[:, None]                     # (T_q, T_all) True = masked
     not_write = (pos_all % n_sparse) != 0                          # (T_all,)
     mem_mask = causal | not_write[None, :]                         # (T_q, T_all)
+    # Orphan fallback: a memory query with NO causally-visible write key (windows that start
+    # mid-phase, e.g. phase-randomized training) attends its own diagonal instead of NaN-ing.
+    orphan = mem_mask.all(dim=-1)                                  # (T_q,)
+    if bool(orphan.any()):
+        diag = pos_all[None, :] == pos_q[:, None]                  # (T_q, T_all)
+        mem_mask = torch.where((orphan[:, None] & diag), torch.zeros_like(mem_mask), mem_mask)
     full = causal.unsqueeze(0).expand(n_slots, -1, -1).clone()
     full[mem_start:mem_end] = mem_mask
     return full

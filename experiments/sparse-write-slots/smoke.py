@@ -42,15 +42,18 @@ def main():
     pos = torch.arange(5, 21)  # unaligned start on purpose
     mask = sparse_write_mask(pos, pos, 10, 6, 8, N_SPARSE)
     for qi, qp in enumerate(pos):
+        # orphan = memory query with no causally-visible write key -> sees its own diagonal
+        orphan = not any(kp <= qp and kp % N_SPARSE == 0 for kp in pos.tolist())
         for ki, kp in enumerate(pos):
             causal_ok = kp <= qp
             for s in range(10):
                 visible = not bool(mask[s, qi, ki])
                 if s in (6, 7):  # memory slots
-                    assert visible == (causal_ok and kp % N_SPARSE == 0), (s, int(qp), int(kp))
+                    want = (causal_ok and kp % N_SPARSE == 0) or (orphan and kp == qp)
+                    assert visible == want, (s, int(qp), int(kp))
                 else:
                     assert visible == causal_ok, (s, int(qp), int(kp))
-    print("1. mask unit: PASS (memory -> causal write keys only; others plain causal)")
+    print("1. mask unit: PASS (memory -> causal write keys only + orphan diagonal; others causal)")
 
     # --- 2. attention-weight check on a real forward ---
     grabbed = []
