@@ -85,6 +85,15 @@ Numbers/sheets: `experiments/vanilla-honest-baseline/` (NOTES, results_probe.jso
 sheets_tau0/). OPEN for Merlin: graduate the anchor into src/+spec? retrain memmaze vanilla
 (415103's objective has the same flaw) for an honest 3-way?
 
+## DONE (2026-07-04 — GridWorldV2, Merlin's design; task -> done) — the action-conditioned testbed
+7 actions (reveal/hide = curtain LATCH, no move on toggle ticks; up/down/left/right CLAMPED; stay);
+occluded position = nonlinear fn of the action stream => memory must INTEGRATE actions. New (all
+specs DRAFT, Merlin sign-off pending): envs/gridworldv2.py, datagen/generate_gridworldv2.py,
+evals/gridworldv2/recall.py (branch-after-commit alignment, k = occluded movements), gate test
+green. KEY: frozen v1 tokenizer readout-exact on v2 recon (148/148) => no tokenizer retrain.
+This is the discriminating env for tasks/drafts/sparse-memory-spatial-inject.md. NEXT (Merlin):
+sign off specs; order v2 arms (vanilla-tau0 / dense mem2mem / sparse-inject prototype).
+
 ## DONE (2026-07-04 — GQA dynamics, Merlin's order; task -> done) — PARITY at 4.00x smaller cache
 GQA (16 query heads share 4 KV heads) as `--model-module` experiment (`experiments/gqa-dynamics/`),
 tau0-anchor objective => single-varying-factor A/B vs `dynamics_vanilla_tau0.pt`. Pre-verified
