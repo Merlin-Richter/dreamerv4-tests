@@ -11,4 +11,4 @@ compared head-to-head vs `dynamics_vanilla_tau0.pt` (same objective, MHA): val/l
 probe, recall w8. Verdict + EXPERIMENTS.md line.
 
 ## Provenance
-- (filled at submit)
+- ferranti **job 415214** @ SHA `7ae5d72` (50ep bs256 seed0, 5x data, --hours 4), submitted 2026-07-04 19:51. -> `checkpoints/gridworld/dynamics_gqa_tau0.pt`, W&B `gw-dyn-gqa-tau0`.
