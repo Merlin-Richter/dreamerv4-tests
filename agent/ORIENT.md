@@ -49,6 +49,13 @@ feedback-spec-edit-delegation). Done this session:
   construction. pre64 vanilla sheets: job 415145 -> `sheets_vanilla/*_pre64.png` (early GT-tracking
   modestly better, still drifts — the setup where mem2mem must show its edge). make_sheets.sh
   renders pre64 for the arms landing next.
+- **Playable memmaze-in-the-world-model DONE (2026-07-04, Merlin's ask; task
+  `playable-memmaze-rollout` -> done)**: NEW spec-backed `src/interactive/play_memmaze.py` — the
+  pygame twin of `external/memory-maze/gui/run_gui.py` (same keymap/pacing) but rendered by the
+  dynamics carrying rollout on the local 4070 (~9 fps > 6 fps target). Reset = full context window
+  (default W=32, up to 64) of real val12 frames committed via rollout_init + on-screen replay, then
+  live `rollout_step` per held-key tick. Selftests green (dummy + windowed + n_ctx 64). pygame now
+  in the repo venv. Use for eyeballing the mem2mem arms when they land.
 - **Sparse-memory design DRAFTED (Merlin's ask): `tasks/drafts/sparse-memory-tokens.md`** — memory
   tokens only every Nth frame. Core: temporal attention is slot-wise, so presence-sparsity needs a
   broadcast-read (memory K/V as extra keys for every slot); writes stay complete iff N ≤ W−1 (every

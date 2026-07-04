@@ -163,6 +163,16 @@ python -u src/interactive/play_dynamics.py \
   --checkpoint checkpoints/gridworld/dynamics.pt --tokenizer checkpoints/gridworld/tokenizer.pt \
   --frames data/gridworld.npy
 
+# Memory Maze, playable INSIDE the world model — the pygame twin of the real playable maze
+# (external/memory-maze/gui/run_gui.py, see common_commands.txt): same keymap (arrows drive,
+# space=pause, backspace=reset, tab=speedup, esc=quit), but every frame is the dynamics model's
+# carrying rollout in tokenizer-latent space on the local GPU. Reset replays a full context window
+# of REAL held-out episode frames (green border, committed via rollout_init), then you play.
+# ~9 fps on the 4070 (> the 6 fps target). --selftest N = headless smoke mode. Needs pygame
+# (installed in the repo venv). Spec: specs/interactive/play_memmaze.md.
+venv/Scripts/python.exe -u src/interactive/play_memmaze.py \
+  --checkpoint checkpoints/memmaze/dynamics_vanilla.pt --tokenizer checkpoints/memmaze/tokenizer.pt
+
 # Qualitative rollout sheets -> outputs/sheets/{sheet_occlusion,sheet_normal}.png (cheap, CPU OK; the
 # default --out-dir outputs/sheets/ is gitignored). Occlusion sheet needs no dataset (built from the env);
 # --frames is only used for the normal sheet. Pass --out-dir experiments/EXP-NNN to keep a run's sheets.
@@ -220,6 +230,7 @@ soft-cap fields.
 | `src/training/train_tokenizer.py` | Tokenizer training (stability: AdamW β2≈0.95, grad-spike skip, best-by-recon ckpt) |
 | `src/training/train_dynamics.py` | Dynamics training on frozen latents (`--ff9`/`--n-memory` for memory; `--model-module` for experiment subclasses) |
 | `src/interactive/play_dynamics.py` | Interactive single-frame viewer (single `model.generate` path) |
+| `src/interactive/play_memmaze.py` | Playable Memory Maze rendered by the dynamics rollout (pygame, local GPU) |
 | `src/envs/{base,gridworld}.py` | Env interface + GridWorld memory env |
 | `src/datagen/generate_gridworld.py` | GridWorld dataset writer + viewer |
 | `src/evals/gridworld/{readout,recall}.py` | Closed-form frame readout + the memory recall scorer |
