@@ -123,8 +123,18 @@ is then cleanly PAST-window retention (mem2mem w8: ~1.0 at k=32/64 vs Arm D 0.03
 **Follow-ups (Merlin decides):** graduate the τ0-anchor into src/+spec (small `sample_tau_d`
 change / config knob)? Retrain the memmaze vanilla arm (415103) with it for an honest 3-way?
 
+## K-sweep addendum (2026-07-04, Merlin's ask) — `probe_K.py` / `results_K_sweep.json`
+
+Arm D pos_acc = **1.000 at EVERY K ∈ {1, 2, 4, 128}** (teacher-forced t=4/8 + free-run j1–4):
+even a single x-pred step from pure noise is perfect — expected for x-prediction on a
+deterministic env once the map exists; the d_min-anchored training generalizes across the whole
+d ladder (consistent with 411133: d_min-only training → perfect K=4/2/1). Old vanilla stays
+broken at every K incl. K=128 (0.05–0.13, d_true ~2.3) → finer inference sampling cannot rescue
+the missing map; the deficit is in the weights, not the sampler.
+
 ## Status
 
 - [2026-07-04] designed, smoked locally, submitted 415190 (C) + 415191 (D) on ferranti @ fae4e8b.
 - [2026-07-04] both COMPLETED; ckpts pulled; probe + recall w8 + sheets done → predictions
   confirmed, Arm D = honest baseline. Task → done.
+- [2026-07-04] K-sweep addendum (above).
