@@ -89,3 +89,16 @@ files. All conclusions provisional until written up with numbers.
   write-less window prefixes). Smoke 6/6 + all-r sweep green. Retrains launched @ f38aaea:
   **415239 sparse-n8-fix (m4), 415240 sparse-m16-fix (m16)**. Old-D2 (415232, bugged recipe)
   kept as a bug-impact comparison at m16.
+
+- 01:25 **DENSE ANCHOR (B/C landed): both ~1.00 FLAT to k=64 at w16 AND w8.** The dense
+  per-frame relay solves v2 perfectly — belief-updates-with-actions under occlusion are lossless
+  across 8 slides. Consequences:
+  (1) The compounding premise is now contradicted on BOTH envs (v1 411133, v2 here) — sparse
+      memory cannot be motivated as a compounding fix; its case must rest on the long-reach bank
+      + cache economics + (Merlin's) redundancy argument.
+  (2) Env ceiling = 1.0 confirmed -> D's ~0.5 plateau is sparse's price (as trained), not env
+      difficulty. Fixed retrains (415239/415240) will show how much was the phase artifact.
+  (3) FF9 unnecessary replicated on v2 (B == C) — closes the scrutiny gap about 415143 not
+      gating the new env.
+  (4) Also noteworthy: dense passed the w8 eval too (its relay needs only 1-frame reach, no
+      invariant violation there).
