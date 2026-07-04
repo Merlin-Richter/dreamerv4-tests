@@ -17,4 +17,14 @@ instrument self-test (oracle == 1.0) green; small local dataset generated; CLAUD
 Training arms on v2 = follow-up tasks (Merlin's call).
 
 ## Provenance
-- (filled at close)
+- local work @ 3ba461b (no cluster jobs)
+
+## Result (2026-07-04)
+DONE. env + datagen + recall(v2) + gate tests, all specs DRAFT-marked. Gates green first run:
+determinism, clamping/latch/toggle semantics, v1 readout EXACT on v2 frames (30 eps), all-7-action
+coverage, recall oracle ceiling 1.0. Dataset smoke (100 eps): occluded fraction 0.52. KEY WIN:
+the frozen v1 tokenizer is readout-exact on v2 reconstructions (148/148) -> NO tokenizer retrain;
+v2 dynamics train directly on checkpoints/gridworld/tokenizer.pt. Recall reuses v1's scorer/k-grid
+(single scorer implementation). Follow-up (Merlin): sign off DRAFT specs; order v2 training arms
+(vanilla-tau0 / mem2mem dense / sparse-inject prototype — this is the discriminating env for
+tasks/drafts/sparse-memory-spatial-inject.md).
