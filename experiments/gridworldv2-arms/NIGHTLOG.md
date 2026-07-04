@@ -102,3 +102,7 @@ files. All conclusions provisional until written up with numbers.
       gating the new env.
   (4) Also noteworthy: dense passed the w8 eval too (its relay needs only 1-frame reach, no
       invariant violation there).
+
+- 01:50 D2 (m16, BUGGED recipe) evaled: w16 dip milder (0.83-0.84 at k4-8 vs m4's 0.56-0.67),
+  plateau ~0.53-0.61 (vs 0.42-0.59). Capacity helps at the margins; the phase artifact dominates.
+  Honest capacity comparison = Dfix (m4) vs D2fix (m16) when 415239/415240 land (~02:15).

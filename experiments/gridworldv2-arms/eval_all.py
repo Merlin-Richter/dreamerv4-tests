@@ -30,6 +30,10 @@ ARMS = {
     "B_m2m_ff9": ("checkpoints/gridworldv2/dynamics_m2m_ff9.pt", DynamicsModel),
     "C_m2m_noff9": ("checkpoints/gridworldv2/dynamics_m2m_noff9.pt", DynamicsModel),
     "D_sparse_n8": ("checkpoints/gridworldv2/dynamics_sparse_n8.pt", DynamicsModelSparseWS),
+    "D2_sparse_m16": ("checkpoints/gridworldv2/dynamics_sparse_n8_m16.pt", DynamicsModelSparseWS),
+    "Dfix_sparse_n8": ("checkpoints/gridworldv2/dynamics_sparse_n8_fix.pt", DynamicsModelSparseWS),
+    "D2fix_sparse_m16": ("checkpoints/gridworldv2/dynamics_sparse_n8_m16_fix.pt",
+                         DynamicsModelSparseWS),
 }
 DEV = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -52,6 +56,9 @@ def main():
     for name, (path, cls) in ARMS.items():
         if not (ROOT / path).exists():
             print(f"== {name}: MISSING {path} — skipped")
+            continue
+        if (Path(__file__).parent / f"recallv2_{name}_w16.json").exists():
+            print(f"== {name}: JSON exists — skipped (delete to re-run)")
             continue
         model, cfg = _load_checkpoint(ROOT / path, cls, DynamicsModelConfig, DEV)
         summary[name] = {}
