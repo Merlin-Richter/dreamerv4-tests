@@ -62,10 +62,15 @@ feedback-spec-edit-delegation). Done this session:
   frame in-window for ≥1 write). Phased: Design B write-sparsity prototype on GridWorld via
   --model-module (no arch change) → Design A presence-sparsity in src/+spec (needs Merlin sign-off)
   → memmaze arm → eviction-exempt memory bank extension. No-FF9 arms gate the training recipe.
-**NEXT when 415104/415143 land:** pull ckpts, W&B check (relay stability / flow+ff9 balance),
-sheets via `make_sheets.sh ... dynamics_mem2mem[_noff9].pt runs/memmaze-sheets-...`, compare vs
-`sheets_vanilla/`; then the memmaze recall/probe eval task (labels ready on /weka) — memory CLAIMS
-wait for that eval (3-way: vanilla / mem2mem / no-ff9).
+- **STILL RUNNING: memmaze vanilla-tau0 415205** (Merlin's order 2026-07-04; task
+  `memmaze-dynamics-vanilla-tau0`): 415103's config + the GridWorld-validated τ0-anchor
+  (`--model-module ...:DynamicsModelTau0Anchor`, p=0.5 — matches the mem2mem noise-mode dose) →
+  `checkpoints/memmaze/dynamics_vanilla_tau0.pt`, W&B memmaze-dyn-vanilla-tau0, @ `f6d4541`,
+  --hours 12, ETA ~8.5h from 18:07. THE honest vanilla baseline for the memmaze comparison.
+**NEXT when 415104/415143/415205 land:** pull ckpts, W&B check (relay stability / flow+ff9 balance),
+sheets via `make_sheets.sh` (+ pre64) for each, compare vs `sheets_vanilla/`; then the memmaze
+recall/probe eval task (labels ready on /weka) — memory CLAIMS wait for that eval, now a 4-way:
+vanilla(old 415103) / vanilla-tau0(415205, the honest baseline) / mem2mem(415104) / no-ff9(415143).
 
 ## DONE (2026-07-04 — vanilla honest-baseline A/B, Merlin's order; task -> done) — Arm D WINS
 Both ferranti jobs @ `fae4e8b` completed + evaluated; BOTH pre-registered predictions confirmed:

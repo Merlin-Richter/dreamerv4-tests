@@ -27,4 +27,6 @@ recorded. Enters the memmaze comparison as THE vanilla baseline (3-way becomes 4
 415103 — Merlin's call at eval time).
 
 ## Provenance
-- (filled at submit)
+- ferranti **job 415205** @ SHA `f6d4541` (train_vanilla.sh 50 64 + tau0/model-module/ckpt/W&B
+  overrides, --hours 12 --cpus 8), submitted 2026-07-04 18:07. → `dynamics_vanilla_tau0.pt`,
+  W&B `memmaze-dyn-vanilla-tau0`. ETA ~8.5h.
