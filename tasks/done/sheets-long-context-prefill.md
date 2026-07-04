@@ -22,3 +22,9 @@ unobserved) and long prefill is the intended usage (memory absorbs pre-window co
 Gate tests green (incl. new long-prefill test), spec<->src in sync (dynamics + memmaze sheets),
 local smoke on val12 real data, vanilla sheets re-rendered with n_pre=64 (cluster), pulled +
 eyeballed, NOTES/ORIENT updated. make_sheets.sh passes --n-pre 64 for future arms.
+
+**RESULT (2026-07-04):** DONE @ `4f3e9bf` — rollout_init long-context prefill (spec'd, new gate test,
+all gates green: dynamics + gridworld env/eval), sheets n_pre=64 default, local smoke on val12 real
+data, pre64 vanilla sheets rendered (job 415145, rc=0) -> `sheets_vanilla/_sheet_rollout_*_pre64.png`,
+eyeballed (early GT-tracking modestly better, still drifts — the honest no-memory baseline picture).
+Findings in NOTES.md.

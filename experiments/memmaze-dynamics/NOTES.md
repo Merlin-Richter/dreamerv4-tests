@@ -64,6 +64,15 @@ GridWorld; memmaze probe in the prep job). JSON: `probe_window_invariance_gridwo
   - Past-window (56 gen, window slides twice): STABLE — no black-collapse/explosion; quality softens
     deep into the rollout, drifting toward a washed-out pale-green "generic wall" mode (mild
     mode-averaging) while staying scene-like and action-responsive.
+- **Long-context prefill upgrade (2026-07-04, Merlin's ask; task `sheets-long-context-prefill`):**
+  `rollout_init` now accepts T_ctx > W (first window one forward, rest teacher-forced sliding commits
+  with written-memory relay — spec'd, gate-tested); memmaze sheets default to **n_pre=64** prefilled
+  context frames with only the last 8 displayed ("64 ctx (8 shown)"). Re-render: job **415145** @
+  `4f3e9bf` -> `sheets_vanilla/_sheet_rollout_{in,past}_window_pre64.png` (the pre8 originals kept
+  alongside). Eyeball: with the fully-primed window the early rollout tracks GT structure modestly
+  better (e.g. ep1459/ep121); still drifts — vanilla keeps only the last 31 frames, so pre64 is
+  exactly the setup where the mem2mem arms must show their edge (older half reachable only via
+  memory). pre64 is the standard qualitative instrument from here on (make_sheets.sh passes it).
 - **Local iteration enabled:** `data/memmaze9x9_val12{,_actions,_ids}.npy` (12 held-out episodes,
   148MB, episodes [1544,1459,121,2876,1623,2639,2075,1855,729,875,451,2272]) — the sheets CLI verified
   locally on the 4070 against this slice (`--frames data/memmaze9x9_val12.npy --episodes 0 1 ...`;

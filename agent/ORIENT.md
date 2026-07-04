@@ -42,6 +42,13 @@ feedback-spec-edit-delegation). Done this session:
   off — single-variable ablation vs 415104, `--no-ff9` + ckpt/W&B overrides) @ SHA `6858832`,
   --hours 36, W&B 5ez6niv5 -> `checkpoints/memmaze/dynamics_mem2mem_noff9.pt`. Startup verified
   (use_ff9=False, no ckpt clobber). Task `memmaze-dynamics-mem2mem-noff9`.
+- **Long-context prefill DONE (2026-07-04, Merlin's ask; task `sheets-long-context-prefill` -> done,
+  @ `4f3e9bf`)**: `rollout_init`/`generate` accept T_ctx > W (teacher-forced sliding commits,
+  written-memory relay; spec'd + gate-tested). Memmaze sheets now PREFILL **n_pre=64** true frames
+  and display only the last 8 ("64 ctx (8 shown)") — with 8-frame context the env was impossible by
+  construction. pre64 vanilla sheets: job 415145 -> `sheets_vanilla/*_pre64.png` (early GT-tracking
+  modestly better, still drifts — the setup where mem2mem must show its edge). make_sheets.sh
+  renders pre64 for the arms landing next.
 - **Sparse-memory design DRAFTED (Merlin's ask): `tasks/drafts/sparse-memory-tokens.md`** — memory
   tokens only every Nth frame. Core: temporal attention is slot-wise, so presence-sparsity needs a
   broadcast-read (memory K/V as extra keys for every slot); writes stay complete iff N ≤ W−1 (every

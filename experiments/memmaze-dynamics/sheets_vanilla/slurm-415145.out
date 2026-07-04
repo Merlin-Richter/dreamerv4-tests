@@ -1,0 +1,10 @@
+=== job memmaze-sheets-vanilla-pre64 on mlcbm003 | jobid 415145 | Sat Jul  4 09:31:05 CEST 2026 ===
+NVIDIA H100 80GB HBM3, 81559 MiB
+=== commit: 4f3e9bf14ea4b12e7e1a957aaa6fad60c726d4a3 ===
+=== reusing cached venv /weka/martius/mot936/venvs/venv-b05c6eb3f672f99e ===
+=== running: bash experiments/memmaze-dynamics/make_sheets.sh checkpoints/memmaze/dynamics_vanilla.pt runs/memmaze-sheets-vanilla-pre64 ===
+wrote runs/memmaze-sheets-vanilla-pre64/in_window/sheet_memmaze_rollout.png  (4158x1128)
+wrote runs/memmaze-sheets-vanilla-pre64/past_window/sheet_memmaze_rollout.png  (8318x1128)
+val slice episodes: [1544, 1459, 121, 2876, 1623, 2639, 2075, 1855, 729, 875, 451, 2272]
+########## SHEETS DONE ##########
+=== done memmaze-sheets-vanilla-pre64 rc=0 Sat Jul  4 09:31:28 CEST 2026 ===
