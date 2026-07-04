@@ -68,3 +68,24 @@ files. All conclusions provisional until written up with numbers.
   things WORSE than an old good one — possibly the write itself is fine but reading it at small
   RoPE distance is undertrained or the branch over-weights it), and (b) the one-relay accuracy
   halving. Watchers: B/C (dense anchor), D2 415232, dip agent, memmaze 415205/415104.
+
+- 01:40 **Dip ROOT CAUSE found (dip-investigation agent, causal spoof probes, 256 rollouts):**
+  write-aligned-only training windows (all s%8==0) teach the model to DELETE the write-phase
+  frame's action when integrating over a continuous cache — belief follows the del-o(write)
+  trajectory at 0.81-0.88 concordance; the write CONTENT is correct (contains its own action);
+  the wrong belief rides the NON-memory channels. Full report:
+  experiments/gridworldv2-arms/dip-investigation/REPORT.md. Three structural footnotes:
+  (a) w8 eval violates D's W>=2n relay invariant -> w8 k>=12 numbers are a relay-BROKEN regime;
+      my earlier "D>B1 at w8" claim is RETRACTED (that was the register side-channel);
+  (b) REGISTERS are an unrestricted memory side-channel in the sparse design (D scores 0.762 at
+      w8 k=11 with zero write keys in cache!) — design question for Merlin: mask registers'
+      temporal channel too, or accept and attribute honestly;
+  (c) sparse trains d_min-only but eval K=4 conditions on untrained d_idx=2 (v1 precedent says
+      benign; untested here).
+  This also REVISES my "one-relay halving" reading: part of the k=12 cliff is one-deleted-action-
+  per-generation error accumulation (deterministic artifact), not pure relay loss.
+- 01:45 FIX applied (pre-registered prediction: k4-6 >= ~0.93, del-share -> ~0): window-phase
+  randomization (r per call, writes stay absolute; orphan-diagonal fallback added to the mask for
+  write-less window prefixes). Smoke 6/6 + all-r sweep green. Retrains launched @ f38aaea:
+  **415239 sparse-n8-fix (m4), 415240 sparse-m16-fix (m16)**. Old-D2 (415232, bugged recipe)
+  kept as a bug-impact comparison at m16.
