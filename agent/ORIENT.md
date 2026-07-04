@@ -91,9 +91,12 @@ tau0-anchor objective => single-varying-factor A/B vs `dynamics_vanilla_tau0.pt`
 (causality bit-exact, cache-equiv 1.9e-06, footprint exactly 4.00x), trained ferranti 415214 @
 `7ae5d72` (17 min). RESULT: full parity (val 0.001058 vs 0.001032; probe 1.0 at t>=4; free-run 1.0;
 recall w8 identical) at a measured 4.00x smaller rollout KV cache (230 vs 922 KB) and 6.86M vs
-7.75M params. Candidate for memmaze / eviction-exempt memory-bank designs where cache binds;
-graduation to src/+spec = Merlin's call (`checkpoints/gridworld/dynamics_gqa_tau0.pt` needs the
-experiment class to load).
+7.75M params. Candidate for memmaze / eviction-exempt memory-bank designs where cache binds.
+**GRADUATED to src/+spec same day (Merlin's one-time spec permission):** `gqa_groups` config field
+(default 1 = plain MHA, fused-qkv params kept) + `--gqa-groups` trainer knob; spec §2 GQA paragraph.
+Verified: groups=1 bit-identical to pre-migration (maxdiff 0.0 on tau0+mem2mem fwd/generate),
+GQA=4 causality/cache-equiv/4.00x through src, experiment ckpt loads (needs explicit gqa_groups=4
+override — its saved config predates the field), all gates green.
 
 ## NEW FINDING (2026-07-04 — vanilla in-window diagnosis, Merlin's question; task -> done)
 Vanilla GridWorld dynamics can't predict square POSITION even in-window/fully-revealed (per

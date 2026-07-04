@@ -45,7 +45,16 @@ A 2-D transformer with separate **space** and **time** attention, pre-RMSNorm, R
   Sparse temporal attention is cheaper and (Dreamer-4 finding) higher quality.
 
 Consequence that matters for memory: latents and memory mix only *within a frame*; the temporal layers
-relay each channel forward in time. (No GQA yet; the across-time KV-cache is covered in §4.)
+relay each channel forward in time.
+
+- **Grouped-query attention (GQA).** Every `gqa_groups` query heads share one K/V head
+  (`n_kv_heads = n_heads / gqa_groups`; `gqa_groups` must divide `n_heads`). `gqa_groups=1`
+  (default) is standard multi-head attention and keeps the fused `qkv` projection — parameter- and
+  bit-compatible with all pre-GQA checkpoints. `gqa_groups>1` replaces it with separate `q_proj`
+  and `kv_proj` projections. Everything else is unchanged: QK-norm, RoPE, the per-QUERY-head logit
+  scale, soft-capping, and masking are identical, and shared K/V is broadcast across the group
+  (never materialized per query head). The across-time KV cache (§4) shrinks by exactly the
+  factor `gqa_groups`.
 
 ---
 
@@ -128,9 +137,9 @@ DreamerV4 h-state analogue, aimed at the long-horizon-memory limitation.
 ---
 
 ## Interface
-- `DynamicsModelConfig`: `embedding_dim, depth, n_heads, mlp_ratio, n_latents, bottleneck_dim,
-  max_temporal_length`; `max_sampling_steps`(=K_max), `inference_steps`(=K), `context_signal`,
-  `ramp_min`; `n_actions, n_registers, n_memory, ff9_k`.
+- `DynamicsModelConfig`: `embedding_dim, depth, n_heads, gqa_groups (1 = plain multi-head),
+  mlp_ratio, n_latents, bottleneck_dim, max_temporal_length`; `max_sampling_steps`(=K_max),
+  `inference_steps`(=K), `context_signal`, `ramp_min`; `n_actions, n_registers, n_memory, ff9_k`.
 - `forward(z_tilde, tau_idx, d_idx, actions=None, memory_in=None, return_memory=False) -> ẑ_1[, mem]`.
 - `loss(z1, action_idx=None) -> scalar` — shortcut forcing (+ FF9 sufficiency when `n_memory>0`).
 - `generate(context, n_generate, K=None, action_idx=None, max_ctx=None) -> latents` — carrying

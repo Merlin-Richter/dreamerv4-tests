@@ -64,3 +64,15 @@ where the cache actually hurts: memmaze (512-dim, W=32, 32 latents/frame) and an
 eviction-exempt memory-bank design where cache size is the binding constraint (see
 tasks/drafts/sparse-memory-tokens.md). Graduation to src/+spec = Merlin's call
 (config knob n_kv_heads or gqa_groups, default = n_heads i.e. MHA).
+
+## GRADUATED to src/ + spec (2026-07-04, Merlin's one-time spec permission)
+
+`gqa_groups` config field (default 1 = plain MHA) in `src/models/dynamics_model.py` +
+`specs/models/dynamics_model.md` (SS2 GQA paragraph + Interface list); `--gqa-groups` in
+train_dynamics.py + its spec; CLAUDE.md config list. Backward compatibility engineered and
+VERIFIED: gqa_groups=1 keeps the fused `qkv` parameters and the exact op sequence — pre-migration
+reference outputs (tau0 + mem2mem ckpts, forward + seeded generate) reproduced with maxdiff 0.0
+(bit-identical). GQA=4 through the graduated class: causality bit-exact, cache-equiv 2.4e-06,
+footprint 4.00x. The experiment checkpoint `dynamics_gqa_tau0.pt` loads into the graduated base
+class with an explicit `gqa_groups=4` override (its saved config predates the field — future GQA
+checkpoints self-describe). All gate tests green. This experiment dir stays as provenance.

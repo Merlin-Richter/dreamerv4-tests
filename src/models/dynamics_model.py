@@ -38,6 +38,10 @@ class DynamicsModelConfig:
     max_temporal_length: int = 16
 
     n_heads: int = 16
+    # Grouped-query attention: every gqa_groups query heads share one K/V head (must divide
+    # n_heads). 1 = plain multi-head attention (fused qkv projection, parameter-compatible with
+    # pre-GQA checkpoints); >1 shrinks the across-time KV cache by exactly this factor.
+    gqa_groups: int = 1
     mlp_ratio: float = 3.0
     depth: int = 9  # 3x[spatial, temporal, spatial]; temporal at i%3==1
 
@@ -98,7 +102,18 @@ class Attention(nn.Module):
         self.is_temporal = is_temporal
         self.dropout = nn.Dropout(config.drop_rate)
         self.att_droput = nn.Dropout(config.att_drop_rate)
-        self.qkv = nn.Linear(config.embedding_dim, 3 * config.embedding_dim)
+        # GQA: every gqa_groups query heads share one K/V head. gqa_groups=1 keeps the fused qkv
+        # projection (parameter-compatible with pre-GQA checkpoints); >1 uses separate q/kv
+        # projections with n_kv_heads = n_heads / gqa_groups.
+        self.gqa_groups = config.gqa_groups
+        assert self.n_heads % self.gqa_groups == 0, \
+            f"gqa_groups {self.gqa_groups} must divide n_heads {self.n_heads}"
+        self.n_kv_heads = self.n_heads // self.gqa_groups
+        if self.gqa_groups == 1:
+            self.qkv = nn.Linear(config.embedding_dim, 3 * config.embedding_dim)
+        else:
+            self.q_proj = nn.Linear(config.embedding_dim, config.embedding_dim)
+            self.kv_proj = nn.Linear(config.embedding_dim, 2 * self.n_kv_heads * self.head_dim)
         self.proj = nn.Linear(config.embedding_dim, config.embedding_dim)
 
         # RoPE tables over the temporal axis. The fixed-size cos/sin tables drive the default
@@ -133,14 +148,25 @@ class Attention(nn.Module):
         # commit: append this call's K/V to layer_cache (extends the context cache).
         B, T, N, C = x.shape
 
-        qkv: torch.Tensor = self.qkv(x)
-        qkv = qkv.reshape((B, T, N, 3, self.n_heads, -1))
-        if not self.is_temporal:
-            qkv = qkv.permute((3, 4, 0, 1, 2, 5))  # (3, heads, B, T, N, head_dim)
+        if self.gqa_groups == 1:
+            qkv: torch.Tensor = self.qkv(x)
+            qkv = qkv.reshape((B, T, N, 3, self.n_heads, -1))
+            if not self.is_temporal:
+                qkv = qkv.permute((3, 4, 0, 1, 2, 5))  # (3, heads, B, T, N, head_dim)
+            else:
+                qkv = qkv.permute((3, 4, 0, 2, 1, 5))  # (3, heads, B, N, T, head_dim)
+            q, k, v = qkv[0], qkv[1], qkv[2]
         else:
-            qkv = qkv.permute((3, 4, 0, 2, 1, 5))  # (3, heads, B, N, T, head_dim)
-
-        q, k, v = qkv[0], qkv[1], qkv[2]
+            # GQA: q has n_heads heads, k/v only n_kv_heads (the cache stores the small shape).
+            q = self.q_proj(x).reshape(B, T, N, self.n_heads, self.head_dim)
+            kv = self.kv_proj(x).reshape(B, T, N, 2, self.n_kv_heads, self.head_dim)
+            if not self.is_temporal:
+                q = q.permute(3, 0, 1, 2, 4)           # (heads, B, T, N, head_dim)
+                kv = kv.permute(3, 4, 0, 1, 2, 5)      # (2, kv_heads, B, T, N, head_dim)
+            else:
+                q = q.permute(3, 0, 2, 1, 4)           # (heads, B, N, T, head_dim)
+                kv = kv.permute(3, 4, 0, 2, 1, 5)      # (2, kv_heads, B, N, T, head_dim)
+            k, v = kv[0], kv[1]
         q, k = self.q_norm(q), self.k_norm(k)
 
         if not self.is_temporal:
@@ -169,6 +195,13 @@ class Attention(nn.Module):
             mask[:, T_all - T:] = torch.triu(torch.ones(T, T, device=x.device), diagonal=1).bool()
 
         scale = self.base_scale * torch.exp(self.logit_scale.clamp(max=self.max_logit_scale))
+        if self.gqa_groups > 1:
+            # Grouped view: q (kv_heads, groups, B, *, T, hd) against shared K/V broadcast over the
+            # group axis (kv_heads, 1, B, *, T, hd) — repeated K/V is never materialized. The logit
+            # scale stays per-QUERY-head (head h = kv_head * groups + g).
+            q = q.reshape(self.n_kv_heads, self.gqa_groups, *q.shape[1:])
+            k_all, v_all = k_all.unsqueeze(1), v_all.unsqueeze(1)
+            scale = scale.reshape(self.n_kv_heads, self.gqa_groups, 1, 1, 1, 1)
         attn_scores = (q @ k_all.transpose(-2, -1)) * scale
         attn_scores = self.soft_cap_act(attn_scores / self.soft_cap) * self.soft_cap
         if mask is not None:
@@ -178,6 +211,8 @@ class Attention(nn.Module):
         attn = self.att_droput(attn)
 
         x = attn @ v_all
+        if self.gqa_groups > 1:
+            x = x.reshape(self.n_heads, *x.shape[2:])  # merge (kv_heads, groups) -> heads
         if not self.is_temporal:
             x = x.permute(1, 2, 3, 0, 4).reshape(B, T, N, C)
         else:

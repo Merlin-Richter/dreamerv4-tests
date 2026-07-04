@@ -10,7 +10,7 @@ Loss = shortcut forcing (+ FF9 sufficiency when `--ff9>0`). The dynamics model n
   training FROM (default: random init; e.g. warm-start FF9 from a vanilla checkpoint).
   `--epochs --batch-size --lr --seed --context-length`; memory: `--ff9 K --n-memory M`;
   model dims (unset = GridWorld dataclass defaults; env-dependent, mirrors train_tokenizer):
-  `--embedding-dim --depth --n-heads --n-registers`;
+  `--embedding-dim --depth --n-heads --gqa-groups --n-registers`;
   `--wandb*`; `--test-checkpoint` (interactive rollout viz instead of training).
   Latent cache: `--encode-online` (legacy per-batch encoding), `--build-latent-cache-only` (build the
   cache, then exit — for prep jobs so parallel training jobs don't race to build), `--cache-batch N`

@@ -410,6 +410,9 @@ def main():
     parser.add_argument("--depth", type=int, default=None,
                         help="Transformer depth; use a multiple of 3 (3x[spatial,temporal,spatial]).")
     parser.add_argument("--n-heads", type=int, default=None, help="Attention heads.")
+    parser.add_argument("--gqa-groups", type=int, default=None,
+                        help="Grouped-query attention: query heads per shared K/V head (must divide "
+                             "n_heads). Default 1 = plain multi-head attention.")
     parser.add_argument("--n-registers", type=int, default=None, help="Scratch register tokens/frame.")
     parser.add_argument("--val-offset", type=int, default=0)
     parser.add_argument("--val-fraction", type=float, default=0.05)
@@ -518,7 +521,8 @@ def main():
 
     # Model-dim CLI overrides (unset = GridWorld dataclass defaults), mirroring train_tokenizer.
     dims = {k: v for k, v in dict(embedding_dim=args.embedding_dim, depth=args.depth,
-                                  n_heads=args.n_heads, n_registers=args.n_registers).items()
+                                  n_heads=args.n_heads, gqa_groups=args.gqa_groups,
+                                  n_registers=args.n_registers).items()
             if v is not None}
     cfg = DynamicsModelConfig(
         max_temporal_length=chunk_len,
