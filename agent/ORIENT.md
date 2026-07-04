@@ -20,23 +20,27 @@ feedback-spec-edit-delegation). Done this session:
   cos 0.9996, window-delta recon MSE 60x below recon error** (claim confirmed).
 - **Calibration** (415100+415101): vanilla bs64 = 140 clips/s 42.6GB; mem2mem clip128 bs4 =
   8.7 clips/s 54GB (bs6+ OOM — the rollout holds all ~7 slides' graphs to one backward).
-- **vanilla 415103 LANDED (2026-07-04, rc=0)**: 50ep 8h31m, train 0.00597 / **val 0.00431**, W&B
-  wj0dcogd healthy (steady descent, clean grad-norm). Ckpt pulled + load-verified
-  (`checkpoints/memmaze/dynamics_vanilla.pt`, locked config, 41.0M).
-- **mem2mem rollout-only 415104 still RUNNING** (clip128 bs4 **lr 1e-4** [agent call, flagged],
-  n_memory 8, ff9 3, no-bootstrap, ETA ~31h, --hours 36, W&B t4ppeqzp) ->
-  `checkpoints/memmaze/dynamics_mem2mem.pt`. Both @ SHA `1149bb4`, 512/12/16=41M, W=32.
-- **Rollout sheets (task `memmaze-rollout-sheets`, IN FLIGHT)**: NEW spec-backed
+- **vanilla arm DONE (2026-07-04, task -> done)**: 415103 rc=0, 50ep 8h31m, train 0.00597 /
+  **val 0.00431**, W&B wj0dcogd healthy (steady descent, clean grad-norm). Ckpt pulled +
+  load-verified (`checkpoints/memmaze/dynamics_vanilla.pt`, locked config, 41.0M). EXPERIMENTS:
+  `memmaze-dyn-vanilla`. (Recall scoring = separate follow-up once the memmaze eval exists.)
+- **Rollout sheets DONE (2026-07-04, task `memmaze-rollout-sheets` -> done)**: NEW spec-backed
   `src/evals/memmaze/sheets.py` + `specs/evals/memmaze/sheets.md` (TOP=GT / BOTTOM=action-conditioned
-  free-run, held-out val-split episodes, reuses gridworld drawing layer; smoke-tested local).
-  Render job ferranti **415142** @ `306e147` (in-window + past-window vanilla sheets + 12-ep val
-  frames slice for local iteration) — pull `runs/memmaze-sheets-vanilla` when done, eyeball, NOTES.
+  free-run, HELD-OUT val-split episodes, reuses gridworld drawing layer; smoke-tested local).
+  Vanilla sheets (render job **415142** @ `306e147`) pulled to
+  `experiments/memmaze-dynamics/sheets_vanilla/` + eyeballed: ctx recon crisp, rollout coherent +
+  action-responsive, diverges from GT within a few steps (expected — no memory), past-window (64
+  frames, 2 slides) STABLE, drifts to a washed-out generic-wall mode (no collapse). NOTES.md has the
+  findings. Local iteration enabled: `data/memmaze9x9_val12{,_actions,_ids}.npy` (12 held-out eps).
 - **Decisions made while Merlin AFK (all REVERSIBLE, cancel+resubmit possible):** 512/12/16, W=32,
   n_memory=8, 50ep, mem2mem lr 1e-4. New wrapper `scripts/clean_untracked.sh` (untracked remote
   artifacts blocking sync_code checkout).
-**NEXT when they land:** pull both checkpoints, W&B curve check (mem2mem: watch relay stability /
-flow+ff9 balance), qualitative rollout sheets vs GT; then the memmaze recall/probe eval task (labels
-ready) — memory CLAIMS wait for that eval. Vanilla lands first (~9.5h): check it while mem2mem runs.
+- **STILL RUNNING: mem2mem rollout-only 415104** (clip128 bs4 **lr 1e-4** [agent call, flagged],
+  n_memory 8, ff9 3, no-bootstrap, ETA ~31h from 2026-07-03 22:00, --hours 36, W&B t4ppeqzp) ->
+  `checkpoints/memmaze/dynamics_mem2mem.pt`. @ SHA `1149bb4`, same 512/12/16 W=32 transformer.
+**NEXT when 415104 lands:** pull ckpt, W&B check (relay stability / flow+ff9 balance), sheets via
+`make_sheets.sh ... dynamics_mem2mem.pt runs/memmaze-sheets-mem2mem`, compare vs `sheets_vanilla/`;
+then the memmaze recall/probe eval task (labels ready on /weka) — memory CLAIMS wait for that eval.
 
 ## DONE (2026-06-30 — Memory Maze 9x9 tokenizer) — FROZEN, ready for dynamics
 Full run **412635 COMPLETED rc=0** (15ep bs6 LOCKED cfg, 10h16m, @ `be1258e`). **Final: val MSE 0.000074

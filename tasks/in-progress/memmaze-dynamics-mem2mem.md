@@ -27,5 +27,12 @@ relay stability), qualitative rollout sheet vs vanilla, provenance in
 `experiments/memmaze-dynamics/NOTES.md` + EXPERIMENTS.md line. Memory CLAIMS wait for the memmaze
 recall/probe eval (follow-up task) — sheets illustrate, never decide.
 
+Sheets tooling READY (2026-07-04, task `memmaze-rollout-sheets` done): when 415104 lands, submit
+`bash experiments/memmaze-dynamics/make_sheets.sh checkpoints/memmaze/dynamics_mem2mem.pt
+runs/memmaze-sheets-mem2mem` (~1 min job), pull, compare against
+`experiments/memmaze-dynamics/sheets_vanilla/`. NB: mem2mem ckpts save the same
+{config, model_state_dict} payload, so the CLI loads them unchanged; local renders work on the 4070
+via `data/memmaze9x9_val12.npy` (`--episodes 0..11` = positions in the slice).
+
 ## Provenance
 - ferranti job 415104 @ SHA 1149bb4 (train_mem2mem.sh 50 4 --lr 1e-4, --hours 36), submitted 2026-07-03. clip128 bs4 lr1e-4 W32 512/12/16 n_memory8 ff9_3 no-bootstrap (41.0M). ~31h ETA. lr 1e-4 = agent judgment (bs 16x smaller than GridWorld) — flagged to Merlin.

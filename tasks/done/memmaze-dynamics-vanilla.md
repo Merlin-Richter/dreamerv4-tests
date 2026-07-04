@@ -25,3 +25,5 @@ recall/probe eval to exist first.)
 
 ## Provenance
 - ferranti job 415103 @ SHA 1149bb4 (train_vanilla.sh 50 64, --hours 12), submitted 2026-07-03. bs64 lr3e-4 W32 512/12/16 (41.0M). ~8.5h ETA.
+
+**RESULT (2026-07-04):** 415103 rc=0, 50ep 8h31m, train 0.00597 / val 0.00431 (W&B wj0dcogd healthy); ckpt pulled+verified; qualitative sheets rendered+eyeballed (job 415142, see `memmaze-rollout-sheets` + NOTES) — baseline behaves as expected (coherent+action-responsive, no GT tracking past context, stable past-window). Recall-eval scoring = separate follow-up task.

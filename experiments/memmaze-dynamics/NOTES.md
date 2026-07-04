@@ -49,11 +49,25 @@ GridWorld; memmaze probe in the prep job). JSON: `probe_window_invariance_gridwo
   grad-norm decayed cleanly, no spikes/instability. Checkpoint pulled + load-verified locally
   (`checkpoints/memmaze/dynamics_vanilla.pt`, config == locked 512/12/16 W32, n_actions=6, n_memory=0,
   41.0M params).
-- **Qualitative rollout sheets** (task `memmaze-rollout-sheets`): NEW spec-backed
+- **Qualitative rollout sheets** (task `memmaze-rollout-sheets`, DONE): NEW spec-backed
   `src/evals/memmaze/sheets.py` (+ `specs/evals/memmaze/sheets.md`) — TOP=GT / BOTTOM=action-conditioned
   free-run on HELD-OUT episodes (reproduces the trainer's seed-0 val split), reuses the gridworld
-  drawing layer. Render job (`make_sheets.sh`): ferranti **415142** @ `306e147` — in-window (8ctx|24gen)
-  + past-window (8ctx|56gen) sheets + a 12-episode val frames/actions slice for local iteration.
+  drawing layer. Render job (`make_sheets.sh`): ferranti **415142** @ `306e147` (rc=0) — in-window
+  (8ctx|24gen) + past-window (8ctx|56gen) sheets + a 12-episode val frames/actions slice.
+- **Sheet findings (vanilla, eyeballed 2026-07-04)** — `sheets_vanilla/_sheet_rollout_{in,past}_window.png`
+  (gitignored, `_` prefix):
+  - Context reconstructions crisp; rollouts locally coherent (walls/floor/horizon geometry, textures,
+    objects) and visibly action-responsive (turns match the action digits in the labels).
+  - Rollout diverges from GT within a few steps (wrong wall colors/layout, objects dropped) — EXPECTED
+    for a no-memory model in a partially-observed maze; beyond the 8-frame context the true maze is
+    unknowable. This is the baseline picture the memory arm must beat.
+  - Past-window (56 gen, window slides twice): STABLE — no black-collapse/explosion; quality softens
+    deep into the rollout, drifting toward a washed-out pale-green "generic wall" mode (mild
+    mode-averaging) while staying scene-like and action-responsive.
+- **Local iteration enabled:** `data/memmaze9x9_val12{,_actions,_ids}.npy` (12 held-out episodes,
+  148MB, episodes [1544,1459,121,2876,1623,2639,2075,1855,729,875,451,2272]) — the sheets CLI verified
+  locally on the 4070 against this slice (`--frames data/memmaze9x9_val12.npy --episodes 0 1 ...`;
+  NOTE: ids in the slice are POSITIONS 0..11, not original episode ids).
 
 ## Provenance
 - Prep: ferranti **415098** @ `7d86b8d`. Calibration: **415100** @ `37330e6`, **415101** @ `965268b`.
