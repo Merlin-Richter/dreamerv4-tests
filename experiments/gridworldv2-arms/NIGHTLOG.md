@@ -106,3 +106,18 @@ files. All conclusions provisional until written up with numbers.
 - 01:50 D2 (m16, BUGGED recipe) evaled: w16 dip milder (0.83-0.84 at k4-8 vs m4's 0.56-0.67),
   plateau ~0.53-0.61 (vs 0.42-0.59). Capacity helps at the margins; the phase artifact dominates.
   Honest capacity comparison = Dfix (m4) vs D2fix (m16) when 415239/415240 land (~02:15).
+
+- 02:20 **FINAL sparse-vs-dense numbers (256 rollouts, w16 — the invariant-valid window):**
+  | arm | dip (k4-10) | plateau (k12-64) |
+  | C dense no-FF9 | 1.00 | **1.00 flat** |
+  | D sparse m4 bugged | 0.59-0.73 | ~0.50 |
+  | Dfix sparse m4 | 0.75-0.83 | ~0.55-0.60 |
+  | D2fix sparse m16 | **0.82-0.91 (dip ~gone)** | **~0.69-0.73, gentle decay** |
+  | A vanilla | in-window 0.77-0.94 | 0.17-0.26 (< B1 0.45-0.61) |
+  Reads: (1) the phase fix + capacity TOGETHER took sparse 0.50 -> 0.70 — both of Merlin's axes
+  confirmed directionally; (2) the pre-registered ">=0.93 dip-gone" prediction only fully
+  materialized WITH m16 (m4-fixed still dips ~0.78) -> window phase was necessary but not
+  sufficient at m4; capacity interacts; (3) the remaining ~0.30 gap to dense at 50ep/n=8 is the
+  honest current price of sparse write-slots on an action-integration env; (4) whatever survives
+  the early relays is carried ~losslessly to k=64 (flat/gentle plateau) — storage & reach are
+  not the bottleneck, the write-update operation is.
