@@ -128,3 +128,14 @@ files. All conclusions provisional until written up with numbers.
   submitted a fresh clean 50ep run **415244** (--hours 20, ckpt dynamics_vanilla_tau0b.pt — the
   b-suffix avoids a write race with 415205's saves). 415104 (dense memmaze) at 30.6h/36 — lands
   ~05:00, re-watched.
+
+- 05:50 OPS/memmaze: **415104 (dense mem2mem) is at ep 24/50 after 31.4h** (~78 min/ep; the
+  ORIENT "ETA ~31h" was wrong — 50ep needs ~65h at clip128 bs4). It dies at walltime ~10:00 at
+  ~ep28, HALF-trained (healthy though: val 0.00393 descending, ff9 0.0796 stable). 415143
+  (no-ff9) same pace -> dies tonight ~ep28-30. DECISION PACKET for Merlin (not deciding alone —
+  36 more H100-hours per arm): (a) resume-continue both to ~50ep via --resume (+36h each,
+  LR-schedule restarts — flagged discontinuity), (b) accept ep-28 models for the 4-way memmaze
+  comparison (halved budget vs vanilla arms), or (c) rerun with bigger batch/less clip length
+  (faster recipe, breaks the locked config). The ep-28 ckpts are usable for preliminary evals
+  either way. 415205 (slow-node tau0) dies 06:07 ~ep34 (interim ckpt exists, superseded by
+  415244 which is healthy on a fast node, ETA midday).
