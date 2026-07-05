@@ -44,3 +44,14 @@ FF9 cleanly (FF9 assumes a write every frame) — C is D's matched control; it a
 - **D 415226** gwv2-sparse-n8 @ a85eed7 (impl: experiments/sparse-write-slots/, smoke 6/6 PASS
   incl. zero attention leak on non-write keys + grads to both inits; 2ep local train green).
 - Eval runner ready: experiments/gridworldv2-arms/eval_all.py (4 arms x w16/w8, staleness view for D).
+
+## Result (2026-07-05, overnight autonomous window)
+DONE (gwv2 portion; memmaze continues under its own tasks). 7 arms trained+evaled (incl. mid-
+campaign root-cause->fix->retrain cycle on the sparse write-aligned-window artifact, found by an
+independent dip-investigation agent with causal probes). HEADLINE (256 rollouts, w16): dense
+mem2mem 1.00 FLAT to k=64 (lossless, FF9==noFF9); sparse write-slots best arm (m16+phase-fix)
+0.69-0.73 flat (m4-fix ~0.58; bugged 0.50); NEW B1 exact-Bayes no-memory floor 0.45-0.61 — v2
+memory claims must clear B1, not chance. Bottleneck localized to the write-update op (storage/
+reach lossless over 7+ relays). Design findings: registers = unrestricted memory side-channel;
+w8 eval violates sparse W>=2n. Full record: experiments/gridworldv2-arms/{NOTES.md,NIGHTLOG.md,
+compare_w16_r256.png,dip-investigation/REPORT.md}.
