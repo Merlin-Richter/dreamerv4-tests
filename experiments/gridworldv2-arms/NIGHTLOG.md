@@ -121,3 +121,10 @@ files. All conclusions provisional until written up with numbers.
   honest current price of sparse write-slots on an action-integration env; (4) whatever survives
   the early relays is carried ~losslessly to k=64 (flat/gentle plateau) — storage & reach are
   not the bottleneck, the write-update operation is.
+
+- 04:35 OPS: both memmaze watchers were KILLED by the harness (lifetime), jobs themselves fine.
+  415205 (memmaze vanilla-tau0) is on a slow node (1.06 it/s, ep 30/50 at 10.5h) -> will hit its
+  12h walltime ~06:07 at ~ep34. DECISION: let it die (per-epoch ckpt = free ep-34 interim) and
+  submitted a fresh clean 50ep run **415244** (--hours 20, ckpt dynamics_vanilla_tau0b.pt — the
+  b-suffix avoids a write race with 415205's saves). 415104 (dense memmaze) at 30.6h/36 — lands
+  ~05:00, re-watched.
