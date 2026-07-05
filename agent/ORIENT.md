@@ -85,6 +85,16 @@ Numbers/sheets: `experiments/vanilla-honest-baseline/` (NOTES, results_probe.jso
 sheets_tau0/). OPEN for Merlin: graduate the anchor into src/+spec? retrain memmaze vanilla
 (415103's objective has the same flaw) for an honest 3-way?
 
+## NIGHT CAMPAIGN (2026-07-05, autonomous window) — gwv2 4-way + sparse write-slots v3 DONE
+Full record: experiments/gridworldv2-arms/{NOTES.md,NIGHTLOG.md,compare_w16_r256.png}. Headline:
+dense mem2mem LOSSLESS on GridWorldV2 (1.00 flat to k=64; compounding premise dead on both envs);
+sparse write-slots v3 implemented+debugged (dip agent root-caused write-aligned-window artifact ->
+phase-randomization fix; experiments/sparse-write-slots/), best sparse arm (m16+fix) 0.70 flat vs
+B1 exact-Bayes no-memory floor (~0.5) — NEW eval rule: v2 claims must clear B1. Registers found to
+be an unrestricted memory side-channel (design question for Merlin). MEMMAZE OPS: 415205 (tau0)
+hit walltime on a slow node ~ep34 (interim ckpt saved); clean rerun 415244 (tau0b) launched 04:37,
+~ETA midday; 415104 (dense) lands ~morning; 415143 ~13:00.
+
 ## DONE (2026-07-04 — GridWorldV2, Merlin's design; task -> done) — the action-conditioned testbed
 7 actions (reveal/hide = curtain LATCH, no move on toggle ticks; up/down/left/right CLAMPED; stay);
 occluded position = nonlinear fn of the action stream => memory must INTEGRATE actions. New (all
