@@ -35,9 +35,12 @@ feedback-spec-edit-delegation). Done this session:
 - **Decisions made while Merlin AFK (all REVERSIBLE, cancel+resubmit possible):** 512/12/16, W=32,
   n_memory=8, 50ep, mem2mem lr 1e-4. New wrapper `scripts/clean_untracked.sh` (untracked remote
   artifacts blocking sync_code checkout).
-- **STILL RUNNING: mem2mem rollout-only 415104** (clip128 bs4 **lr 1e-4** [agent call, flagged],
-  n_memory 8, ff9 3, no-bootstrap, ETA ~31h from 2026-07-03 22:00, --hours 36, W&B t4ppeqzp) ->
-  `checkpoints/memmaze/dynamics_mem2mem.pt`. @ SHA `1149bb4`, same 512/12/16 W=32 transformer.
+- **415104 LANDED 2026-07-05: TIMEOUT ep28/50 (predicted); interim ckpt pulled + verified** ->
+  `checkpoints/memmaze/dynamics_mem2mem.pt` (strict-load OK, selftest through play_memmaze.py green
+  ~6.7 fps). Log healthy to ep28 (flow 0.0068 / ff9 0.079 still descending, no instability, W&B
+  t4ppeqzp). @ SHA `1149bb4`. OPEN for Merlin: resume last 22 ep vs accept ep28 vs faster recipe
+  (nightlog decision packet). Sheets/W&B pass/EXPERIMENTS line wait on that call. Task file has
+  the full status block.
 - **STILL RUNNING: mem2mem NO-FF9 415143** (launched 2026-07-04 by Merlin's ask; memory on, ff9
   off — single-variable ablation vs 415104, `--no-ff9` + ckpt/W&B overrides) @ SHA `6858832`,
   --hours 36, W&B 5ez6niv5 -> `checkpoints/memmaze/dynamics_mem2mem_noff9.pt`. Startup verified
