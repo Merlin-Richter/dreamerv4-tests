@@ -24,8 +24,13 @@ bookkeeping 7/7 CONFIRMED; red-team found the v2.0 scalar EXPLOITABLE (64-frame 
 max-gap age, border tiles excluded (diagnostic only), multiplicative composite
 real_cc×(0.7+0.3·cons), sandboxed factories; post-fix curve monotone (liar .01/W64 .55/full 1.0).
 Reports: experiments/colorfield-{geometry-audit,bookkeeping-audit,redteam}/REPORT.md.
-**AWAITING Merlin sign-off** on border exclusion / multiplicative composite / max-gap age, then:
-dataset gen → tokenizer train → MANIFEST freeze.
+**AWAITING Merlin sign-off** on border exclusion / multiplicative composite / max-gap age.
+Datasets DONE (procedural, hashes in task file; cluster regen byte-identical). Tokenizer job
+**416145** (ferranti @ 87c5891, 20ep bs32 + readout-exactness verify, submitted ~15:51, 6h wall)
+was RUNNING when the **ferranti socket died (AUTH_DEAD ~16:00)** — job unaffected, visibility
+gone. NEXT SESSION: after Merlin `open_master.sh --cluster ferranti`, job_status 416145 →
+fetch_logs (check [verify] line: cell readout acc ~1.0 = acceptance) → pull_file
+checkpoints/colorfield/tokenizer.pt → latent cache → MANIFEST freeze (after sign-off).
 
 ## IN FLIGHT (2026-07-03 — Memory Maze dynamics campaign, kicked off by Merlin)
 Goal: train TWO dynamics arms on the frozen memmaze tokenizer's latents — **vanilla** (baseline) and
