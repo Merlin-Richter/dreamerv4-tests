@@ -204,10 +204,15 @@ binary scores ⇒ σ well under 1% — verified during harness calibration.
   ep_seeds 5ac3f8fab189bd73; val: actions 62b9ad1179cfbe7a / maps e54337168d29b683.
 - TOKENIZER: vendored (tokenizer_model.py @ 3eef651) + lean procedural trainer
   (train_tokenizer.py — D-043 stability stack, readout-exactness acceptance gate). Local 4070
-  smoke green (pipeline end-to-end) but GPU-bound at 2s/step → CLUSTER JOB **416144** on ferranti
-  @ `de7cbac` (datagen seeds 0/777 on-cluster + sha256 echo for cross-check + 20ep bs32 train +
-  verify; 6h walltime). Pull `checkpoints/colorfield/tokenizer.pt` when done; acceptance =
-  readout-exact recon on val (cell acc ~1.0).
+  smoke green (pipeline end-to-end) but GPU-bound at 2s/step → cluster.
+  * 416144 @ de7cbac rc=1 POSTMORTEM: submit_job re-joins args without re-quoting → inline
+    `bash -c '...'` compound collapsed (bash -c ran bare `python`; && interpreted at job level).
+    Side win: val datagen ran and its sha256 MATCHES local byte-for-byte (cross-platform
+    determinism of the procedural datasets confirmed).
+  * Fix: committed `autoresearch/frozen/tok_job.sh` (datagen 0/777 + sha256 echo + 20ep bs32
+    train + verify) → CLUSTER JOB **416145** on ferranti @ `87c5891`, 6h walltime, watcher
+    running. Pull `checkpoints/colorfield/tokenizer.pt` when done; acceptance = readout-exact
+    recon on val (cell acc ~1.0).
 - NOT DONE YET: latent cache, MANIFEST hash freeze (last, after Merlin sign-off on the 3 scoring
   items + tokenizer acceptance).
 
