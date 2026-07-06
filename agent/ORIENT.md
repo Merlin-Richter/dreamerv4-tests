@@ -24,13 +24,20 @@ bookkeeping 7/7 CONFIRMED; red-team found the v2.0 scalar EXPLOITABLE (64-frame 
 max-gap age, border tiles excluded (diagnostic only), multiplicative composite
 real_cc×(0.7+0.3·cons), sandboxed factories; post-fix curve monotone (liar .01/W64 .55/full 1.0).
 Reports: experiments/colorfield-{geometry-audit,bookkeeping-audit,redteam}/REPORT.md.
-**FROZEN LAYER COMPLETE except MANIFEST** (2026-07-06 evening): datasets DONE (procedural,
-cluster regen byte-identical); tokenizer DONE — 416145 @ 87c5891 rc=0 (38m H100), **acceptance
-passed: recon readout-exact (cell acc 0.99995, frame-exact 0.998)**, ckpt pulled + load-verified
-→ `checkpoints/colorfield/tokenizer.pt` (sha bd8f18857d71ad4a) FROZEN. EXPERIMENTS:
-`colorfield-tokenizer`. **BLOCKED ON MERLIN**: sign-off on border exclusion / multiplicative
-composite / max-gap age → then record MANIFEST hashes, task → done, and start
-`tasks/backlog/autoresearch-harness.md` (driver + calibration; latent cache lives there).
+**FROZEN LAYER SEALED** (2026-07-06 evening): Merlin signed off all 3 scoring items; MANIFEST
+written (16 files + 11 artifacts; verify: `python -m autoresearch.driver.manifest --check`);
+task → done (full result block in tasks/done/colorfield-env-and-eval.md). Tokenizer 416145:
+readout-exact acceptance passed (cell acc 0.99995), ckpt frozen (sha bd8f1885…).
+**HARNESS BUILD IN PROGRESS** (tasks/in-progress/autoresearch-harness.md has the full BUILD PLAN):
+- DONE: driver/manifest.py (freeze+verify); driver/latent_cache.py (window-invariance probe
+  PASSED: cos 0.9975, delta 9.4×/12.6× under recon vs 6× GridWorld precedent); editable layer
+  seeded (model.py = dynamics_model @ f405034 verbatim, rollout.py = mem2mem loss; imports OK).
+- IN FLIGHT: latent caches building locally in background (~2h; writes
+  data/colorfield{,_val}/latents-bd8f18857d71.npy fp16 ~2.6GB train).
+- NEXT (fresh block): editable/train.py (budget-stopped mem2mem trainer on the cache, W=16 pin,
+  n_actions=5) → editable/adapter.py (begin/step eval bridge per contract in task file) →
+  driver/window_probe.py → driver/run_experiment.py → smoke on 4070 → program.md → calibration
+  (budget sizing, reference arms, seed-noise σ → keep-rule) → report go/no-go to Merlin.
 
 ## IN FLIGHT (2026-07-03 — Memory Maze dynamics campaign, kicked off by Merlin)
 Goal: train TWO dynamics arms on the frozen memmaze tokenizer's latents — **vanilla** (baseline) and
