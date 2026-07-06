@@ -40,3 +40,15 @@ line. Memory CLAIMS wait for the memmaze recall/probe eval — 3-way (vanilla / 
   before any results/sheets/eval; do NOT let ep41-interim numbers stand in for the final model.
 - Note for log readers: `d_unlocked 1/8` is pinned by design under `--no-bootstrap`
   (train_mem2mem.py:195; coarse d has no loss target without the boot term) — not a stalled curriculum.
+
+## Status 2026-07-06 — JOB COMPLETED rc=0; FINAL ckpt pulled + verified
+- sacct: COMPLETED 0:0, elapsed 1-07:34:12 (within the 36h walltime). Full 50/50 epochs.
+- Final log: val(normal) 0.00508 (best 0.00479 @ep48), flow 0.0063, ff9 0.0000 every epoch
+  (ablation real), LR decay tail completed to 1e-06, `train normal: 0.00000` throughout,
+  NO relay instability without the FF9 scaffold (GridWorld's init relay explosion did not bite).
+- **FINAL ckpt re-pulled** (remote mtime Jul 5 16:32 = job end; replaces the ep41 interim) ->
+  `checkpoints/memmaze/dynamics_mem2mem_noff9.pt`. Strict-load OK (41.04M, 0 non-finite,
+  512/12/16 n_memory=8 n_actions=6; config ff9_k=3 retained as documented — loss was off).
+  `play_memmaze.py --selftest 12` PASSES (median 81 ms/step ~12 fps).
+- REMAINING for done: sheets via make_sheets.sh (+ pre64), W&B pass (5ez6niv5), NOTES/EXPERIMENTS
+  line; memory CLAIMS wait on the memmaze recall/probe eval (4-way).

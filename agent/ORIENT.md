@@ -41,10 +41,11 @@ feedback-spec-edit-delegation). Done this session:
   t4ppeqzp). @ SHA `1149bb4`. OPEN for Merlin: resume last 22 ep vs accept ep28 vs faster recipe
   (nightlog decision packet). Sheets/W&B pass/EXPERIMENTS line wait on that call. Task file has
   the full status block.
-- **STILL RUNNING: mem2mem NO-FF9 415143** (launched 2026-07-04 by Merlin's ask; memory on, ff9
-  off — single-variable ablation vs 415104, `--no-ff9` + ckpt/W&B overrides) @ SHA `6858832`,
-  --hours 36, W&B 5ez6niv5 -> `checkpoints/memmaze/dynamics_mem2mem_noff9.pt`. Startup verified
-  (use_ff9=False, no ckpt clobber). Task `memmaze-dynamics-mem2mem-noff9`.
+- **415143 mem2mem NO-FF9 LANDED 2026-07-06: COMPLETED rc=0, full 50 ep (31h34m)** — final ckpt
+  re-pulled (replaces ep41 interim) + strict-load OK + play_memmaze selftest ~12 fps ->
+  `checkpoints/memmaze/dynamics_mem2mem_noff9.pt`. val 0.00508, flow 0.0063, ff9 0.0000 all
+  epochs, NO relay instability without the FF9 scaffold. W&B 5ez6niv5, @ `6858832`. Task
+  `memmaze-dynamics-mem2mem-noff9` (sheets/W&B pass/eval remain).
 - **Long-context prefill DONE (2026-07-04, Merlin's ask; task `sheets-long-context-prefill` -> done,
   @ `4f3e9bf`)**: `rollout_init`/`generate` accept T_ctx > W (teacher-forced sliding commits,
   written-memory relay; spec'd + gate-tested). Memmaze sheets now PREFILL **n_pre=64** true frames
@@ -65,15 +66,16 @@ feedback-spec-edit-delegation). Done this session:
   frame in-window for ≥1 write). Phased: Design B write-sparsity prototype on GridWorld via
   --model-module (no arch change) → Design A presence-sparsity in src/+spec (needs Merlin sign-off)
   → memmaze arm → eviction-exempt memory bank extension. No-FF9 arms gate the training recipe.
-- **STILL RUNNING: memmaze vanilla-tau0 415205** (Merlin's order 2026-07-04; task
-  `memmaze-dynamics-vanilla-tau0`): 415103's config + the GridWorld-validated τ0-anchor
-  (`--model-module ...:DynamicsModelTau0Anchor`, p=0.5 — matches the mem2mem noise-mode dose) →
-  `checkpoints/memmaze/dynamics_vanilla_tau0.pt`, W&B memmaze-dyn-vanilla-tau0, @ `f6d4541`,
-  --hours 12, ETA ~8.5h from 18:07. THE honest vanilla baseline for the memmaze comparison.
-**NEXT when 415104/415143/415205 land:** pull ckpts, W&B check (relay stability / flow+ff9 balance),
-sheets via `make_sheets.sh` (+ pre64) for each, compare vs `sheets_vanilla/`; then the memmaze
-recall/probe eval task (labels ready on /weka) — memory CLAIMS wait for that eval, now a 4-way:
-vanilla(old 415103) / vanilla-tau0(415205, the honest baseline) / mem2mem(415104) / no-ff9(415143).
+- **vanilla-tau0 LANDED 2026-07-06 via rerun 415244 (tau0-b)**: 415205 hit walltime ~ep34 (slow
+  node); clean rerun **415244 @ `f38aaea` COMPLETED rc=0** (8h32m, full 50 ep, val **0.00434**,
+  W&B qyk8pui9) -> **`checkpoints/memmaze/dynamics_vanilla_tau0b.pt`** pulled + strict-load OK.
+  **USE tau0b.pt** — local `dynamics_vanilla_tau0.pt` is the STALE 415205 ~ep34 interim (kept for
+  reversibility). THE honest vanilla baseline. Task `memmaze-dynamics-vanilla-tau0`.
+**ALL ARMS LOCAL NOW (2026-07-06), cluster idle. NEXT:** W&B pass (relay stability / flow+ff9
+balance), sheets via `make_sheets.sh` (+ pre64) for noff9 + tau0b, compare vs `sheets_vanilla/`;
+then the memmaze recall/probe eval task (labels ready on /weka) — memory CLAIMS wait for that
+eval, a 4-way: vanilla(415103) / vanilla-tau0b(415244, honest baseline) / mem2mem(415104, ep28
+interim — Merlin's resume-vs-accept call still OPEN) / no-ff9(415143, full 50 ep).
 
 ## DONE (2026-07-04 — vanilla honest-baseline A/B, Merlin's order; task -> done) — Arm D WINS
 Both ferranti jobs @ `fae4e8b` completed + evaluated; BOTH pre-registered predictions confirmed:

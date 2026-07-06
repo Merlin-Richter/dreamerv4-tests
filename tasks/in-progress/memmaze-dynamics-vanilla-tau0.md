@@ -30,3 +30,14 @@ recorded. Enters the memmaze comparison as THE vanilla baseline (3-way becomes 4
 - ferranti **job 415205** @ SHA `f6d4541` (train_vanilla.sh 50 64 + tau0/model-module/ckpt/W&B
   overrides, --hours 12 --cpus 8), submitted 2026-07-04 18:07. → `dynamics_vanilla_tau0.pt`,
   W&B `memmaze-dyn-vanilla-tau0`. ETA ~8.5h.
+  **OUTCOME: hit 12h walltime ~ep34 on a slow node** (last ckpt save Jul 5 05:50). Superseded.
+- ferranti **job 415244 (tau0-b, clean rerun)** @ SHA `f38aaea`, submitted 2026-07-05 04:37,
+  **COMPLETED rc=0** 8h32m (13:10). → `checkpoints/memmaze/dynamics_vanilla_tau0b.pt` (no-clobber
+  rename), W&B `memmaze-dyn-vanilla-tau0-b` (`qyk8pui9`). Final: train 0.00786 / **val 0.00434**.
+
+## Status 2026-07-06 — FINAL ckpt pulled + verified
+- **`checkpoints/memmaze/dynamics_vanilla_tau0b.pt`** (mtime Jul 5 13:10 = job end) pulled;
+  strict-load OK (41.03M, 0 non-finite, 512/12/16 n_memory=0 n_actions=6). **USE THIS ONE.**
+- CAUTION: local `checkpoints/memmaze/dynamics_vanilla_tau0.pt` is the STALE 415205 interim
+  (~ep34, slow node) — kept for reversibility, do NOT use as the baseline.
+- REMAINING for done: pre64 sheets + compare vs sheets_vanilla/, W&B pass; then the 4-way eval.
