@@ -20,7 +20,49 @@ autoresearch/
 - `editable/train.py` seeded from a vendored copy of the mem2mem-rollout recipe (the current best
   memory training) sized down to budget. Self-contained — vendor whatever model code it needs;
   no imports from `src/`.
-- Loop write surface = `editable/train.py` ONLY. `frozen/` + `driver/` are integrity-checked.
+- Loop write surface = `editable/` (whole dir). `frozen/` + `driver/` are integrity-checked.
+
+## BUILD PLAN (concretized 2026-07-06 after the frozen layer sealed; sources located)
+
+Write surface refinement: `editable/` is a small package, not one file (merging 1200 lines into
+one file adds refactor risk for no control benefit; program.md scopes the loop to the dir):
+- `editable/model.py` — vendor `src/models/dynamics_model.py` @ HEAD verbatim (663 lines;
+  DynamicsModel + carrying rollout primitives). n_actions=5, n_memory/ff9 per config.
+- `editable/rollout.py` — vendor `experiments/mem2mem/rollout.py` (286 lines, mem2mem sliding
+  rollout loss; drop the src-path bootstrap).
+- `editable/train.py` — adapted from `experiments/mem2mem/train_mem2mem.py` (260 lines): consume
+  the LATENT CACHE (below) + actions from the procedural dataset; from-scratch; STOP on wall-clock
+  budget (`--budget-s`, checked per step, save final ckpt at expiry); winner defaults =
+  rollout-only mem2mem (`mem2mem_frac=1.0, no bootstrap`; FF9 optional — noFF9 proved sufficient
+  on GridWorld); model dims sized in calibration (start 7-8M like GridWorld); **W=16 pinned**.
+- `editable/adapter.py` — the eval bridge, CONTRACT: must export
+  `make_adapter(ckpt_path, tokenizer, device) -> factory` whose adapter implements
+  begin(prefix_frames, prefix_actions)/step(action)->frame(uint8 RGB): encode prefix frames to
+  latents (frozen tokenizer), rollout_init (long-context prefill exists for T_ctx>W), then
+  rollout_step per action + decode. The loop MAY edit this (its model may need a new inference
+  path) — the frozen eval + window probe keep it honest.
+
+Driver (`driver/`, NOT loop-editable; manifest.py already done):
+- `latent_cache.py`: encode both datasets once with the frozen tokenizer (fp16, ~2.6 GB;
+  16-frame chunks). PREREQ CHECK: window-invariance probe on colorfield (was verified for
+  gridworld/memmaze; re-verify here — arbitrary-offset slicing must be safe) + cache hash
+  recorded in runs/ metadata (not MANIFEST — cache is derived, regenerable).
+- `window_probe.py`: the WINDOW PIN verifier (perturb a frame > W back; committed prediction
+  must be bit-identical; run on the trained ckpt before scoring; violation -> score 0, flagged).
+- `run_experiment.py`: manifest --check -> train under budget -> window probe -> frozen
+  run_eval(make_adapter(...), privileged=False) -> append runs/experiments.jsonl
+  {tag, git-diff of editable/, score+breakdown, gates, wall, seed} -> regenerate
+  runs/leaderboard.md. Keep/discard rule (2σ from calibration) applied by the LOOP AGENT reading
+  the log, enforced advisorily by the driver (flag `below_threshold`).
+
+Calibration (go/no-go, per the main task body): budget sizing (~10-12 min local incl. eval;
+H100 measured too), reference arms (mem2mem vs vanilla-tau0-style no-memory vs frozen baselines),
+seed-noise floor x5-8 -> σ; REQUIRE dense mem2mem beats no-memory beyond bin 1 and doesn't
+saturate; else difficulty dials (but frozen layer is SEALED — dials mean a v2 freeze, avoid).
+
+Order: latent_cache (+window-invariance probe) -> editable/ vendoring -> smoke train (tiny budget,
+4070) -> adapter + window probe -> run_experiment end-to-end with frozen baselines -> calibration
+runs -> program.md -> report calibration numbers to Merlin (first overnight loop = separate go).
 - **WINDOW PIN (red-team consequence)**: the driver contract pins the model's temporal context
   window (e.g. W=16 frames) and VERIFIES it (probe: perturb a frame at distance > W from the
   target; the prediction must be bit-identical — if changing out-of-window input changes the
