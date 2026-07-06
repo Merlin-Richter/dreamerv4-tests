@@ -81,9 +81,21 @@ runs -> program.md -> report calibration numbers to Merlin (first overnight loop
   rollout_init long-context prefill, rollout_step+T=1 decode). Built by delegated agent,
   verified: fake-cache budget smoke (54 steps, clean BUDGET_STOP, reloadable ckpt) + one real
   frozen-eval episode privileged=False (5.7s, 50 events). BUILD_NOTES.md has the transcript.
-- REMAINING: pull latents when 416225 lands -> REAL smoke -> driver/window_probe.py ->
-  driver/run_experiment.py -> program.md -> calibration (budget sizing / reference arms /
-  seed-noise σ) -> go/no-go report to Merlin.
+- CACHES LOCAL + VERIFIED: 416225 completed on ferranti (queued ~75min, ran <1h); both latents
+  pulled via pull_file (direct rsync), sha256 == job log (train f305d8c9…, val 988ab78d…);
+  probe numbers identical to local. (Redundant local build killed; partials deleted.)
+- REAL SMOKE DONE (4070): train.py --budget-s 120 on the real cache → 7.75M params, trains,
+  clean BUDGET_STOP. **CALIBRATION ANCHORS**: mem2mem step ≈ **14s/step local** (clip64, relay
+  backward is the cost, as on memmaze) → a 10-min local budget ≈ 40 steps (likely too few);
+  adapter+eval episode (prefix192+imag256) ≈ 26s local → FULL eval suite ≈ 100 min local —
+  loop needs a REDUCED eval config (fewer policies×seeds, σ re-measured) and/or H100 backend
+  (~4-6× both). Fidelity gate correctly reads the 9-step model as garbage (0.078).
+- BUG (minor): train.py prints val(normal) nan under mem2mem_frac=1.0 (val path uses the
+  normal loss it never trains) — fix to a mem2mem val or skip.
+- REMAINING: fix val-nan -> speed levers (batch-size/clip_len profile; maybe torch.compile) ->
+  driver/window_probe.py (corrected memory-pinned design) -> driver/run_experiment.py ->
+  program.md -> calibration proper (budget sizing / reference arms / reduced-suite σ →
+  keep-rule) -> go/no-go report with the 4070-vs-H100 trade-off numbers.
 - **WINDOW PIN (red-team consequence; design CORRECTED 2026-07-06 late)**: the driver pins the
   model's temporal attention window (W=16) because the comeback scalar gives a window-W model
   ≈ the fraction of age bins ≤ W — without a pin the loop's cheapest move is "grow the window".
