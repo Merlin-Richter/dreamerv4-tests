@@ -198,8 +198,18 @@ binary scores ⇒ σ well under 1% — verified during harness calibration.
     eval section above + EXPERIMENTS row V-colorfield-redteam). All 5 suites re-green.
 - AWAITING MERLIN SIGN-OFF on 3 semantic changes: border-tile exclusion (vs his 0.1 weight),
   multiplicative composite, max-gap age definition.
-- NOT DONE YET: dataset generation (procedural, ~minutes), tokenizer training + latent cache,
-  MANIFEST hash freeze (last, after sign-off).
+- DATASETS GENERATED (local): data/colorfield (5000 eps) + data/colorfield_val (250 eps), T=1024,
+  seeds 0/777, 6.2 MB total (procedural). SHA-256 (first16): actions 842a9a69db1ae081 /
+  maps 34e7ef16c7892aed / starts 9c5dff0a78786669 / policy_ids eb98cbb174323122 /
+  ep_seeds 5ac3f8fab189bd73; val: actions 62b9ad1179cfbe7a / maps e54337168d29b683.
+- TOKENIZER: vendored (tokenizer_model.py @ 3eef651) + lean procedural trainer
+  (train_tokenizer.py — D-043 stability stack, readout-exactness acceptance gate). Local 4070
+  smoke green (pipeline end-to-end) but GPU-bound at 2s/step → CLUSTER JOB **416144** on ferranti
+  @ `de7cbac` (datagen seeds 0/777 on-cluster + sha256 echo for cross-check + 20ep bs32 train +
+  verify; 6h walltime). Pull `checkpoints/colorfield/tokenizer.pt` when done; acceptance =
+  readout-exact recon on val (cell acc ~1.0).
+- NOT DONE YET: latent cache, MANIFEST hash freeze (last, after Merlin sign-off on the 3 scoring
+  items + tokenizer acceptance).
 
 ## Done when
 
