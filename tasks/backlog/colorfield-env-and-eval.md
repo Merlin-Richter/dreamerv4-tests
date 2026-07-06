@@ -17,28 +17,39 @@ Related: memory tokens are NOT trained to be per-step Markov-sufficient — the 
 "the union of memory tokens across the live window suffices" (consistent with FF9 proving
 unnecessary, and with registers acting as a temporal side-channel; gwv2 campaign findings).
 
-## Env design v1 (Merlin's, 2026-07-06 — items marked OPEN need his sign-off)
+## Env design v1 (Merlin's, 2026-07-06/b — updated after second design round)
 
-- **Map**: 12×12 cells, cell = 12px → 144×144px world. Each cell iid uniform over a **5-color
-  palette**; outside the map = a fixed **6th color**. Fresh map per episode.
-- **View**: egocentric 64×64 BGR uint8 window. View **center** lives on the **72×72 sub-cell
-  lattice** (2px pitch = 1/6 cell). Center clamped to the lattice ⇒ at map corners up to
-  32px (~2.7 cells) of color-6 band is visible — the only absolute-position landmark.
-- **Actions**: up/down/left/right = one lattice step (2px), clamped at lattice edge; plus
-  **stay** (OPEN: include stay? recommend yes, gwv2 precedent, n_actions=5).
+- **Map**: **15×15 cells**, cell = 12px → 180×180px world. Each cell iid uniform over a **5-color
+  palette**; outside the map = a fixed **6th color**. Fresh map per episode. (~225·log2(5) ≈ 522
+  bits of episode state.)
+- **View**: egocentric 64×64 **RGB** uint8 window (autoresearch/ is self-contained — RGB
+  end-to-end inside it; convert only at cv2 display boundaries). View **center** lives on the
+  **90×90 sub-cell lattice** (2px pitch = 1/6 cell) ⇒ at map corners up to 32px (~2.7 cells) of
+  color-6 band is visible — the only absolute-position landmark.
+- **Actions (LOCKED)**: up/down/left/right = one lattice step (2px) + **stay** (n_actions=5).
+  **Invalid-action semantics (Merlin)**: an outward move at the lattice edge is NOT a valid
+  action — not clamping/collision; it cannot even be tried. Env raises on invalid action;
+  datagen policies sample only from the valid set; consequently push-at-border NEVER appears in
+  training data (⇒ eval must never feed one either — see eval v2 closed-loop policies).
 - **Dynamics**: fully deterministic given (map, start, action stream). State =
-  (center_col, center_row) on the 72-lattice + the 144-cell map. `hidden_state()` /map access
+  (center_col, center_row) on the 90-lattice + the 225-cell map. `hidden_state()` /map access
   are measurement-only (never a model input) — BaseEnv contract carried over.
-- **NOT in v1**: walls, collision, goals, curtain, grid lines (flat color cells only; OPEN:
-  confirm no grid lines). Pixel-aligned rendering only — no subpixel, no aliasing.
+- **NOT in v1**: walls, collision, goals, curtain, grid lines (flat color cells only).
+  Pixel-aligned rendering only — no subpixel, no aliasing.
 - Difficulty dials (documented, not varied in v1): map N, palette size, view size, step size.
-- BGR end-to-end, [0,255] uint8 frames like the rest of the repo.
 
 ## Datagen — diverse behaviour-policy zoo
 
-All policies emit (frames, actions, states); per-episode sidecars: policy id (+ params), map.
-Episode: fresh map + random start, T = 192 frames (OPEN: T). ~5000 train + held-out val episodes,
-mix ≈ uniform over policies. Policy id logged so revisit-pressure vs recall stays studyable later.
+All policies sample only VALID actions. Episode: fresh map + random start, **T = 1024** (Merlin)
+— long episodes = long-range revisit structure = the memory-pressure knob. ~5000 train + held-out
+val episodes, mix ≈ uniform over policies; policy id (+ params) logged per episode so
+revisit-pressure vs recall stays studyable later.
+
+**Storage is PROCEDURAL (proposed)**: 5000×1024 raw frames ≈ 60 GB — instead store only
+(map, start, actions) per episode (few KB; rendering = a crop of the 180×180 world image) and
+render frames on the fly in the dataloaders (tokenizer training included). The fp16 latent cache
+(~2.6 GB) is still materialized once for dynamics training. Dataset hash = hash of the sidecar
+arrays.
 
 - **P1 goal-seek (Merlin's)**: sample a random goal on the 72×72 lattice; each step move on x
   with p = d_x/(d_x+d_y) toward the goal, else y; with prob ε take a uniform random action
@@ -51,41 +62,66 @@ mix ≈ uniform over policies. Policy id logged so revisit-pressure vs recall st
 - **P7 uniform random**.
 - **P8 out-and-back oscillator**: random axis + amplitude (10–60 steps), repeated.
 
-## The comeback eval (result-defining scalar — the harness's val_bpb)
+## The comeback eval — v2 (imagination-mode; second design round 2026-07-06, OPEN items marked)
 
-Scripted episodes, exact bookkeeping, one weighted accuracy number.
+Merlin's steer: no read-only-branch-vs-GT bookkeeping (information enters view too slowly; would
+need roll-forth-and-back logic). Instead run the eval **in imagination** with a **cell tracker**
+on top and score what the imagination comes up with. Agent's guards added because the
+autoresearch loop is an OPTIMIZER pointed at this number: pure self-consistency has a degenerate
+optimum (an all-one-color imagined world is perfectly consistent) — so half-anchor to ground
+truth and gate on prerequisites.
 
-- **Definitions** (cells = 12px tiles, grid extended outside the map for color-6 tiles):
-  - *on-screen*: viewport∩cell overlap ≥ 6px in x AND in y ⟺ cell center inside the view.
-  - *fully left*: zero pixel overlap with the viewport.
-  - *comeback event*: on-screen → fully left → center on-screen again. Scored ONCE per
-    (cell, event), at the FIRST re-entry frame. Never-seen cells are never scored (iid ⇒
-    unpredictable). A cell can produce multiple events per episode.
-- **Mechanics [OPEN — needs Merlin's explicit sign-off, changes what is measured]**.
-  Recommended: **teacher-forced carry + read-only branch** — each step commits the TRUE frame
-  into the carrying rollout (memory written from real observations); at steps whose next frame
-  contains ≥1 comeback re-entry, take a read-only branch prediction (rollout_step commit=False
-  analog), decode, score those cells. Direct analog of GridWorld recall's branch-reveal;
-  isolates relay retention from free-rollout drift; branch forwards only on event frames (cheap).
-  Alternative (free rollout after a real observation leg) becomes a DIAGNOSTIC variant, not the
-  scalar.
-- **Readout**: closed-form, pure numpy — registration from TRUE state (known center at the scored
-  frame); per scored cell average its visible pixels, nearest of the 6 palette colors. Diagnostic
-  columns (not the scalar): best-shift score via cross-correlating the predicted frame against the
-  GT map + the shift error, to separate "forgot the color" from "lost registration".
-- **Scripts**: 10–20 hand-written action sequences × 8–16 map seeds each. Start positions chosen
-  per script so NO action ever clamps (asserted at eval build time). Ladder of difficulty, e.g.:
-  out-and-back (40L,40R) and shorter/longer variants; box loop (40R,40U,40L,40D,40R); zigzag
-  sweep-and-return; spiral-out-return; long-away-return (~60 steps away); comb pattern; multi-loop.
-  Away-durations must span well past W (in-window events are the easy tail — intended, gradual eval).
-- **Score**: weighted accuracy over all (cell, event) pairs — in-map weight 1.0, **out-of-map
-  (color-6) tiles weight 0.1** (their values are mutually determined, near-free once the border is
-  placed). Also reported: unweighted, in-map-only, per-k slices (k = steps since last on-screen),
-  in-window (k ≤ W) vs beyond-window, per-script breakdown. Eval-once-to-JSON, plot-many.
-- **Baselines through the identical eval**: oracle (render GT — MUST score exactly 1.0, gate
-  test), random-guess chance (empirical), copy-last-frame, and a trained no-memory reference
-  (tau0-anchor vanilla analog). Expected event count ≈ thousands of binary scores ⇒ σ well
-  under 1% — verified during harness calibration.
+**Structure per eval episode** (seeded, deterministic given seed + model):
+1. **Real prefix** (~128–256 steps, OPEN): teacher-forced commits of TRUE frames while following
+   the eval policy; start near a corner so a border is OBSERVED (pins the imagined lattice).
+2. **Imagination phase** (~512–1024 steps, OPEN): pure carried rollout. Driver feeds actions from
+   a seeded **closed-loop eval policy** that consults the READOUT OF THE IMAGINED FRAME and never
+   pushes into an imagined border (color-6 band ≥ 32px on a side ⇒ that direction forbidden).
+   Required, not cosmetic: invalid actions cannot be tried and never occur in training data, so a
+   fixed script hitting an imagined-early border would feed an out-of-distribution input
+   (undefined behavior). Policies are structured patterns (out-and-back-N, box loop, sweep,
+   spiral, idiot-walk) parameterized to cover the age bins; 10–20 policies × 8–16 seeds.
+
+**Cell tracker** (over imagined frames; registration = path-integral of taken actions):
+records each tile's color whenever visible (read at MAX visibility within a visit, majority vote
+across the visit's frames), with provenance:
+- **real-observed** (seen during the prefix) → comeback events scored against **GROUND TRUTH** —
+  ungameable retention, the direct descendant of the GridWorld recall eval.
+- **imagination-born** (first seen during imagination) → comeback events scored for
+  **SELF-CONSISTENCY** vs the previous visit's recorded color (Merlin's metric; unlimited horizon;
+  drift-inclusive by design).
+Comeback definitions unchanged: *on-screen* = viewport∩cell overlap ≥ 6px in x AND y ⟺ center in
+view; *fully left* = zero pixel overlap; event = on-screen → fully left → center back; one score
+per (cell, event); never-seen cells never scored.
+
+**Age standardization (Merlin's requirement, made structural)**: every event logs age k = steps
+since the cell was last on-screen. All headline numbers are means over FIXED age bins averaged
+with EQUAL bin weight (min-events-per-bin enforced, occupancy reported) ⇒ distribution shifts
+(e.g., early imagined borders → younger recalled info) move bin populations, NOT the score.
+The age-vs-accuracy curve is a first-class output (successor of the recall-vs-k curve).
+
+**Hard gates (score := floor if failed)** — prerequisite competences + Goodhart guards:
+1. **Action fidelity**: per-step imagined scroll (frame-to-frame cross-correlation) vs the
+   commanded 2px — catches "actions do nothing" models (cf. memmaze vanilla) whose consistency
+   numbers would otherwise be meaningless.
+2. **Color-marginal entropy**: imagination-born first-seen colors ≈ uniform over the 5 palette
+   colors (KL threshold) — catches collapse-to-one-color.
+3. **Oracle self-test**: tracker fed GT frames must score exactly 1.0 on BOTH provenances (gate test).
+
+**Headline scalar** (the loop's number; weights OPEN — Merlin): age-standardized composite
+≈ **0.7·real-anchored accuracy + 0.3·consistency**, out-of-map (color-6) tiles weighted **0.1**
+inside each term (their values are mutually determined once the border is placed).
+Also reported (diagnostics, not optimized): unweighted / in-map-only variants, per-policy
+breakdown, in-window (k ≤ W) vs beyond, border-position drift (imagined vs true border distance —
+Merlin's early-border worry becomes a measurement), action-fidelity stats, entropy, bin occupancy,
+mean age of recalled info. Eval-once-to-JSON, plot-many.
+
+**Readout**: closed-form, pure numpy — per-cell average of visible pixels, nearest of the 6
+palette colors; registration from the action path-integral (prefix: true state — identical).
+
+**Baselines through the identical eval**: oracle, random-guess chance (empirical), copy-last-frame,
+trained no-memory reference (tau0-anchor vanilla analog). Expected event count ≈ thousands of
+binary scores ⇒ σ well under 1% — verified during harness calibration.
 
 ## Freezing + integrity
 
@@ -95,9 +131,12 @@ Scripted episodes, exact bookkeeping, one weighted accuracy number.
 - After sign-off: record SHA-256 of every frozen file in `autoresearch/frozen/MANIFEST.json`.
   The driver re-hashes before every scoring call; any mismatch → score := chance, run flagged
   `tampered`. The driver computes all scores itself — the loop agent never self-reports.
-- Gate tests (CPU OK): geometry + readout exactness (oracle 1.0 on every script × seed);
-  comeback bookkeeping vs a brute-force per-frame reference; no-clamp assertions; policy smoke
-  (coverage/revisit stats per policy sane); determinism (same seed ⇒ identical episode).
+- Gate tests (CPU OK): geometry + readout exactness (oracle 1.0 on every eval policy × seed,
+  both provenances); comeback + age bookkeeping vs a brute-force per-frame reference; env raises
+  on invalid action + no policy ever emits one (fuzzed); closed-loop eval policy never pushes
+  into a border (fuzzed on synthetic imagined frames incl. early/wrong borders); policy smoke
+  (coverage/revisit stats per policy sane); determinism (same seed ⇒ identical episode);
+  procedural render == materialized frames (spot-check).
 
 ## One-time prep (after freeze)
 
@@ -110,5 +149,6 @@ Scripted episodes, exact bookkeeping, one weighted accuracy number.
 ## Done when
 
 Env + policies + eval + gate tests green; tokenizer frozen + readout-exact; MANIFEST hashes
-recorded; Merlin has signed off every OPEN item (eval mechanics, stay action, grid lines, T,
-concrete palette BGR values). No EXPERIMENTS.md line until something produces a result.
+recorded; Merlin has signed off the remaining OPEN items: eval-v2 design overall + composite
+weights (0.7/0.3 proposed), prefix/imagination lengths, age-bin edges, concrete palette RGB
+values, procedural dataset storage. No EXPERIMENTS.md line until something produces a result.

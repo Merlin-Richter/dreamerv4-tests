@@ -5,15 +5,18 @@ Rewritten: 2026-06-26.
 ## NEW BACKLOG (2026-07-06 — autoresearch harness, Merlin's direction)
 Karpathy-autoresearch-style loop for this repo, designed with Merlin (see the two task files for
 the full spec): self-contained `autoresearch/` subdir (no specs↔src link), NEW middle-ground env
-**ColorField** (12×12 iid 5-color cells + 6th out-of-map color, egocentric 64px view scrolling
-2px/action on a 72×72 lattice — info must be remembered AND takes many dedicated actions to become
-relevant again = the memmaze look-away gap, distilled), diverse behaviour-policy datagen, frozen
-hash-checked **comeback eval** (scripted episodes, revisited-cell reproduction accuracy, out-of-map
-tiles weighted 0.1), fixed wall-clock budget per from-scratch experiment, driver-computed scores,
-2σ keep-rule. Tasks: `tasks/backlog/colorfield-env-and-eval.md` (frozen layer, several OPEN items
-need Merlin sign-off — biggest: eval mechanics teacher-forced-carry+branch vs free rollout) →
-`tasks/backlog/autoresearch-harness.md` (driver + calibration go/no-go). Backend: H100 or 4070,
-decided in calibration. Sits beside the memmaze 4-way eval (below) — Merlin prioritizes.
+**ColorField** (15×15 iid 5-color cells + 6th out-of-map color, RGB, egocentric 64px view
+scrolling 2px/action on a 90×90 lattice, T=1024 episodes, outward-at-border = INVALID action —
+info must be remembered AND takes many dedicated actions to become relevant again = the memmaze
+look-away gap, distilled), diverse behaviour-policy datagen (procedural storage proposed), frozen
+hash-checked **comeback eval v2 (imagination-mode)**: real prefix + long imagined rollout,
+two-provenance cell tracker (real-observed → GT accuracy; imagination-born → self-consistency),
+age-binned equal-weight scoring (immunizes vs early-imagined-border age skew), closed-loop eval
+policies (fixed scripts would feed OOD invalid actions at imagined borders), hard gates (action
+fidelity + color entropy — pure consistency is Goodhart-gameable by an all-one-color world).
+Tasks: `tasks/backlog/colorfield-env-and-eval.md` (frozen layer; OPEN: composite weights 0.7/0.3,
+lengths, bins, palette) → `tasks/backlog/autoresearch-harness.md` (driver + calibration go/no-go).
+Backend: H100 or 4070, decided in calibration. Sits beside the memmaze 4-way eval (below).
 
 ## IN FLIGHT (2026-07-03 — Memory Maze dynamics campaign, kicked off by Merlin)
 Goal: train TWO dynamics arms on the frozen memmaze tokenizer's latents — **vanilla** (baseline) and
