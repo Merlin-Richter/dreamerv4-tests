@@ -12,7 +12,7 @@ Mechanism (no KV cache — this is training, full recompute each window):
   The model's temporal attention is causal *per token slot*, so a frame's MEMORY slot attends to the
   memory slots of earlier frames. If we (a) inject REAL, graph-attached memory tokens from a previous
   forward into the OLD half of a window, (b) let the model construct the NEW half's memory + denoise
-  the NEW half's latents, and (c) put the flow + FF9 loss ONLY on the new half, then the new memory is
+  the NEW half's latents, and (c) put the flow loss ONLY on the new half, then the new memory is
   built by attending to the old memory, and backprop flows new-memory -> old-memory CONSTRUCTION. We
   slide the window by n_ctx/2 and repeat, carrying the new half's memory forward as the next old half
   — a relay whose gradient reaches back through the memory chain (truncated at ~2N frames).
