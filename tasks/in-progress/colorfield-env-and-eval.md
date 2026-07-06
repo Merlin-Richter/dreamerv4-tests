@@ -209,12 +209,16 @@ binary scores ⇒ σ well under 1% — verified during harness calibration.
     `bash -c '...'` compound collapsed (bash -c ran bare `python`; && interpreted at job level).
     Side win: val datagen ran and its sha256 MATCHES local byte-for-byte (cross-platform
     determinism of the procedural datasets confirmed).
-  * Fix: committed `autoresearch/frozen/tok_job.sh` (datagen 0/777 + sha256 echo + 20ep bs32
-    train + verify) → CLUSTER JOB **416145** on ferranti @ `87c5891`, 6h walltime, watcher
-    running. Pull `checkpoints/colorfield/tokenizer.pt` when done; acceptance = readout-exact
-    recon on val (cell acc ~1.0).
-- NOT DONE YET: latent cache, MANIFEST hash freeze (last, after Merlin sign-off on the 3 scoring
-  items + tokenizer acceptance).
+  * Fix: committed `autoresearch/frozen/tok_job.sh` → **416145 @ 87c5891 COMPLETED rc=0
+    (38m10s H100)**. Cluster datagen sha256 == local BYTE-FOR-BYTE (both datasets, all 10
+    files — procedural determinism fully confirmed). Train: val 0.074→0.000015, latent_cos
+    0.098 / pred_std 0.305 (no collapse), 4 spike-skips. **ACCEPTANCE PASSED: cell readout acc
+    0.999950, frame-exact 0.998** — reproduced identically on the local 4070 after pull.
+    Ckpt: `checkpoints/colorfield/tokenizer.pt` (15.6M params, sha256 bd8f18857d71ad4a…),
+    TREAT AS FROZEN.
+- NOT DONE YET: MANIFEST hash freeze (after Merlin sign-off on the 3 scoring items). Latent
+  cache: deferred to the harness task (its format belongs to the editable trainer's loop —
+  encode-once machinery goes where the dynamics training lives).
 
 ## Done when
 
