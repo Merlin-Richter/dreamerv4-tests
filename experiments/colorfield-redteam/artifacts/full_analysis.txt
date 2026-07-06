@@ -1,0 +1,240 @@
+=== perfect_imaginary (zero retention) ===
+  composite_gated = 0.42824748092010867   (raw composite = 0.42824748092010867)
+  gates_passed = True   fail_reasons = []
+  real_anchored.score  = 0.18321068702872667  (n_events=11808)
+  consistency.score    = 1.0  (n_events=2981)
+  gate.fidelity = 0.9988  passed=True
+  gate.entropy  = kl=0.0017704068180566957  n=6808  passed=True
+  border_drift_px = 11.601209852430555
+  age_stats = {'n': 14789, 'mean': 101.48028940428696, 'median': 66.0}
+  -- per_policy weighted_acc --
+     oab_short        n=1845  wacc=0.4132791327913279
+     oab_mid          n=1702  wacc=0.3891871165644172
+     oab_long         n=1473  wacc=0.6330258636281425
+     box_small        n=2006  wacc=0.23011112203756515
+     box_big          n=2008  wacc=0.24767559965622313
+     sweep_narrow     n= 132  wacc=0.19393939393939394
+     sweep_wide       n=  94  wacc=0.29649595687331537
+     idiot_slow       n= 896  wacc=0.7934977269596364
+     idiot_fast       n=1068  wacc=0.667161777447704
+     retrace_mid      n=1329  wacc=0.3609167009743378
+     retrace_long     n=1228  wacc=0.4961599414848227
+     dwell_dart       n=1008  wacc=0.36826299984194716
+  real bin decomposition (OUT weight .1 vs in-map weight 1):
+    [Q] age[1,17): n=  839 OUT=  467 inmap=  372(inmap_acc0.22) -> WEIGHTED=0.198
+    [Q] age[17,33): n= 1614 OUT=  779 inmap=  835(inmap_acc0.22) -> WEIGHTED=0.198
+    [Q] age[33,65): n= 3271 OUT= 1770 inmap= 1501(inmap_acc0.21) -> WEIGHTED=0.187
+    [Q] age[65,129): n= 3357 OUT= 1638 inmap= 1719(inmap_acc0.19) -> WEIGHTED=0.172
+    [Q] age[129,257): n= 1900 OUT=  975 inmap=  925(inmap_acc0.20) -> WEIGHTED=0.180
+    [Q] age[257,inf): n=  827 OUT=  413 inmap=  414(inmap_acc0.18) -> WEIGHTED=0.165
+
+=== HonestShortMem(W=16) [fair limited] ===
+  composite_gated = 0.2509074757479003   (raw composite = 0.2509074757479003)
+  gates_passed = True   fail_reasons = []
+  real_anchored.score  = 0.2100423836045966  (n_events=11808)
+  consistency.score    = 0.3462593574156089  (n_events=2981)
+  gate.fidelity = 1.0000  passed=True
+  gate.entropy  = kl=0.0028332776472795446  n=6808  passed=True
+  border_drift_px = 11.546811704282407
+  age_stats = {'n': 14789, 'mean': 101.48028940428696, 'median': 66.0}
+  -- per_policy weighted_acc --
+     oab_short        n=1845  wacc=0.22861014324428958
+     oab_mid          n=1702  wacc=0.22526840490797545
+     oab_long         n=1473  wacc=0.21640441309459216
+     box_small        n=2006  wacc=0.18880912577441245
+     box_big          n=2008  wacc=0.20314087038049847
+     sweep_narrow     n= 132  wacc=0.23030303030303031
+     sweep_wide       n=  94  wacc=0.20215633423180593
+     idiot_slow       n= 896  wacc=0.3372365339578455
+     idiot_fast       n=1068  wacc=0.2723109295704914
+     retrace_mid      n=1329  wacc=0.2172361740085083
+     retrace_long     n=1228  wacc=0.2462513714494697
+     dwell_dart       n=1008  wacc=0.18650229176544963
+  real bin decomposition (OUT weight .1 vs in-map weight 1):
+    [Q] age[1,17): n=  839 OUT=  467 inmap=  372(inmap_acc0.37) -> WEIGHTED=0.333
+    [Q] age[17,33): n= 1614 OUT=  779 inmap=  835(inmap_acc0.23) -> WEIGHTED=0.214
+    [Q] age[33,65): n= 3271 OUT= 1770 inmap= 1501(inmap_acc0.21) -> WEIGHTED=0.190
+    [Q] age[65,129): n= 3357 OUT= 1638 inmap= 1719(inmap_acc0.20) -> WEIGHTED=0.186
+    [Q] age[129,257): n= 1900 OUT=  975 inmap=  925(inmap_acc0.19) -> WEIGHTED=0.173
+    [Q] age[257,inf): n=  827 OUT=  413 inmap=  414(inmap_acc0.18) -> WEIGHTED=0.165
+
+=== HonestShortMem(W=64) ===
+  composite_gated = 0.4961254233840814   (raw composite = 0.4961254233840814)
+  gates_passed = True   fail_reasons = []
+  real_anchored.score  = 0.45093103446976524  (n_events=11898)
+  consistency.score    = 0.6015789975174858  (n_events=2921)
+  gate.fidelity = 1.0000  passed=True
+  gate.entropy  = kl=0.00273717378737515  n=6790  passed=True
+  border_drift_px = 11.111906828703704
+  age_stats = {'n': 14819, 'mean': 100.6443079829948, 'median': 66.0}
+  -- per_policy weighted_acc --
+     oab_short        n=1875  wacc=0.560913185913186
+     oab_mid          n=1702  wacc=0.39417177914110424
+     oab_long         n=1473  wacc=0.4499909567733768
+     box_small        n=2006  wacc=0.8343003245156849
+     box_big          n=2008  wacc=0.20157824830064847
+     sweep_narrow     n= 132  wacc=0.48242424242424237
+     sweep_wide       n=  94  wacc=0.43126684636118595
+     idiot_slow       n= 896  wacc=0.7180052348808377
+     idiot_fast       n=1068  wacc=0.4827330115113257
+     retrace_mid      n=1329  wacc=0.523946754494305
+     retrace_long     n=1228  wacc=0.5229793977812995
+     dwell_dart       n=1008  wacc=0.41804962857594435
+  real bin decomposition (OUT weight .1 vs in-map weight 1):
+    [Q] age[1,17): n=  863 OUT=  485 inmap=  378(inmap_acc0.65) -> WEIGHTED=0.628
+    [Q] age[17,33): n= 1644 OUT=  809 inmap=  835(inmap_acc0.77) -> WEIGHTED=0.751
+    [Q] age[33,65): n= 3289 OUT= 1803 inmap= 1486(inmap_acc0.79) -> WEIGHTED=0.773
+    [Q] age[65,129): n= 3432 OUT= 1667 inmap= 1765(inmap_acc0.19) -> WEIGHTED=0.173
+    [Q] age[129,257): n= 1843 OUT=  961 inmap=  882(inmap_acc0.21) -> WEIGHTED=0.190
+    [Q] age[257,inf): n=  827 OUT=  413 inmap=  414(inmap_acc0.21) -> WEIGHTED=0.191
+
+=== GeoOutWorld(W=16) ===
+  composite_gated = 0.4956048755425746   (raw composite = 0.4956048755425746)
+  gates_passed = True   fail_reasons = []
+  real_anchored.score  = 0.2794355364893923  (n_events=14349)
+  consistency.score    = 1.0  (n_events=4862)
+  gate.fidelity = 1.0000  passed=True
+  gate.entropy  = kl=0.012315285372957618  n=1748  passed=True
+  border_drift_px = 0.0
+  age_stats = {'n': 19211, 'mean': 97.49341523085732, 'median': 67.0}
+  -- per_policy weighted_acc --
+     oab_short        n=1994  wacc=0.4712035866191517
+     oab_mid          n=1920  wacc=0.2727933824197801
+     oab_long         n=1721  wacc=0.43584577342247455
+     box_small        n=2006  wacc=0.30523804790776266
+     box_big          n=2018  wacc=0.31670705965131735
+     sweep_narrow     n=1752  wacc=0.6983279971540377
+     sweep_wide       n=1409  wacc=0.8597301136363635
+     idiot_slow       n=1071  wacc=0.608425219112242
+     idiot_fast       n=1286  wacc=0.6945644529287652
+     retrace_mid      n=1435  wacc=0.2940808995783227
+     retrace_long     n=1580  wacc=0.3616504854368932
+     dwell_dart       n=1019  wacc=0.41996938254805244
+  real bin decomposition (OUT weight .1 vs in-map weight 1):
+    [Q] age[1,17): n= 1525 OUT=  724 inmap=  801(inmap_acc0.37) -> WEIGHTED=0.423
+    [Q] age[17,33): n= 2038 OUT=  957 inmap= 1081(inmap_acc0.17) -> WEIGHTED=0.239
+    [Q] age[33,65): n= 3681 OUT= 1883 inmap= 1798(inmap_acc0.17) -> WEIGHTED=0.252
+    [Q] age[65,129): n= 4047 OUT= 1829 inmap= 2218(inmap_acc0.18) -> WEIGHTED=0.241
+    [Q] age[129,257): n= 2299 OUT= 1209 inmap= 1090(inmap_acc0.19) -> WEIGHTED=0.274
+    [Q] age[257,inf): n=  759 OUT=  333 inmap=  426(inmap_acc0.19) -> WEIGHTED=0.247
+
+=== GeoOutWorld(W=32) ===
+  composite_gated = 0.5606163393279219   (raw composite = 0.5606163393279219)
+  gates_passed = True   fail_reasons = []
+  real_anchored.score  = 0.37230905618274557  (n_events=14349)
+  consistency.score    = 1.0  (n_events=4862)
+  gate.fidelity = 1.0000  passed=True
+  gate.entropy  = kl=0.01386236403344488  n=1748  passed=True
+  border_drift_px = 0.0
+  age_stats = {'n': 19211, 'mean': 97.49341523085732, 'median': 67.0}
+  -- per_policy weighted_acc --
+     oab_short        n=1994  wacc=0.60570180480515
+     oab_mid          n=1920  wacc=0.35005908553767845
+     oab_long         n=1721  wacc=0.4743108343254876
+     box_small        n=2006  wacc=0.4493589106450651
+     box_big          n=2018  wacc=0.31670705965131735
+     sweep_narrow     n=1752  wacc=0.7424404126645322
+     sweep_wide       n=1409  wacc=0.8712713068181818
+     idiot_slow       n=1071  wacc=0.6282160022618037
+     idiot_fast       n=1286  wacc=0.7176730633979704
+     retrace_mid      n=1435  wacc=0.43307824457285654
+     retrace_long     n=1580  wacc=0.42961165048543687
+     dwell_dart       n=1019  wacc=0.41996938254805244
+  real bin decomposition (OUT weight .1 vs in-map weight 1):
+    [Q] age[1,17): n= 1525 OUT=  724 inmap=  801(inmap_acc0.49) -> WEIGHTED=0.528
+    [Q] age[17,33): n= 2038 OUT=  957 inmap= 1081(inmap_acc0.53) -> WEIGHTED=0.573
+    [Q] age[33,65): n= 3681 OUT= 1883 inmap= 1798(inmap_acc0.23) -> WEIGHTED=0.300
+    [Q] age[65,129): n= 4047 OUT= 1829 inmap= 2218(inmap_acc0.20) -> WEIGHTED=0.262
+    [Q] age[129,257): n= 2299 OUT= 1209 inmap= 1090(inmap_acc0.18) -> WEIGHTED=0.265
+    [Q] age[257,inf): n=  759 OUT=  333 inmap=  426(inmap_acc0.25) -> WEIGHTED=0.305
+
+=== GeoOutWorld(W=64) ===
+  composite_gated = 0.6233815753499619   (raw composite = 0.6233815753499619)
+  gates_passed = True   fail_reasons = []
+  real_anchored.score  = 0.46197367907137415  (n_events=14349)
+  consistency.score    = 1.0  (n_events=4862)
+  gate.fidelity = 1.0000  passed=True
+  gate.entropy  = kl=0.011890818939792484  n=1748  passed=True
+  border_drift_px = 0.0
+  age_stats = {'n': 19211, 'mean': 97.49341523085732, 'median': 67.0}
+  -- per_policy weighted_acc --
+     oab_short        n=1994  wacc=0.5988044602827911
+     oab_mid          n=1920  wacc=0.41641668939187354
+     oab_long         n=1721  wacc=0.48438501694294345
+     box_small        n=2006  wacc=0.8916608687009243
+     box_big          n=2018  wacc=0.3284340551950591
+     sweep_narrow     n=1752  wacc=0.7403059409462824
+     sweep_wide       n=1409  wacc=0.8819247159090908
+     idiot_slow       n=1071  wacc=0.7384789369522193
+     idiot_fast       n=1286  wacc=0.7719280618908871
+     retrace_mid      n=1435  wacc=0.5517726065906606
+     retrace_long     n=1580  wacc=0.5449029126213593
+     dwell_dart       n=1019  wacc=0.6274876679707433
+  real bin decomposition (OUT weight .1 vs in-map weight 1):
+    [Q] age[1,17): n= 1525 OUT=  724 inmap=  801(inmap_acc0.58) -> WEIGHTED=0.618
+    [Q] age[17,33): n= 2038 OUT=  957 inmap= 1081(inmap_acc0.60) -> WEIGHTED=0.633
+    [Q] age[33,65): n= 3681 OUT= 1883 inmap= 1798(inmap_acc0.71) -> WEIGHTED=0.736
+    [Q] age[65,129): n= 4047 OUT= 1829 inmap= 2218(inmap_acc0.19) -> WEIGHTED=0.250
+    [Q] age[129,257): n= 2299 OUT= 1209 inmap= 1090(inmap_acc0.19) -> WEIGHTED=0.269
+    [Q] age[257,inf): n=  759 OUT=  333 inmap=  426(inmap_acc0.21) -> WEIGHTED=0.266
+
+=== GeoOutWorld(W=128) ===
+  composite_gated = 0.76634190503214   (raw composite = 0.76634190503214)
+  gates_passed = True   fail_reasons = []
+  real_anchored.score  = 0.6662027214744857  (n_events=14349)
+  consistency.score    = 1.0  (n_events=4862)
+  gate.fidelity = 1.0000  passed=True
+  gate.entropy  = kl=0.010205937556351845  n=1748  passed=True
+  border_drift_px = 0.0
+  age_stats = {'n': 19211, 'mean': 97.49341523085732, 'median': 67.0}
+  -- per_policy weighted_acc --
+     oab_short        n=1994  wacc=0.845959305667318
+     oab_mid          n=1920  wacc=0.6391237160258159
+     oab_long         n=1721  wacc=0.7215862258448575
+     box_small        n=2006  wacc=1.0
+     box_big          n=2018  wacc=0.7552966929872568
+     sweep_narrow     n=1752  wacc=0.952330131625756
+     sweep_wide       n=1409  wacc=0.9591619318181818
+     idiot_slow       n=1071  wacc=0.8204693242861182
+     idiot_fast       n=1286  wacc=0.8221641716065508
+     retrace_mid      n=1435  wacc=0.7235670779322193
+     retrace_long     n=1580  wacc=0.7378640776699029
+     dwell_dart       n=1019  wacc=0.9200544310256846
+  real bin decomposition (OUT weight .1 vs in-map weight 1):
+    [Q] age[1,17): n= 1525 OUT=  724 inmap=  801(inmap_acc0.81) -> WEIGHTED=0.826
+    [Q] age[17,33): n= 2038 OUT=  957 inmap= 1081(inmap_acc0.81) -> WEIGHTED=0.827
+    [Q] age[33,65): n= 3681 OUT= 1883 inmap= 1798(inmap_acc0.86) -> WEIGHTED=0.877
+    [Q] age[65,129): n= 4047 OUT= 1829 inmap= 2218(inmap_acc0.90) -> WEIGHTED=0.907
+    [Q] age[129,257): n= 2299 OUT= 1209 inmap= 1090(inmap_acc0.23) -> WEIGHTED=0.307
+    [Q] age[257,inf): n=  759 OUT=  333 inmap=  426(inmap_acc0.19) -> WEIGHTED=0.253
+
+=== GeoOutWorld(W=inf) [full prefix mem] ===
+  composite_gated = 1.0   (raw composite = 1.0)
+  gates_passed = True   fail_reasons = []
+  real_anchored.score  = 1.0  (n_events=14349)
+  consistency.score    = 1.0  (n_events=4862)
+  gate.fidelity = 1.0000  passed=True
+  gate.entropy  = kl=0.008349315704625711  n=1748  passed=True
+  border_drift_px = 0.0
+  age_stats = {'n': 19211, 'mean': 97.49341523085732, 'median': 67.0}
+  -- per_policy weighted_acc --
+     oab_short        n=1994  wacc=1.0
+     oab_mid          n=1920  wacc=1.0
+     oab_long         n=1721  wacc=1.0
+     box_small        n=2006  wacc=1.0
+     box_big          n=2018  wacc=1.0
+     sweep_narrow     n=1752  wacc=1.0
+     sweep_wide       n=1409  wacc=1.0
+     idiot_slow       n=1071  wacc=1.0
+     idiot_fast       n=1286  wacc=1.0
+     retrace_mid      n=1435  wacc=1.0
+     retrace_long     n=1580  wacc=1.0
+     dwell_dart       n=1019  wacc=1.0
+  real bin decomposition (OUT weight .1 vs in-map weight 1):
+    [Q] age[1,17): n= 1525 OUT=  724 inmap=  801(inmap_acc1.00) -> WEIGHTED=1.000
+    [Q] age[17,33): n= 2038 OUT=  957 inmap= 1081(inmap_acc1.00) -> WEIGHTED=1.000
+    [Q] age[33,65): n= 3681 OUT= 1883 inmap= 1798(inmap_acc1.00) -> WEIGHTED=1.000
+    [Q] age[65,129): n= 4047 OUT= 1829 inmap= 2218(inmap_acc1.00) -> WEIGHTED=1.000
+    [Q] age[129,257): n= 2299 OUT= 1209 inmap= 1090(inmap_acc1.00) -> WEIGHTED=1.000
+    [Q] age[257,inf): n=  759 OUT=  333 inmap=  426(inmap_acc1.00) -> WEIGHTED=1.000
+

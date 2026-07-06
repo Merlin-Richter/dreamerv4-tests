@@ -14,9 +14,18 @@ two-provenance cell tracker (real-observed → GT accuracy; imagination-born →
 age-binned equal-weight scoring (immunizes vs early-imagined-border age skew), closed-loop eval
 policies (fixed scripts would feed OOD invalid actions at imagined borders), hard gates (action
 fidelity + color entropy — pure consistency is Goodhart-gameable by an all-one-color world).
-Tasks: `tasks/backlog/colorfield-env-and-eval.md` (frozen layer; OPEN: composite weights 0.7/0.3,
-lengths, bins, palette) → `tasks/backlog/autoresearch-harness.md` (driver + calibration go/no-go).
+Tasks: `tasks/in-progress/colorfield-env-and-eval.md` (frozen layer) →
+`tasks/backlog/autoresearch-harness.md` (driver + calibration go/no-go; now incl. WINDOW PIN).
 Backend: H100 or 4070, decided in calibration. Sits beside the memmaze 4-way eval (below).
+**2026-07-06 build + adversarial review DONE**: frozen layer implemented (autoresearch/frozen/,
+5 gate suites green) and scrutinized by 3 independent agents (Merlin's order) — geometry 5/6 +
+bookkeeping 7/7 CONFIRMED; red-team found the v2.0 scalar EXPLOITABLE (64-frame window buffer
+0.62; zero-retention liar > honest short memory) → SCORING v2.1: chance-corrected in-map bins,
+max-gap age, border tiles excluded (diagnostic only), multiplicative composite
+real_cc×(0.7+0.3·cons), sandboxed factories; post-fix curve monotone (liar .01/W64 .55/full 1.0).
+Reports: experiments/colorfield-{geometry-audit,bookkeeping-audit,redteam}/REPORT.md.
+**AWAITING Merlin sign-off** on border exclusion / multiplicative composite / max-gap age, then:
+dataset gen → tokenizer train → MANIFEST freeze.
 
 ## IN FLIGHT (2026-07-03 — Memory Maze dynamics campaign, kicked off by Merlin)
 Goal: train TWO dynamics arms on the frozen memmaze tokenizer's latents — **vanilla** (baseline) and

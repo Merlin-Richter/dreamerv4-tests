@@ -94,11 +94,37 @@ Comeback definitions unchanged: *on-screen* = viewport∩cell overlap ≥ 6px in
 view; *fully left* = zero pixel overlap; event = on-screen → fully left → center back; one score
 per (cell, event); never-seen cells never scored.
 
-**Age standardization (Merlin's requirement, made structural)**: every event logs age k = steps
-since the cell was last on-screen. All headline numbers are means over FIXED age bins averaged
-with EQUAL bin weight (min-events-per-bin enforced, occupancy reported) ⇒ distribution shifts
-(e.g., early imagined borders → younger recalled info) move bin populations, NOT the score.
-The age-vs-accuracy curve is a first-class output (successor of the recall-vs-k curve).
+**Age standardization (Merlin's requirement, made structural)**: every event logs an age; all
+headline numbers are means over FIXED age bins averaged with EQUAL bin weight (min-events-per-bin
+enforced, occupancy reported) ⇒ distribution shifts (e.g., early imagined borders → younger
+recalled info) move bin populations, NOT the score. The age-vs-accuracy curve is a first-class
+output (successor of the recall-vs-k curve).
+
+**Age definition (v2.1, red-team-hardened)**: age = the LONGEST contiguous zero-overlap absence
+the cell survived since its previous visit. Weaker definitions fell to constructed exploits:
+"since last on-screen" is inflatable by partial-visibility hovering (1–5px slivers keep a cell
+alive in any context window); "since first zero-overlap" is inflatable by chaining short absences
+via partial refreshes (multi-gap bridging). A window-W model cannot bridge a single absence > W,
+so beyond-window bins are chance by construction. "Since last on-screen" kept as `age_onscreen`
+diagnostic.
+
+**Scoring (v2.1, revised per the adversarial red-team — Merlin sign-off PENDING)**:
+- Per-bin CHANCE CORRECTION over in-map events: acc_cc = max(0,(acc−1/5)/(1−1/5)). Kills the
+  0.2-floor padding that let "win near bins, chance far bins" models score 0.62.
+- **Border (OUT) tiles are EXCLUDED from the scored accuracy** — reported as a separate
+  border_recall diagnostic (overall + per-bin). DEVIATES from the original 0.1 weight
+  (Merlin's instruction): measured, border events are ~78% of far bins on loop policies and are
+  pure geometry (a zero-content-memory model gets them right at any age), so ANY nonzero weight
+  lets them set the long-range score.
+- **composite = real_cc × (0.7 + 0.3 × consistency)** — MULTIPLICATIVE: consistency can only
+  amplify GT-anchored retention, never substitute (the additive form let a zero-retention
+  "consistent liar" (0.43) outrank honest 16-frame memory (0.25)).
+- Adapter factories are SANDBOXED: candidate models receive None (baselines opt into
+  privileged=True) — handing out env was an instant-oracle hole.
+Post-fix reference curve (small config): liar 0.01 / W=16 0.14 / W=32 0.32 / W=64 0.55 /
+W=128 0.79 / full-memory 1.0 — monotone in genuine retention horizon, score ≈ fraction of the
+age spectrum with demonstrated retention. Regression fence:
+tests/test_eval.py::test_bounded_window_monotone_and_capped.
 
 **Hard gates (score := floor if failed)** — prerequisite competences + Goodhart guards:
 1. **Action fidelity**: per-step imagined scroll (frame-to-frame cross-correlation) vs the
@@ -145,6 +171,35 @@ binary scores ⇒ σ well under 1% — verified during harness calibration.
    frames — local 4070 or one short cluster job. VERIFY recon is readout-exact on val (the gwv2
    check); if not, adjust before freezing the ckpt. Freeze.
 3. Build the latent cache for dynamics training.
+
+## STATUS (2026-07-06, session log)
+
+- Design signed off by Merlin (incl. eval v2 imagination-mode, 0.7/0.3 anchoring, corner-start
+  border anchoring). Remaining detail choices delegated: palette RGB values, P=192/I=768,
+  bin edges (1,17,33,65,129,257,inf) — all now concrete in code, flag if objectionable.
+- IMPLEMENTED @ e4fc77d: `autoresearch/frozen/{env,readout,policies,eval_policies,eval_comeback,
+  adapters,datagen}.py` + 5 gate-test suites — ALL GREEN. Highlights: oracle composite == 1.0
+  exactly; tracker == independent brute-force event reference; perfect_imaginary ("consistent
+  liar") scores consistency 1.0 / composite ~0.44 (demonstrates the 0.7 GT-anchoring);
+  constant_color / noise_cells / copy_last all gated to 0.0 (fidelity/entropy gates work —
+  NB copy_last DOES produce comeback reads under the moving registration; the fidelity gate is
+  what kills it, i.e. the gate is load-bearing).
+- Fix during build: perfect_imaginary baseline needed grid-PHASE alignment with the tracker
+  registration (real models get it free from the prefix; the privileged baseline peeks env.pos).
+- ADVERSARIAL REVIEW DONE (3 independent background agents, Merlin's order), all reports in
+  experiments/colorfield-{geometry-audit,bookkeeping-audit,redteam}/REPORT.md:
+  * geometry/OOD audit: 5/6 CONFIRMED incl. structural proof + 3.46M-action fuzz of the band
+    guard; 1 finding (estimate_shift tie-break on texture-free frames — kept strict-fail by
+    design, degenerate imagination SHOULD fail fidelity; documented).
+  * bookkeeping audit: 7/7 CONFIRMED vs independent reimplementations (oracle re-verified 1.0
+    at FULL frozen config, 51k events). Caveats N1 (min age structural), N2 (equal-weight
+    protection conditional on qualified-bin set).
+  * red-team: EXPLOITABLE at v2.0 → SCORING v2.1 fixes applied + regression fence (see the
+    eval section above + EXPERIMENTS row V-colorfield-redteam). All 5 suites re-green.
+- AWAITING MERLIN SIGN-OFF on 3 semantic changes: border-tile exclusion (vs his 0.1 weight),
+  multiplicative composite, max-gap age definition.
+- NOT DONE YET: dataset generation (procedural, ~minutes), tokenizer training + latent cache,
+  MANIFEST hash freeze (last, after sign-off).
 
 ## Done when
 

@@ -26,8 +26,24 @@ Hard gates (score := 0.0 + flags on failure) — the Goodhart guards:
      consistent),
   3. (driver-level) frozen-layer hash check — outside this module.
 
-The composite scalar = 0.7 * real-anchored + 0.3 * consistency, with OUT-referenced
-tiles weighted 0.1 inside each term (border tiles are mutually determined).
+SCORING (v2.1 — revised after the 2026-07-06 adversarial red-team,
+experiments/colorfield-redteam/REPORT.md, which showed the original additive
+0.7*real + 0.3*consistency with raw bin accuracies was Goodhart-exploitable: a
+plain 64-frame window buffer scored 0.62 and a zero-retention 'consistent liar'
+outscored honest short memory):
+  - per-bin CHANCE CORRECTION over IN-MAP events: acc_cc = max(0, (acc-0.2)/0.8).
+    Long-range failure now scores 0 in its bins, not the 0.2 chance floor — a
+    bounded-window model's score is ~ the fraction of age bins its window covers.
+  - AGE = longest contiguous zero-overlap absence survived (see CellTracker —
+    weaker definitions fell to partial-visibility hovering / multi-gap bridging).
+  - BORDER (OUT-referenced) tiles are EXCLUDED from the scored accuracy and
+    reported as a separate border_recall diagnostic: they are pure geometry
+    (zero content-memory signal) and dominate far bins at any nonzero weight
+    (measured ~78% of bin [65,129) events). This supersedes the earlier 0.1
+    weight — flagged to Merlin with the evidence.
+  - composite = real_cc * (0.7 + 0.3 * consistency_cc): consistency can only
+    AMPLIFY genuine ground-truth-anchored retention, never substitute for it.
+    A zero-retention liar now scores 0.0 (was 0.43); oracle stays exactly 1.0.
 """
 
 import json
@@ -47,9 +63,12 @@ PREFIX_LEN = 192
 IMAG_LEN = 768
 N_SEEDS = 8
 BIN_EDGES = (1, 17, 33, 65, 129, 257)   # bins: [1,16] [17,32] [33,64] [65,128] [129,256] [257,inf)
+                                        # NB structural min comeback age is 6 (audit N1)
 MIN_EVENTS_PER_BIN = 30
-W_REAL, W_IMAG = 0.7, 0.3
-OUT_TILE_WEIGHT = 0.1
+W_REAL, W_IMAG = 0.7, 0.3               # composite = real_cc * (W_REAL + W_IMAG * consistency_cc)
+OUT_TILE_WEIGHT = 0.1                   # kept in the EVENT LOG for analysis only;
+                                        # border tiles are excluded from the score
+CHANCE_IN_MAP = 1.0 / 5.0               # uniform guess over the 5 map colors
 FIDELITY_THRESHOLD = 0.90
 ENTROPY_KL_MAX = 0.20
 ENTROPY_MIN_SAMPLES = 20
@@ -69,6 +88,19 @@ class CellTracker:
     color = majority color among its max-visibility frames. A comeback event fires
     when a visit STARTS for a cell that (a) has a previous recorded color and
     (b) has had at least one ZERO-overlap frame since its previous visit closed.
+
+    AGE (v2.1): the LONGEST contiguous zero-overlap stretch since the previous
+    visit — the full-absence length the model demonstrably survived. Two weaker
+    definitions fell to the bounded-window exploit while fencing it:
+      - "steps since last on-screen" (v2.0): a cell can hover at 1-5px partial
+        overlap for dozens of steps, keeping its color alive in any window model;
+      - "steps since first zero-overlap": several short absences can be CHAINED
+        via partial-visibility refreshes between them (multi-gap bridging), so
+        the total elapsed span overstates the retention actually demonstrated.
+    A window-W model cannot bridge a single absence > W, so with max-gap age the
+    beyond-window bins are chance by construction — exactly the semantics the
+    harness needs. "Steps since last on-screen" is kept as `age_onscreen`
+    (diagnostic only).
     """
 
     def __init__(self, map_arr, prefix_len):
@@ -83,27 +115,30 @@ class CellTracker:
         onscreen = {k for k, r in reads.items() if r.on_screen}
 
         for key, st in self.cells.items():
-            if key not in reads:                      # zero overlap
+            if key not in reads:                      # zero overlap: absence grows
                 if st["visit"] is not None:
                     self._close_visit(key, st)
-                st["gap"] = True
-            elif key not in onscreen:                 # partial overlap: no gap
-                if st["visit"] is not None:
-                    self._close_visit(key, st)
+                st["cur_zero"] += 1
+                st["max_zero"] = max(st["max_zero"], st["cur_zero"])
+            else:
+                st["cur_zero"] = 0                    # any overlap ends the absence
+                if key not in onscreen and st["visit"] is not None:
+                    self._close_visit(key, st)        # partial: visit ends, no gap
 
         for key in onscreen:
             r = reads[key]
             st = self.cells.get(key)
             if st is None:
                 st = {"record": None, "provenance": "real" if is_real else "imag",
-                      "last_onscreen": t, "gap": False, "visit": None}
+                      "last_onscreen": t, "cur_zero": 0, "max_zero": 0, "visit": None}
                 self.cells[key] = st
             if st["visit"] is None:
                 st["visit"] = {"start": t,
-                               "came_back": st["record"] is not None and st["gap"],
+                               "came_back": st["record"] is not None and st["max_zero"] > 0,
                                "prev_last": st["last_onscreen"],
+                               "gap_len": st["max_zero"],
                                "reads": []}
-                st["gap"] = False
+                st["max_zero"] = 0
             st["visit"]["reads"].append((r.ov_y * r.ov_x, r.color))
             st["last_onscreen"] = t
 
@@ -124,7 +159,9 @@ class CellTracker:
                 "cell": key,
                 "provenance": st["provenance"],
                 "t": v["start"],
-                "age": v["start"] - v["prev_last"],
+                # age (v2.1) = longest contiguous zero-overlap absence survived
+                "age": v["gap_len"],
+                "age_onscreen": v["start"] - v["prev_last"],   # diagnostic (v2.0 def)
                 "color": int(color),
                 "ref": int(ref),
                 "correct": bool(color == ref),
@@ -146,14 +183,19 @@ def corner_start(rng):
 
 
 def run_episode(adapter_factory, policy, map_seed, ep_seed,
-                prefix_len=PREFIX_LEN, imag_len=IMAG_LEN):
+                prefix_len=PREFIX_LEN, imag_len=IMAG_LEN, privileged=False):
     """One eval episode. Returns (events, fidelity_matches, first_imag_colors,
     band_abs_err, positions) — positions is the per-frame registration (true
-    positions during the prefix, action path-integral during imagination)."""
+    positions during the prefix, action path-integral during imagination).
+
+    privileged=False (the DEFAULT, and the only mode the harness driver may use
+    for candidate models): adapter_factory receives None — a model must work from
+    prefix_frames/prefix_actions alone (red-team S4: handing out env is an
+    instant-oracle hole). privileged=True is for the frozen baselines only."""
     rng = np.random.default_rng(ep_seed)
     env = ColorFieldEnv()
     frame = env.reset(seed=map_seed, start=corner_start(rng))
-    adapter = adapter_factory(env)
+    adapter = adapter_factory(env if privileged else None)
     policy.reset(rng)
     tracker = CellTracker(env.map, prefix_len)
 
@@ -219,12 +261,27 @@ def aggregate(events, fidelity, first_imag_colors,
         bins = []
         for lo, hi in zip(edges[:-1], edges[1:]):
             sel = [e for e in evs if lo <= e["age"] < hi]
-            wsum = sum(e["weight"] for e in sel)
-            acc = (sum(e["weight"] * e["correct"] for e in sel) / wsum) if wsum > 0 else None
+            # SCORED accuracy uses IN-MAP events only. OUT (border) tiles are pure
+            # geometry — a zero-content-memory model gets them right at any age —
+            # and they DOMINATE far bins where in-map events thin out (measured:
+            # ~78% of bin [65,129) events on box-loop policies), so any nonzero
+            # weight lets them set the long-range score. Border recall is reported
+            # as a separate diagnostic instead. [Deviation from the original 0.1
+            # weight — evidence in tests/test_eval.py::test_bounded_window_*]
+            sel_in = [e for e in sel if e["ref"] != OUT_IDX]
+            sel_out = [e for e in sel if e["ref"] == OUT_IDX]
+            if sel_in:
+                acc = sum(e["correct"] for e in sel_in) / len(sel_in)
+                acc_cc = max(0.0, (acc - CHANCE_IN_MAP) / (1.0 - CHANCE_IN_MAP))
+            else:
+                acc = acc_cc = None
             bins.append({"lo": lo, "hi": (None if hi == np.inf else int(hi)),
-                         "n": len(sel), "acc": acc,
-                         "qualified": len(sel) >= min_events})
-        accs = [b["acc"] for b in bins if b["qualified"]]
+                         "n": len(sel_in), "acc": acc, "acc_cc": acc_cc,
+                         "n_border": len(sel_out),
+                         "border_recall": (sum(e["correct"] for e in sel_out) / len(sel_out)
+                                           if sel_out else None),
+                         "qualified": len(sel_in) >= min_events})
+        accs = [b["acc_cc"] for b in bins if b["qualified"]]
         return (float(np.mean(accs)) if accs else None), bins, len(evs)
 
     real_score, real_bins, n_real = component("real")
@@ -243,13 +300,16 @@ def aggregate(events, fidelity, first_imag_colors,
                             "passed": False, "reason": "insufficient imagination-born cells"}
 
     reasons = [k for k, g in gates.items() if not g["passed"]]
+    flags = []
     composite = None
-    if real_score is not None and imag_score is not None:
-        composite = W_REAL * real_score + W_IMAG * imag_score
-    if real_score is None:
+    if real_score is not None:
+        # Multiplicative: consistency AMPLIFIES real retention, never substitutes.
+        amp = W_REAL + W_IMAG * (imag_score if imag_score is not None else 0.0)
+        composite = real_score * amp
+        if imag_score is None:
+            flags.append("no_qualified_imag_bins")   # not gating: amp floor 0.7
+    else:
         reasons.append("no_qualified_real_bins")
-    if imag_score is None:
-        reasons.append("no_qualified_imag_bins")
 
     ages = [e["age"] for e in imag_phase]
     return {
@@ -257,10 +317,13 @@ def aggregate(events, fidelity, first_imag_colors,
         "composite_gated": (composite if not reasons and composite is not None else 0.0),
         "gates_passed": not reasons,
         "fail_reasons": reasons,
+        "flags": flags,
         "real_anchored": {"score": real_score, "bins": real_bins, "n_events": n_real},
         "consistency": {"score": imag_score, "bins": imag_bins, "n_events": n_imag},
         "gates": gates,
-        "weights": {"real": W_REAL, "imag": W_IMAG, "out_tile": OUT_TILE_WEIGHT},
+        "scoring": {"formula": "real_cc * (0.7 + 0.3 * consistency_cc)",
+                    "chance_in_map": CHANCE_IN_MAP,
+                    "border_tiles": "excluded from score; border_recall diagnostic"},
         "age_stats": {"n": len(ages),
                       "mean": (float(np.mean(ages)) if ages else None),
                       "median": (float(np.median(ages)) if ages else None)},
@@ -269,9 +332,10 @@ def aggregate(events, fidelity, first_imag_colors,
 
 def run_eval(adapter_factory, suite=EVAL_SUITE, n_seeds=N_SEEDS,
              prefix_len=PREFIX_LEN, imag_len=IMAG_LEN, seed0=0,
-             min_events=MIN_EVENTS_PER_BIN, verbose=False):
+             min_events=MIN_EVENTS_PER_BIN, privileged=False, verbose=False):
     """Full eval: suite x seeds episodes, pooled aggregation. Returns the result
-    dict (aggregate() output + per-policy breakdown + config + raw event log)."""
+    dict (aggregate() output + per-policy breakdown + config + raw event log).
+    privileged: see run_episode — False for candidate models, True for baselines."""
     all_events, all_fid, all_colors, all_band_err = [], [], [], []
     per_policy = {}
     for si, (name, factory) in enumerate(suite):
@@ -280,7 +344,8 @@ def run_eval(adapter_factory, suite=EVAL_SUITE, n_seeds=N_SEEDS,
             map_seed = 100003 * (seed0 + 1) + 1009 * si + 2 * ki
             ep_seed = map_seed + 1
             ev, fid, colors, berr, _pos = run_episode(
-                adapter_factory, factory(), map_seed, ep_seed, prefix_len, imag_len)
+                adapter_factory, factory(), map_seed, ep_seed, prefix_len, imag_len,
+                privileged=privileged)
             for e in ev:
                 e["policy"] = name
                 e["episode"] = (si, ki)
@@ -305,7 +370,7 @@ def run_eval(adapter_factory, suite=EVAL_SUITE, n_seeds=N_SEEDS,
     result["config"] = {"suite": [n for n, _ in suite], "n_seeds": n_seeds,
                         "prefix_len": prefix_len, "imag_len": imag_len,
                         "seed0": seed0, "bin_edges": list(BIN_EDGES),
-                        "min_events_per_bin": min_events}
+                        "min_events_per_bin": min_events, "privileged": privileged}
     result["events"] = [dict(e, cell=list(e["cell"])) for e in all_events]
     return result
 

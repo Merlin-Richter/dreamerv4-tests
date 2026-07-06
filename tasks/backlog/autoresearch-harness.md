@@ -21,6 +21,14 @@ autoresearch/
   memory training) sized down to budget. Self-contained — vendor whatever model code it needs;
   no imports from `src/`.
 - Loop write surface = `editable/train.py` ONLY. `frozen/` + `driver/` are integrity-checked.
+- **WINDOW PIN (red-team consequence)**: the driver contract pins the model's temporal context
+  window (e.g. W=16 frames) and VERIFIES it (probe: perturb a frame at distance > W from the
+  target; the prediction must be bit-identical — if changing out-of-window input changes the
+  output, the window claim is violated → score 0). Rationale: the comeback scalar gives a
+  window-W model ≈ the fraction of age bins ≤ W (measured curve in the colorfield task), so
+  without a pin the loop's cheapest score move is "grow the window" — the opposite of the
+  memory-token research question. With the pin, every bin beyond W must come from a carried
+  memory mechanism.
 
 ## Driver (deterministic code, not agentic)
 

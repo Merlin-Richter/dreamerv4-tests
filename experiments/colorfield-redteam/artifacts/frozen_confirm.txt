@@ -1,0 +1,222 @@
+=== oracle (ceiling) ===
+  composite_gated = 1.0   (raw composite = 1.0)
+  gates_passed = True   fail_reasons = []
+  real_anchored.score  = 1.0  (n_events=39722)
+  consistency.score    = 1.0  (n_events=11694)
+  gate.fidelity = 1.0000  passed=True
+  gate.entropy  = kl=5.947178479222162e-05  n=4302  passed=True
+  border_drift_px = 0.0
+  age_stats = {'n': 51416, 'mean': 96.85000777967947, 'median': 66.0}
+  -- real_anchored bins --
+     [Q] age[1,17) n=4148  acc=1.000
+     [Q] age[17,33) n=5510  acc=1.000
+     [Q] age[33,65) n=10733  acc=1.000
+     [Q] age[65,129) n=9974  acc=1.000
+     [Q] age[129,257) n=7178  acc=1.000
+     [Q] age[257,None) n=2179  acc=1.000
+  -- consistency bins --
+     [Q] age[1,17) n= 903  acc=1.000
+     [Q] age[17,33) n=1414  acc=1.000
+     [Q] age[33,65) n=2573  acc=1.000
+     [Q] age[65,129) n=3271  acc=1.000
+     [Q] age[129,257) n=2535  acc=1.000
+     [Q] age[257,None) n= 998  acc=1.000
+  -- per_policy weighted_acc --
+     oab_short        n=5128  wacc=1.0
+     oab_mid          n=4915  wacc=1.0
+     oab_long         n=4943  wacc=1.0
+     box_small        n=5184  wacc=1.0
+     box_big          n=5513  wacc=1.0
+     sweep_narrow     n=4666  wacc=1.0
+     sweep_wide       n=3705  wacc=1.0
+     idiot_slow       n=2960  wacc=1.0
+     idiot_fast       n=3637  wacc=1.0
+     retrace_mid      n=4018  wacc=1.0
+     retrace_long     n=3993  wacc=1.0
+     dwell_dart       n=2754  wacc=1.0
+
+=== perfect_imaginary (ZERO retention) ===
+  composite_gated = 0.4250147593992082   (raw composite = 0.4250147593992082)
+  gates_passed = True   fail_reasons = []
+  real_anchored.score  = 0.17859251342744029  (n_events=31459)
+  consistency.score    = 1.0  (n_events=8482)
+  gate.fidelity = 0.9989  passed=True
+  gate.entropy  = kl=0.0017682729800928693  n=17600  passed=True
+  border_drift_px = 11.549065483940971
+  age_stats = {'n': 39941, 'mean': 102.58218372098845, 'median': 66.0}
+  -- real_anchored bins --
+     [Q] age[1,17) n=2464  acc=0.175
+     [Q] age[17,33) n=4100  acc=0.201
+     [Q] age[33,65) n=8935  acc=0.174
+     [Q] age[65,129) n=8203  acc=0.176
+     [Q] age[129,257) n=5730  acc=0.171
+     [Q] age[257,None) n=2027  acc=0.174
+  -- consistency bins --
+     [Q] age[1,17) n= 940  acc=1.000
+     [Q] age[17,33) n=1398  acc=1.000
+     [Q] age[33,65) n=1927  acc=1.000
+     [Q] age[65,129) n=1876  acc=1.000
+     [Q] age[129,257) n=1259  acc=1.000
+     [Q] age[257,None) n=1082  acc=1.000
+  -- per_policy weighted_acc --
+     oab_short        n=4768  wacc=0.4068020230154658
+     oab_mid          n=4471  wacc=0.37380868337451467
+     oab_long         n=4225  wacc=0.5818543705423785
+     box_small        n=5180  wacc=0.21011909277099294
+     box_big          n=5470  wacc=0.20081715491227603
+     sweep_narrow     n= 407  wacc=0.1870274572224433
+     sweep_wide       n= 291  wacc=0.23507287259050308
+     idiot_slow       n=2609  wacc=0.7519145973543746
+     idiot_fast       n=2886  wacc=0.7699925724189155
+     retrace_mid      n=3543  wacc=0.36918138041733545
+     retrace_long     n=3407  wacc=0.532286608885057
+     dwell_dart       n=2684  wacc=0.5065452475811042
+
+=== HonestShortMem(W=16) [fair limited] ===
+  composite_gated = 0.24761909433581702   (raw composite = 0.24761909433581702)
+  gates_passed = True   fail_reasons = []
+  real_anchored.score  = 0.20897331989038306  (n_events=31459)
+  consistency.score    = 0.3377925680418296  (n_events=8482)
+  gate.fidelity = 1.0000  passed=True
+  gate.entropy  = kl=0.002233540291100091  n=17600  passed=True
+  border_drift_px = 11.493079291449654
+  age_stats = {'n': 39941, 'mean': 102.58218372098845, 'median': 66.0}
+  -- real_anchored bins --
+     [Q] age[1,17) n=2464  acc=0.329
+     [Q] age[17,33) n=4100  acc=0.203
+     [Q] age[33,65) n=8935  acc=0.184
+     [Q] age[65,129) n=8203  acc=0.186
+     [Q] age[129,257) n=5730  acc=0.182
+     [Q] age[257,None) n=2027  acc=0.170
+  -- consistency bins --
+     [Q] age[1,17) n= 940  acc=1.000
+     [Q] age[17,33) n=1398  acc=0.201
+     [Q] age[33,65) n=1927  acc=0.208
+     [Q] age[65,129) n=1876  acc=0.201
+     [Q] age[129,257) n=1259  acc=0.199
+     [Q] age[257,None) n=1082  acc=0.218
+  -- per_policy weighted_acc --
+     oab_short        n=4768  wacc=0.2178406508832368
+     oab_mid          n=4471  wacc=0.21238969290504767
+     oab_long         n=4225  wacc=0.22736772267374356
+     box_small        n=5180  wacc=0.1850868542820299
+     box_big          n=5470  wacc=0.19387400859881967
+     sweep_narrow     n= 407  wacc=0.19976124154397135
+     sweep_wide       n= 291  wacc=0.18805829807240246
+     idiot_slow       n=2609  wacc=0.3142724530053377
+     idiot_fast       n=2886  wacc=0.2858793430717174
+     retrace_mid      n=3543  wacc=0.23065810593900482
+     retrace_long     n=3407  wacc=0.2620138857376231
+     dwell_dart       n=2684  wacc=0.18782014797951052
+
+=== GeoOutWorld(W=32) [bounded 32-frame] ===
+  composite_gated = 0.5465494214798208   (raw composite = 0.5465494214798208)
+  gates_passed = True   fail_reasons = []
+  real_anchored.score  = 0.3522134592568869  (n_events=39722)
+  consistency.score    = 1.0  (n_events=11694)
+  gate.fidelity = 1.0000  passed=True
+  gate.entropy  = kl=0.010344930023680587  n=4302  passed=True
+  border_drift_px = 0.0
+  age_stats = {'n': 51416, 'mean': 96.85000777967947, 'median': 66.0}
+  -- real_anchored bins --
+     [Q] age[1,17) n=4148  acc=0.486
+     [Q] age[17,33) n=5510  acc=0.536
+     [Q] age[33,65) n=10733  acc=0.284
+     [Q] age[65,129) n=9974  acc=0.263
+     [Q] age[129,257) n=7178  acc=0.264
+     [Q] age[257,None) n=2179  acc=0.281
+  -- consistency bins --
+     [Q] age[1,17) n= 903  acc=1.000
+     [Q] age[17,33) n=1414  acc=1.000
+     [Q] age[33,65) n=2573  acc=1.000
+     [Q] age[65,129) n=3271  acc=1.000
+     [Q] age[129,257) n=2535  acc=1.000
+     [Q] age[257,None) n= 998  acc=1.000
+  -- per_policy weighted_acc --
+     oab_short        n=5128  wacc=0.5523162766555647
+     oab_mid          n=4915  wacc=0.359566081595526
+     oab_long         n=4943  wacc=0.38493808782732253
+     box_small        n=5184  wacc=0.4250380517503805
+     box_big          n=5513  wacc=0.25971196258702234
+     sweep_narrow     n=4666  wacc=0.6420203781398136
+     sweep_wide       n=3705  wacc=0.8531061919820463
+     idiot_slow       n=2960  wacc=0.6527309507754553
+     idiot_fast       n=3637  wacc=0.6583567543891667
+     retrace_mid      n=4018  wacc=0.40485924541525525
+     retrace_long     n=3993  wacc=0.48857893672933095
+     dwell_dart       n=2754  wacc=0.45232974910394264
+
+=== GeoOutWorld(W=48) [bounded 48-frame] ===
+  composite_gated = 0.5829073615079537   (raw composite = 0.5829073615079537)
+  gates_passed = True   fail_reasons = []
+  real_anchored.score  = 0.4041533735827911  (n_events=39722)
+  consistency.score    = 1.0  (n_events=11694)
+  gate.fidelity = 1.0000  passed=True
+  gate.entropy  = kl=0.008054349335229527  n=4302  passed=True
+  border_drift_px = 0.0
+  age_stats = {'n': 51416, 'mean': 96.85000777967947, 'median': 66.0}
+  -- real_anchored bins --
+     [Q] age[1,17) n=4148  acc=0.578
+     [Q] age[17,33) n=5510  acc=0.613
+     [Q] age[33,65) n=10733  acc=0.466
+     [Q] age[65,129) n=9974  acc=0.235
+     [Q] age[129,257) n=7178  acc=0.267
+     [Q] age[257,None) n=2179  acc=0.267
+  -- consistency bins --
+     [Q] age[1,17) n= 903  acc=1.000
+     [Q] age[17,33) n=1414  acc=1.000
+     [Q] age[33,65) n=2573  acc=1.000
+     [Q] age[65,129) n=3271  acc=1.000
+     [Q] age[129,257) n=2535  acc=1.000
+     [Q] age[257,None) n= 998  acc=1.000
+  -- per_policy weighted_acc --
+     oab_short        n=5128  wacc=0.5804316795709157
+     oab_mid          n=4915  wacc=0.4117845231277162
+     oab_long         n=4943  wacc=0.3649773327018066
+     box_small        n=5184  wacc=0.6678082191780822
+     box_big          n=5513  wacc=0.2551947706860817
+     sweep_narrow     n=4666  wacc=0.624312101563777
+     sweep_wide       n=3705  wacc=0.8531061919820463
+     idiot_slow       n=2960  wacc=0.6941527791156922
+     idiot_fast       n=3637  wacc=0.6704018688177539
+     retrace_mid      n=4018  wacc=0.5771522018455788
+     retrace_long     n=3993  wacc=0.5674145947038609
+     dwell_dart       n=2754  wacc=0.4888888888888889
+
+=== GeoOutWorld(W=64) [bounded 64-frame] ===
+  composite_gated = 0.6230378135027099   (raw composite = 0.6230378135027099)
+  gates_passed = True   fail_reasons = []
+  real_anchored.score  = 0.461482590718157  (n_events=39722)
+  consistency.score    = 1.0  (n_events=11694)
+  gate.fidelity = 1.0000  passed=True
+  gate.entropy  = kl=0.009409896626918428  n=4302  passed=True
+  border_drift_px = 0.0
+  age_stats = {'n': 51416, 'mean': 96.85000777967947, 'median': 66.0}
+  -- real_anchored bins --
+     [Q] age[1,17) n=4148  acc=0.625
+     [Q] age[17,33) n=5510  acc=0.657
+     [Q] age[33,65) n=10733  acc=0.717
+     [Q] age[65,129) n=9974  acc=0.253
+     [Q] age[129,257) n=7178  acc=0.262
+     [Q] age[257,None) n=2179  acc=0.256
+  -- consistency bins --
+     [Q] age[1,17) n= 903  acc=1.000
+     [Q] age[17,33) n=1414  acc=1.000
+     [Q] age[33,65) n=2573  acc=1.000
+     [Q] age[65,129) n=3271  acc=1.000
+     [Q] age[129,257) n=2535  acc=1.000
+     [Q] age[257,None) n= 998  acc=1.000
+  -- per_policy weighted_acc --
+     oab_short        n=5128  wacc=0.5921103853972923
+     oab_mid          n=4915  wacc=0.48657480712865947
+     oab_long         n=4943  wacc=0.4427904459029704
+     box_small        n=5184  wacc=0.9307458143074582
+     box_big          n=5513  wacc=0.26369772014667586
+     sweep_narrow     n=4666  wacc=0.6640876151037978
+     sweep_wide       n=3705  wacc=0.8697677581692679
+     idiot_slow       n=2960  wacc=0.7240150274540026
+     idiot_fast       n=3637  wacc=0.6908420629995986
+     retrace_mid      n=4018  wacc=0.6110267492115408
+     retrace_long     n=3993  wacc=0.5820699413786133
+     dwell_dart       n=2754  wacc=0.610752688172043
+
