@@ -226,3 +226,14 @@ Env + policies + eval + gate tests green; tokenizer frozen + readout-exact; MANI
 recorded; Merlin has signed off the remaining OPEN items: eval-v2 design overall + composite
 weights (0.7/0.3 proposed), prefix/imagination lengths, age-bin edges, concrete palette RGB
 values, procedural dataset storage. No EXPERIMENTS.md line until something produces a result.
+
+## RESULT (task -> done, 2026-07-06)
+Frozen layer COMPLETE and SEALED: env + 8-policy datagen zoo + closed-loop eval policies +
+comeback eval v2.1 (two-provenance tracker, max-gap age, chance-corrected in-map bins, border
+tiles diagnostic-only, multiplicative composite, sandboxed factories, fidelity/entropy gates) +
+procedural datasets (byte-identical local/cluster) + tokenizer (416145, readout-exact recon
+0.99995). Survived 3 independent adversarial reviews (geometry 5/6 + bookkeeping 7/7 CONFIRMED;
+red-team exploits fixed + regression-fenced). All scoring semantics signed off by Merlin
+2026-07-06. MANIFEST.json: 16 files + 11 artifacts hashed; verify via
+`python -m autoresearch.driver.manifest --check`. EXPERIMENTS: V-colorfield-audit,
+V-colorfield-eval-audit, V-colorfield-redteam, colorfield-tokenizer.
