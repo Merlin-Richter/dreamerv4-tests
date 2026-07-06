@@ -257,7 +257,13 @@ def main():
 
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
     total_steps = args.sched_steps or max(1, len(train_loader) * args.epochs)
-    warmup = max(200, int(0.05 * total_steps)); decay_start = int(0.8 * total_steps)
+    if args.sched_steps:
+        # Budget-sized run: the recipe's 200-step warmup floor would eat a short
+        # budget whole (an ~85-step run never leaves warmup) — 10% capped at 200.
+        warmup = max(10, min(200, int(0.1 * total_steps)))
+    else:
+        warmup = max(200, int(0.05 * total_steps))     # recipe path, unchanged
+    decay_start = int(0.8 * total_steps)
     emr = 1e-6 / args.lr
 
     def lr_lambda(s):
