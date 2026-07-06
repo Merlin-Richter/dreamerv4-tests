@@ -73,10 +73,17 @@ runs -> program.md -> report calibration numbers to Merlin (first overnight loop
   (colorfield-cache: idempotent datagen + probe + encode both sets + sha256). Pull latents back
   via pull_file.sh (direct copy, not git; ~2.6GB train + 130MB val), filenames
   latents-bd8f18857d71.npy (tokenizer-hash-keyed).
-- editable/ seeded: model.py (dynamics_model @ f405034 verbatim) + rollout.py (mem2mem loss);
-  import-verified. train.py + adapter.py delegated to a background build agent (brief = the
-  BUILD PLAN contracts above; verification incl. fake-cache budget-stop smoke + one frozen-eval
-  episode end-to-end with privileged=False); review its BUILD_NOTES.md + diff before commit.
+- editable/ COMPLETE @ 1839fbc: model.py + rollout.py (vendored) + train.py (budgeted
+  from-scratch mem2mem trainer; W_PIN=16 module constant not a flag; n_actions=5; rollout-only
+  winner defaults; --n-memory 0 = vanilla reference arm; BUDGET_STOP contract; --sched-steps for
+  budget-sized LR horizon — NB default --epochs 50 dies inside warmup at 10-min budgets, size it
+  at calibration) + adapter.py (make_adapter(ckpt, tokenizer, device); chunked prefix encode,
+  rollout_init long-context prefill, rollout_step+T=1 decode). Built by delegated agent,
+  verified: fake-cache budget smoke (54 steps, clean BUDGET_STOP, reloadable ckpt) + one real
+  frozen-eval episode privileged=False (5.7s, 50 events). BUILD_NOTES.md has the transcript.
+- REMAINING: pull latents when 416225 lands -> REAL smoke -> driver/window_probe.py ->
+  driver/run_experiment.py -> program.md -> calibration (budget sizing / reference arms /
+  seed-noise σ) -> go/no-go report to Merlin.
 - **WINDOW PIN (red-team consequence)**: the driver contract pins the model's temporal context
   window (e.g. W=16 frames) and VERIFIES it (probe: perturb a frame at distance > W from the
   target; the prediction must be bit-identical — if changing out-of-window input changes the
