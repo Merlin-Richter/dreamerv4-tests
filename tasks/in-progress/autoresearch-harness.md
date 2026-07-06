@@ -63,6 +63,20 @@ saturate; else difficulty dials (but frozen layer is SEALED — dials mean a v2 
 Order: latent_cache (+window-invariance probe) -> editable/ vendoring -> smoke train (tiny budget,
 4070) -> adapter + window probe -> run_experiment end-to-end with frozen baselines -> calibration
 runs -> program.md -> report calibration numbers to Merlin (first overnight loop = separate go).
+
+## STATUS (2026-07-06/07 session log)
+- driver/manifest.py DONE (freeze recorded; caught its own first violation — cache_job.sh
+  placed in frozen/ tripped the unrecorded-file check; moved to driver/).
+- driver/latent_cache.py DONE; window-invariance probe PASSED (cos 0.9975; window-delta recon
+  MSE 9.4x train / 12.6x val below recon error vs the 6x GridWorld acceptance precedent).
+- Local cache build killed (laptop unplugged) -> CLUSTER JOB **416225** @ 686d1ed
+  (colorfield-cache: idempotent datagen + probe + encode both sets + sha256). Pull latents back
+  via pull_file.sh (direct copy, not git; ~2.6GB train + 130MB val), filenames
+  latents-bd8f18857d71.npy (tokenizer-hash-keyed).
+- editable/ seeded: model.py (dynamics_model @ f405034 verbatim) + rollout.py (mem2mem loss);
+  import-verified. train.py + adapter.py delegated to a background build agent (brief = the
+  BUILD PLAN contracts above; verification incl. fake-cache budget-stop smoke + one frozen-eval
+  episode end-to-end with privileged=False); review its BUILD_NOTES.md + diff before commit.
 - **WINDOW PIN (red-team consequence)**: the driver contract pins the model's temporal context
   window (e.g. W=16 frames) and VERIFIES it (probe: perturb a frame at distance > W from the
   target; the prediction must be bit-identical — if changing out-of-window input changes the
