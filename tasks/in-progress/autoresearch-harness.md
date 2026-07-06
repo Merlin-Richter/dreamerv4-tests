@@ -84,14 +84,24 @@ runs -> program.md -> report calibration numbers to Merlin (first overnight loop
 - REMAINING: pull latents when 416225 lands -> REAL smoke -> driver/window_probe.py ->
   driver/run_experiment.py -> program.md -> calibration (budget sizing / reference arms /
   seed-noise σ) -> go/no-go report to Merlin.
-- **WINDOW PIN (red-team consequence)**: the driver contract pins the model's temporal context
-  window (e.g. W=16 frames) and VERIFIES it (probe: perturb a frame at distance > W from the
-  target; the prediction must be bit-identical — if changing out-of-window input changes the
-  output, the window claim is violated → score 0). Rationale: the comeback scalar gives a
-  window-W model ≈ the fraction of age bins ≤ W (measured curve in the colorfield task), so
-  without a pin the loop's cheapest score move is "grow the window" — the opposite of the
-  memory-token research question. With the pin, every bin beyond W must come from a carried
-  memory mechanism.
+- **WINDOW PIN (red-team consequence; design CORRECTED 2026-07-06 late)**: the driver pins the
+  model's temporal attention window (W=16) because the comeback scalar gives a window-W model
+  ≈ the fraction of age bins ≤ W — without a pin the loop's cheapest move is "grow the window".
+  **CORRECTION**: the original probe ("perturb a frame > W back ⇒ output must be bit-identical")
+  is WRONG for memory models — the memory relay is SUPPOSED to carry far-frame information past
+  the window; that is the research question. A good mem2mem model MUST react to far
+  perturbations. Only the ATTENTION path must not reach past W. Corrected enforcement, three
+  layers:
+  1. Config check (hard): ckpt config.max_temporal_length ≤ 16, else score 0.
+  2. Memory-pinned perturbation probe (behavioral, for the seeded architecture): run two prefix
+     streams differing in ONE frame > W back; at every commit INJECT stream A's written-memory
+     K/V into stream B's cache (forcing the memory channel identical); any remaining output
+     divergence flows through non-memory attention to far frames = true window violation ⇒
+     score 0. If cache introspection fails (loop restructured internals) ⇒ flag
+     `window_probe: manual-review` on the leaderboard instead of silently passing.
+  3. Legibility backstop: leaderboard always shows the per-age-bin curve — window-shaped gains
+     (near bins up, far bins ~0) are visually distinct from memory-shaped gains; kept diffs get
+     human review (the ultimate backstop, same as Karpathy's setup).
 
 ## Driver (deterministic code, not agentic)
 
