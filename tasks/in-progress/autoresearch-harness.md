@@ -96,6 +96,24 @@ runs -> program.md -> report calibration numbers to Merlin (first overnight loop
   driver/window_probe.py (corrected memory-pinned design) -> driver/run_experiment.py ->
   program.md -> calibration proper (budget sizing / reference arms / reduced-suite σ →
   keep-rule) -> go/no-go report with the 4070-vs-H100 trade-off numbers.
+
+## CALIBRATION LOG (2026-07-06/07 night — "is 20 min enough?" per Merlin)
+- driver/sheets.py: snake-prefix(192) + revisit(96) GT-vs-imagination strips, per-column
+  on-screen cell acc (chance 0.2), map seeds 5/6, deterministic — comparable across runs.
+- Arm 1 (7.75M, bs64, mixed n_ctx, 121 steps/20min): COMPLETELY LACKING — gray-pink mush,
+  no appearance prior, no scroll, acc ~chance flat. runs/cal20/.
+- bs128 @ 7.75M-small mixed n_ctx OOM'd on 8GB: a drawn n_ctx=4 batch holds 31 slide graphs
+  for one backward -> added --fixed-n-ctx (always W_PIN=16: 7 slides, bounded VRAM, fewer
+  fatter forwards; GPU util was 47% at bs64 small — Merlin's catch; 100% after bs128).
+- Arm 2 (1.32M = 128/6/8, bs128, fixed n_ctx, 306 steps/20min, 3.93s/step): still lacking but
+  DIFFERENT failure — collapsed toward dark/OUT mode; early-imagination acc 0.40-0.47 decaying
+  to 0.0 (below chance = systematic OUT-overpainting). Loss still descending both arms.
+  runs/cal20small/.
+- VERDICT so far: 20 min on the 4070 is out of range at both sizes; need the steps-vs-quality
+  KNEE. -> OVERNIGHT LOCAL RUN launched (~00:40): 1.32M bs128 fixed-n-ctx, budget 8h,
+  sched 7000 (~7300 steps expected), snapshots at 250/500/1000/2000/4000/6000 ->
+  runs/calcurve/dynamics_stepN.pt. MORNING: sheets + (reduced) comeback eval per snapshot ->
+  the curve -> budget/backend decision with Merlin.
 - **WINDOW PIN (red-team consequence; design CORRECTED 2026-07-06 late)**: the driver pins the
   model's temporal attention window (W=16) because the comeback scalar gives a window-W model
   ≈ the fraction of age bins ≤ W — without a pin the loop's cheapest move is "grow the window".
