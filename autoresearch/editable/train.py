@@ -206,6 +206,10 @@ def main():
     p.add_argument("--tbptt-frames", type=int, default=None,
                    help="Detach the memory relay past this many frames (default 2*W).")
     p.add_argument("--max-frames", type=int, default=None, help="Cap rollout length per clip.")
+    p.add_argument("--snapshot-at", type=lambda s: {int(x) for x in s.split(",")},
+                   default=None,
+                   help="Comma-separated step counts at which to save side checkpoints "
+                        "(<ckpt>_stepN.pt) — for steps-vs-quality calibration curves.")
     p.add_argument("--fixed-n-ctx", action="store_true",
                    help="Always slide at n_ctx = W_PIN instead of sampling {4,8,16}: fewer, "
                         "fatter, less-serialized forwards (GPU util + bounded VRAM) and matches "
@@ -327,6 +331,12 @@ def main():
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             opt.step(); sched.step(); gstep += 1
+            if args.snapshot_at and gstep in args.snapshot_at:
+                p = args.checkpoint.with_name(args.checkpoint.stem + f"_step{gstep}.pt")
+                torch.save({"model_state_dict": model.state_dict(),
+                            "config": asdict(cfg)}, p)
+                print(f"[snapshot] step {gstep} -> {p} "
+                      f"(elapsed {time.perf_counter() - t0:.0f}s)", flush=True)
             if time.perf_counter() - t0 >= args.budget_s:   # THE budget check (per step)
                 budget_hit = True
                 break
