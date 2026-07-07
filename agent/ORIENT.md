@@ -2,6 +2,19 @@
 
 Rewritten: 2026-06-26.
 
+## PIVOT (2026-07-07 ~01:00 — Merlin): ColorField-SYM, the tokenizer-free tier
+20-min budgets died on the APPEARANCE prior (both model sizes — see harness task calibration
+log). Merlin's fix: symbolic tier — 5×5 CELL viewport as one-hots fed straight to the dynamics
+model (one-hot rows AS latents: n_latents=5, bottleneck=35 — model code unchanged), phase-5
+time dilation with FORCED STAY off-phase, same 15×15 board/borders/eval-v2.1 semantics (simpler:
+no partial visibility). Tier ladder: sym (fast search) → pixel ColorField (sealed; promotion
+gate) → memmaze. **GENERALITY RULE recorded** (memory: project-autoresearch-generality-rule):
+editable-layer changes must be env-general; env-specific weighting = cheating.
+Task: tasks/in-progress/colorfield-sym-frozen-layer.md (full design, signed off). Build
+delegated to background agent (CPU-only; frozen_sym/ package + tests; review BUILD_NOTES +
+diff before commit). Overnight pixel calcurve run keeps the GPU (detached,
+runs/calcurve/train.log) — still wanted as the pixel-tier reference.
+
 ## NEW BACKLOG (2026-07-06 — autoresearch harness, Merlin's direction)
 Karpathy-autoresearch-style loop for this repo, designed with Merlin (see the two task files for
 the full spec): self-contained `autoresearch/` subdir (no specs↔src link), NEW middle-ground env
