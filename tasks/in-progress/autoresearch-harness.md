@@ -110,10 +110,13 @@ runs -> program.md -> report calibration numbers to Merlin (first overnight loop
   to 0.0 (below chance = systematic OUT-overpainting). Loss still descending both arms.
   runs/cal20small/.
 - VERDICT so far: 20 min on the 4070 is out of range at both sizes; need the steps-vs-quality
-  KNEE. -> OVERNIGHT LOCAL RUN launched (~00:40): 1.32M bs128 fixed-n-ctx, budget 8h,
-  sched 7000 (~7300 steps expected), snapshots at 250/500/1000/2000/4000/6000 ->
-  runs/calcurve/dynamics_stepN.pt. MORNING: sheets + (reduced) comeback eval per snapshot ->
-  the curve -> budget/backend decision with Merlin.
+  KNEE. -> OVERNIGHT LOCAL RUN: 1.32M bs128 fixed-n-ctx, budget 8h, sched 7000 (~7300 steps
+  expected), snapshots at 250/500/1000/2000/4000/6000 -> runs/calcurve/dynamics_stepN.pt.
+  First launch (session-tied background task) was killed at ~step 500; RELAUNCHED ~00:50
+  DETACHED via PowerShell Start-Process (survives session end; log:
+  autoresearch/runs/calcurve/train.log, needs laptop on + plugged + logged in).
+  MORNING: read train.log -> sheets + (reduced) comeback eval per snapshot -> the curve ->
+  budget/backend decision with Merlin.
 - **WINDOW PIN (red-team consequence; design CORRECTED 2026-07-06 late)**: the driver pins the
   model's temporal attention window (W=16) because the comeback scalar gives a window-W model
   ≈ the fraction of age bins ≤ W — without a pin the loop's cheapest move is "grow the window".
