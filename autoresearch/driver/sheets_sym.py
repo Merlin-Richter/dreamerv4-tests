@@ -24,10 +24,12 @@ CELL_PX = 24
 
 
 def _ticks(moves):
-    """Effective-move list -> per-tick actions (move at phase 0, STAY off-phase)."""
+    """Effective-move list -> per-tick actions. Moves apply at ticks t%5==0 and
+    tick 0 is the STAY-conventioned first frame, so each move sits AFTER 4 STAYs
+    (landing on ticks 5, 10, 15, ...)."""
     out = []
     for m in moves:
-        out += [m] + [STAY] * 4
+        out += [STAY] * 4 + [m]
     return out
 
 
