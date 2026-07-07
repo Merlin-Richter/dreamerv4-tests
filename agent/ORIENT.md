@@ -11,9 +11,15 @@ no partial visibility). Tier ladder: sym (fast search) → pixel ColorField (sea
 gate) → memmaze. **GENERALITY RULE recorded** (memory: project-autoresearch-generality-rule):
 editable-layer changes must be env-general; env-specific weighting = cheating.
 Task: tasks/in-progress/colorfield-sym-frozen-layer.md (full design, signed off). Build
-delegated to background agent (CPU-only; frozen_sym/ package + tests; review BUILD_NOTES +
-diff before commit). Overnight pixel calcurve run keeps the GPU (detached,
-runs/calcurve/train.log) — still wanted as the pixel-tier reference.
+frozen_sym/ BUILT + committed (4 suites green, oracle exactly 1.0); editable sym variants +
+sheets_sym committed. Pixel calcurve DONE (partial — killed at step 3750 by my GPU collision,
+postmortem in editable/BUILD_NOTES.md): appearance knee ~3k steps, memory absent ⇒ pixel =
+promotion gate, confirmed. Sym 20-min probe (237 steps): valid crisp frames + partial band/
+scroll logic ≈ pixel-2000+ quality; same s/step (win = task difficulty; speed headroom noted).
+**OVERNIGHT NOW: detached SYMCURVE run** (runs/symcurve/, 6h, sched 4200, snapshots
+250/500/1000/2000/4000). MORNING: sheets_sym + reduced frozen_sym eval per snapshot → sym
+steps-vs-quality curve → budget/keep-rule decision; then delta-review + MANIFEST-sym +
+driver/run_experiment + program.md.
 
 ## NEW BACKLOG (2026-07-06 — autoresearch harness, Merlin's direction)
 Karpathy-autoresearch-style loop for this repo, designed with Merlin (see the two task files for
