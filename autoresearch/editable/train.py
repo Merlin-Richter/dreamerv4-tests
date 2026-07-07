@@ -206,6 +206,11 @@ def main():
     p.add_argument("--tbptt-frames", type=int, default=None,
                    help="Detach the memory relay past this many frames (default 2*W).")
     p.add_argument("--max-frames", type=int, default=None, help="Cap rollout length per clip.")
+    p.add_argument("--fixed-n-ctx", action="store_true",
+                   help="Always slide at n_ctx = W_PIN instead of sampling {4,8,16}: fewer, "
+                        "fatter, less-serialized forwards (GPU util + bounded VRAM) and matches "
+                        "the eval's full-window distribution; costs relay-hop diversity "
+                        "(untested recipe ingredient).")
     p.add_argument("--sched-steps", type=int, default=None,
                    help="LR-schedule horizon in optimizer steps (default len(loader)*epochs).")
     p.add_argument("--val-batches", type=int, default=32,
@@ -300,7 +305,11 @@ def main():
             use_m2m = torch.rand(1, generator=gen, device=device).item() < mem2mem_frac
             with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
                 if use_m2m:
-                    W = ncts[torch.randint(len(ncts), (1,), generator=gen, device=device).item()]
+                    if args.fixed_n_ctx:
+                        W = W_PIN   # fixed full-window slides: fewest, fattest forwards
+                                    # (bounded VRAM: 7 slide graphs at clip 64, vs 31 at n_ctx=4)
+                    else:
+                        W = ncts[torch.randint(len(ncts), (1,), generator=gen, device=device).item()]
                     loss, parts = mem2mem_rollout_loss(
                         model, z1, acts, n_ctx=W, device=device, gen=gen,
                         tbptt_frames=args.tbptt_frames, max_frames=args.max_frames,
