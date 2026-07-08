@@ -200,13 +200,13 @@ def main():
     p.add_argument("--epochs", type=int, default=50, help="Secondary cap; also the LR-schedule "
                    "horizon unless --sched-steps is given (size it to the budget).")
     p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--batch-size", type=int, default=64)
+    p.add_argument("--batch-size", type=int, default=128)
     p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--clip-len", type=int, default=64, help="Long-clip length fed to the rollout.")
     # model dims (defaults = the ~7.5M GridWorld dynamics sizing)
-    p.add_argument("--embedding-dim", type=int, default=256)
-    p.add_argument("--depth", type=int, default=9, help="Multiple of 3 ([spatial,temporal,spatial]).")
-    p.add_argument("--n-heads", type=int, default=16)
+    p.add_argument("--embedding-dim", type=int, default=128)
+    p.add_argument("--depth", type=int, default=6, help="Multiple of 3 ([spatial,temporal,spatial]).")
+    p.add_argument("--n-heads", type=int, default=8)
     p.add_argument("--gqa-groups", type=int, default=1)
     p.add_argument("--n-registers", type=int, default=4)
     p.add_argument("--n-memory", type=int, default=4, help="0 => vanilla no-memory reference arm "
@@ -226,7 +226,7 @@ def main():
                    help="Normalize FF9 by the pure d_min flow magnitude (bootstrap-invariant weight).")
     p.add_argument("--relay-grad-clip", type=float, default=None, metavar="C",
                    help="Per-hop relay gradient normalizer (see rollout.py). None = OFF.")
-    p.add_argument("--tau0-anchor", type=float, default=0.0, metavar="P",
+    p.add_argument("--tau0-anchor", type=float, default=0.5, metavar="P",
                    help="Per-frame P of forcing (tau=0, finest d, GT flow) on the clean mode's "
                         "new half (Arm-D sustained anchor; trains visible-context next-frame "
                         "prediction, which the sampled grid under-weights ~1/K_max). 0 = off.")
@@ -237,7 +237,7 @@ def main():
                    default=None,
                    help="Comma-separated step counts at which to save side checkpoints "
                         "(<ckpt>_stepN.pt) — for steps-vs-quality calibration curves.")
-    p.add_argument("--fixed-n-ctx", action="store_true",
+    p.add_argument("--fixed-n-ctx", action="store_true", default=True,
                    help="Always slide at n_ctx = W_PIN instead of sampling {4,8,16}: fewer, "
                         "fatter, less-serialized forwards and matches the eval's full-window "
                         "distribution; costs relay-hop diversity (untested recipe ingredient).")
