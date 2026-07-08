@@ -136,7 +136,7 @@ def _sample_modes(B, device, gen, force_mode):
 def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
                          tbptt_frames=None, max_frames=None, gen=None, force_mode=None,
                          bootstrap=True, n_d_unlocked=None, use_ff9=True, ff9_norm_flow=False,
-                         relay_grad_clip=None):
+                         relay_grad_clip=None, tau0_anchor=0.0):
     """One mem->mem rollout over a long clip. Returns (total_loss, parts_dict).
 
     z1:          (B, T, L, D) clean latents (T should be long, e.g. up to 5*max_temporal_length).
@@ -167,6 +167,14 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
                  the bootstrap is on — required for a fair bootstrap A/B (the mixed mean is diluted by the
                  smaller bootstrap self-distillation term, which silently down-weights memory). Default
                  False = mixed mean (faithful to model.loss).
+    tau0_anchor: per-frame probability of forcing (tau=0, d=finest, GT-flow) on the NEW half in CLEAN
+                 mode (noise mode is already all-tau0). 0.0 (default) = OFF, byte-identical. This is
+                 the GridWorld Arm-D "sustained tau0-anchor" (vanilla-honest-baseline: teacher-forced
+                 pos_acc 0.09 -> 1.0). Rationale: the sampled grid demands visible-context next-frame
+                 prediction only ~1/K_max of clean-mode frames (ramp-down-weighted on top), so the model
+                 learns denoising, never dynamics — measured on ColorField-sym at the 10-min budget:
+                 teacher-forced shift-copy acc 0.42 (probe_inwindow.py). Ramp weight deliberately left
+                 untouched (faithful to the proven Arm D).
 
     Loss = shortcut-forcing diffusion on the new half (flow at the finest step + bootstrap distillation
     at coarser steps) [+ FF9 sufficiency (new-half memories) when use_ff9], normalized like model.loss.
@@ -246,6 +254,11 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
         # (noise mode -> memory is the only scene carrier; d still varies to train coarse steps-from-noise).
         tau_new_idx, d_new_idx = _sample_tau_d(model, B, half, device, gen, n_d_unlocked=n_d_unlocked)
         tau_new_idx = torch.where(modes.view(B, 1), torch.zeros_like(tau_new_idx), tau_new_idx)
+        if tau0_anchor > 0:  # Arm-D anchor: clean-mode frames get (tau=0, finest d) w.p. tau0_anchor
+            anchored = (torch.rand(B, half, device=device, generator=gen) < tau0_anchor) \
+                       & ~modes.view(B, 1)
+            tau_new_idx = torch.where(anchored, torch.zeros_like(tau_new_idx), tau_new_idx)
+            d_new_idx = torch.where(anchored, torch.full_like(d_new_idx, d_idx_val), d_new_idx)
         tau_new = model._tau_value(tau_new_idx)[..., None, None]
         new_part = (1 - tau_new) * z0[:, half:] + tau_new * z1_win[:, half:]
 

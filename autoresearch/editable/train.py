@@ -203,6 +203,10 @@ def main():
                    help="Normalize FF9 by the pure d_min flow magnitude (bootstrap-invariant weight).")
     p.add_argument("--relay-grad-clip", type=float, default=None, metavar="C",
                    help="Per-hop relay gradient normalizer (see rollout.py). None = OFF.")
+    p.add_argument("--tau0-anchor", type=float, default=0.0, metavar="P",
+                   help="Per-frame P of forcing (tau=0, finest d, GT flow) on the clean mode's "
+                        "new half (Arm-D sustained anchor; trains visible-context next-frame "
+                        "prediction, which the sampled grid under-weights ~1/K_max). 0 = off.")
     p.add_argument("--tbptt-frames", type=int, default=None,
                    help="Detach the memory relay past this many frames (default 2*W).")
     p.add_argument("--max-frames", type=int, default=None, help="Cap rollout length per clip.")
@@ -319,7 +323,7 @@ def main():
                         tbptt_frames=args.tbptt_frames, max_frames=args.max_frames,
                         bootstrap=args.bootstrap, n_d_unlocked=n_unlocked,
                         use_ff9=use_ff9, ff9_norm_flow=args.ff9_norm_flow,
-                        relay_grad_clip=args.relay_grad_clip)
+                        relay_grad_clip=args.relay_grad_clip, tau0_anchor=args.tau0_anchor)
                     agg["mem2mem"] += float(loss.detach()); agg["n_m"] += 1
                     agg["flow"] += parts["flow"]; agg["ff9"] += parts["ff9"]
                 else:
