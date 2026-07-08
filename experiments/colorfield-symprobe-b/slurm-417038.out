@@ -1,0 +1,27 @@
+=== job colorfield-symprobe-b on mlcbm003 | jobid 417038 | Wed Jul  8 16:22:20 CEST 2026 ===
+NVIDIA H100 80GB HBM3, 81559 MiB
+=== commit: 32f6876932267edc623a1b5c879d42092b42532a ===
+=== reusing cached venv /weka/martius/mot936/venvs/venv-b05c6eb3f672f99e ===
+=== running: bash experiments/colorfield-symprobe-b/run.sh ===
+data/colorfield_sym/actions.npy: OK
+data/colorfield_sym_val/actions.npy: OK
+device=cuda params=1.31M W=16 (PINNED) n_actions=5 codec=onehot(5x35) train_eps=5000 val_eps=250 clip_len=64 n_ctx choices=[4, 8, 16] mem2mem_frac=1.0 bootstrap=False use_ff9=False ff9_k=0 n_memory=4 budget_s=600.0
+[snapshot] step 100 -> runs/colorfield-symprobe-b/dynamics_sym_step100.pt (elapsed 17s)
+[snapshot] step 237 -> runs/colorfield-symprobe-b/dynamics_sym_step237.pt (elapsed 36s)
+[snapshot] step 500 -> runs/colorfield-symprobe-b/dynamics_sym_step500.pt (elapsed 72s)
+Epoch 1/200 | steps 625 | elapsed 89.6s | val(normal) 0.00724 | train mem2mem 0.03316 (flow 0.0332 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+[snapshot] step 1000 -> runs/colorfield-symprobe-b/dynamics_sym_step1000.pt (elapsed 141s)
+Epoch 2/200 | steps 1250 | elapsed 175.3s | val(normal) 0.00529 | train mem2mem 0.01896 (flow 0.0190 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 3/200 | steps 1875 | elapsed 262.4s | val(normal) 0.00454 | train mem2mem 0.01365 (flow 0.0136 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+[snapshot] step 2000 -> runs/colorfield-symprobe-b/dynamics_sym_step2000.pt (elapsed 280s)
+Epoch 4/200 | steps 2500 | elapsed 348.2s | val(normal) 0.00451 | train mem2mem 0.01180 (flow 0.0118 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 5/200 | steps 3125 | elapsed 434.3s | val(normal) 0.00444 | train mem2mem 0.01079 (flow 0.0108 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 1.00e-06
+Epoch 6/200 | steps 3750 | elapsed 519.7s | val(normal) 0.00431 | train mem2mem 0.01035 (flow 0.0103 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 7/200 | steps 4339 | elapsed 600.0s | val(normal) nan | train mem2mem 0.00928 (flow 0.0093 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.44e-06
+BUDGET_STOP step=4339 elapsed=600.0
+saved -> runs/colorfield-symprobe-b/dynamics_sym.pt
+[sheet] runs/colorfield-symprobe-b/sheets/sheet_sym_revisit_seed5.png
+[sheet] viewport cell acc per effective move: first 0.920 mean 0.347 last 0.120
+[sheet] runs/colorfield-symprobe-b/sheets/sheet_sym_revisit_seed6.png
+[sheet] viewport cell acc per effective move: first 0.880 mean 0.341 last 0.040
+=== done colorfield-symprobe-b rc=0 Wed Jul  8 16:32:33 CEST 2026 ===

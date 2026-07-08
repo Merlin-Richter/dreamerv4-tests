@@ -80,3 +80,19 @@ Net: "predict the next frame from the VISIBLE previous frames" is never sustaine
 demanded — and unlike GridWorld, nothing else stands in for it. Candidate seed fix
 (env-general, GridWorld-proven): per-frame p=0.5 (tau=0, d_min, GT-flow) anchor on the
 clean mode's new half.
+
+## ARM B RESULT (2026-07-08, job 417038 @ 32f6876 — tau0-anchor 0.5, same 10-min budget)
+
+probe_inwindow A vs B (chance 0.2): shift 0.424 -> **0.672**; window 0.210 -> 0.222;
+past 0.204 -> 0.272; unseen 0.185 -> 0.205. Sheets first-move 0.68 -> 0.92/0.88 (sheets
+include OUT cells => higher than the stricter probe). B ran 4339 steps (faster node;
+identical sched 3125 completed in both arms). Flow 0.0093 despite 25%+ hard tau0 terms.
+
+READ: mechanism CONFIRMED — the single changed factor more than doubled shift's
+excess-over-chance (0.22 -> 0.47); memory columns ~unchanged (expected: memory can only
+train once the visible pathway works, and 10 min is short). NOT the GridWorld-style
+jump to ~1.0 — Arm D had 50 epochs and a trivial copy task (one square); here it's 25
+iid cells per frame, and anchored tau0 frames still carry only ramp_min weight.
+Levers if shift must saturate before the loop: anchor P->1.0, raise/de-ramp tau0 weight,
+longer budget. OR: accept the seed as healthy-enough (0.67 >> chance = discriminable)
+and let the LOOP search those levers — that's its job; decide via reference arms + sigma.
