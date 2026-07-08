@@ -1,0 +1,157 @@
+=== job colorfield-symprobe on mlcbm002 | jobid 417029 | Wed Jul  8 15:25:19 CEST 2026 ===
+NVIDIA H100 80GB HBM3, 81559 MiB
+=== commit: c4d11a67e977fa6d21f9281194c95fe5b56aeb26 ===
+=== reusing cached venv /weka/martius/mot936/venvs/venv-b05c6eb3f672f99e ===
+=== running: bash experiments/colorfield-symprobe/run.sh ===
+[datagen-sym] 500/5000
+[datagen-sym] 1000/5000
+[datagen-sym] 1500/5000
+[datagen-sym] 2000/5000
+[datagen-sym] 2500/5000
+[datagen-sym] 3000/5000
+[datagen-sym] 3500/5000
+[datagen-sym] 4000/5000
+[datagen-sym] 4500/5000
+[datagen-sym] 5000/5000
+{
+ "version": "colorfield-sym-v1",
+ "n_episodes": 5000,
+ "T": 1024,
+ "seed": 0,
+ "geometry": {
+  "n_cells": 15,
+  "view_cells": 5,
+  "phase_period": 5,
+  "n_colors": 5
+ },
+ "palette_rgb": [
+  [
+   230,
+   40,
+   40
+  ],
+  [
+   60,
+   200,
+   60
+  ],
+  [
+   60,
+   90,
+   235
+  ],
+  [
+   245,
+   160,
+   30
+  ],
+  [
+   160,
+   60,
+   220
+  ],
+  [
+   45,
+   45,
+   45
+  ]
+ ],
+ "policies": [
+  "goal_seek",
+  "momentum",
+  "lawnmower",
+  "box_patrol",
+  "dwell_dart",
+  "border_hug",
+  "uniform",
+  "out_and_back"
+ ],
+ "actions_convention": "actions[:,0]==STAY; grid[t] results from actions[t]; moves apply only at ticks t % 5 == 0, off-phase ticks are forced STAY; phase[t] = t % 5",
+ "storage": "procedural \u2014 render grids via env.render_episode(map, start, actions)"
+}
+{
+ "version": "colorfield-sym-v1",
+ "n_episodes": 250,
+ "T": 1024,
+ "seed": 777,
+ "geometry": {
+  "n_cells": 15,
+  "view_cells": 5,
+  "phase_period": 5,
+  "n_colors": 5
+ },
+ "palette_rgb": [
+  [
+   230,
+   40,
+   40
+  ],
+  [
+   60,
+   200,
+   60
+  ],
+  [
+   60,
+   90,
+   235
+  ],
+  [
+   245,
+   160,
+   30
+  ],
+  [
+   160,
+   60,
+   220
+  ],
+  [
+   45,
+   45,
+   45
+  ]
+ ],
+ "policies": [
+  "goal_seek",
+  "momentum",
+  "lawnmower",
+  "box_patrol",
+  "dwell_dart",
+  "border_hug",
+  "uniform",
+  "out_and_back"
+ ],
+ "actions_convention": "actions[:,0]==STAY; grid[t] results from actions[t]; moves apply only at ticks t % 5 == 0, off-phase ticks are forced STAY; phase[t] = t % 5",
+ "storage": "procedural \u2014 render grids via env.render_episode(map, start, actions)"
+}
+data/colorfield_sym/actions.npy: OK
+data/colorfield_sym_val/actions.npy: OK
+device=cuda params=1.31M W=16 (PINNED) n_actions=5 codec=onehot(5x35) train_eps=5000 val_eps=250 clip_len=64 n_ctx choices=[4, 8, 16] mem2mem_frac=1.0 bootstrap=False use_ff9=False ff9_k=0 n_memory=4 budget_s=60.0
+Epoch 1/50 | steps 305 | elapsed 60.1s | val(normal) nan | train mem2mem 0.04887 (flow 0.0489 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+BUDGET_STOP step=305 elapsed=60.1
+saved -> runs/colorfield-symprobe/pace_w0.pt
+device=cuda params=1.31M W=16 (PINNED) n_actions=5 codec=onehot(5x35) train_eps=5000 val_eps=250 clip_len=64 n_ctx choices=[4, 8, 16] mem2mem_frac=1.0 bootstrap=False use_ff9=False ff9_k=0 n_memory=4 budget_s=60.0
+Epoch 1/50 | steps 329 | elapsed 60.2s | val(normal) nan | train mem2mem 0.04748 (flow 0.0475 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+BUDGET_STOP step=329 elapsed=60.2
+saved -> runs/colorfield-symprobe/pace_w8.pt
+PACE_PROBE: workers0=305 steps/min, workers8=329 steps/min
+REAL_RUN: workers=8 sched_steps=3125
+device=cuda params=1.31M W=16 (PINNED) n_actions=5 codec=onehot(5x35) train_eps=5000 val_eps=250 clip_len=64 n_ctx choices=[4, 8, 16] mem2mem_frac=1.0 bootstrap=False use_ff9=False ff9_k=0 n_memory=4 budget_s=600.0
+[snapshot] step 100 -> runs/colorfield-symprobe/dynamics_sym_step100.pt (elapsed 21s)
+[snapshot] step 237 -> runs/colorfield-symprobe/dynamics_sym_step237.pt (elapsed 47s)
+[snapshot] step 500 -> runs/colorfield-symprobe/dynamics_sym_step500.pt (elapsed 96s)
+Epoch 1/200 | steps 625 | elapsed 120.5s | val(normal) 0.00580 | train mem2mem 0.04428 (flow 0.0443 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+[snapshot] step 1000 -> runs/colorfield-symprobe/dynamics_sym_step1000.pt (elapsed 193s)
+Epoch 2/200 | steps 1250 | elapsed 241.4s | val(normal) 0.00476 | train mem2mem 0.01856 (flow 0.0186 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 3/200 | steps 1875 | elapsed 363.0s | val(normal) 0.00438 | train mem2mem 0.01383 (flow 0.0138 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+[snapshot] step 2000 -> runs/colorfield-symprobe/dynamics_sym_step2000.pt (elapsed 387s)
+Epoch 4/200 | steps 2500 | elapsed 483.5s | val(normal) 0.00426 | train mem2mem 0.01185 (flow 0.0118 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 5/200 | steps 3109 | elapsed 600.2s | val(normal) nan | train mem2mem 0.01063 (flow 0.0106 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 1.48e-06
+BUDGET_STOP step=3109 elapsed=600.2
+saved -> runs/colorfield-symprobe/dynamics_sym.pt
+[sheet] runs/colorfield-symprobe/sheets/sheet_sym_revisit_seed5.png
+[sheet] viewport cell acc per effective move: first 0.640 mean 0.356 last 0.200
+[sheet] runs/colorfield-symprobe/sheets/sheet_sym_revisit_seed6.png
+[sheet] viewport cell acc per effective move: first 0.720 mean 0.280 last 0.080
+=== done colorfield-symprobe rc=0 Wed Jul  8 15:37:57 CEST 2026 ===

@@ -35,3 +35,23 @@ sym tier better suited?).
 - Job: ferranti H100, name `colorfield-symprobe`, --hours 2 (self-stops ~20-25 min).
 - Pull: `scripts/pull_results.sh --cluster ferranti colorfield-symprobe --what all`.
 - SHA + JOB_ID in agent/EXPERIMENTS.md (row `colorfield-symprobe-h100`).
+
+## RESULTS (2026-07-08, job 417029 COMPLETED rc=0)
+
+- **Datagen determinism: byte-identical on cluster** (sha256 gate passed both splits).
+- **Pace: workers0=305 / workers8=329 steps/min** (0.19 s/step) — the data path is NOT
+  a bottleneck (8% delta); the local "dataloader-bound" note in BUILD_NOTES is REFUTED
+  (measured per-clip __getitem__ = 0.47 ms; batch-128 assembly ~60 ms).
+- **10-min budget = 3109 steps** (13x the entire local 20-min sym20 probe). Sched 3125
+  sized from measured pace landed exactly on the cosine tail (final lr 1.5e-6).
+  Flow 0.171-region -> 0.0106, still descending at stop.
+- **Sheet curve (viewport cell acc, seeds 5+6, chance ~0.17)**:
+  step 100 mean 0.18 (garbage) | 237 first 0.52-0.60 mean 0.21 | 1000 first 0.48-0.60 |
+  2000 first 0.48-0.68 mean 0.20-0.31 | **3109 first 0.68 / mean 0.30-0.34 / last 0.12**.
+  At the 237 anchor the H100 run ≈ the local sym20 probe (first 0.44-0.6) — consistent.
+- **VERDICT INPUT: sym at 10 H100 minutes is squarely in the interesting regime** —
+  well past garbage, loss still descending, far from ceiling (mean 0.3 vs 1.0), i.e.
+  HEADROOM + room for the loop to find optimizations. Contrast pixel-at-10-min
+  (~4800 steps): right at the start of its revisit plateau with long-age memory absent.
+  Next per the task file: reference arms (vanilla --n-memory 0) + seed-noise sigma at
+  this budget -> keep-rule; then the frozen_sym comeback eval numbers.

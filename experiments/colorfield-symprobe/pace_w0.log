@@ -1,0 +1,4 @@
+device=cuda params=1.31M W=16 (PINNED) n_actions=5 codec=onehot(5x35) train_eps=5000 val_eps=250 clip_len=64 n_ctx choices=[4, 8, 16] mem2mem_frac=1.0 bootstrap=False use_ff9=False ff9_k=0 n_memory=4 budget_s=60.0
+Epoch 1/50 | steps 305 | elapsed 60.1s | val(normal) nan | train mem2mem 0.04887 (flow 0.0489 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+BUDGET_STOP step=305 elapsed=60.1
+saved -> runs/colorfield-symprobe/pace_w0.pt

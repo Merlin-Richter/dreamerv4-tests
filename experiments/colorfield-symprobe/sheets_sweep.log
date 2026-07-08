@@ -1,0 +1,30 @@
+=== STEP 100 ===
+[sheet] experiments/colorfield-symprobe/sheets_step100\sheet_sym_revisit_seed5.png
+[sheet] viewport cell acc per effective move: first 0.240 mean 0.171 last 0.080
+[sheet] experiments/colorfield-symprobe/sheets_step100\sheet_sym_revisit_seed6.png
+[sheet] viewport cell acc per effective move: first 0.120 mean 0.181 last 0.040
+=== STEP 237 ===
+[sheet] experiments/colorfield-symprobe/sheets_step237\sheet_sym_revisit_seed5.png
+[sheet] viewport cell acc per effective move: first 0.520 mean 0.211 last 0.000
+[sheet] experiments/colorfield-symprobe/sheets_step237\sheet_sym_revisit_seed6.png
+[sheet] viewport cell acc per effective move: first 0.600 mean 0.206 last 0.000
+=== STEP 500 ===
+[sheet] experiments/colorfield-symprobe/sheets_step500\sheet_sym_revisit_seed5.png
+[sheet] viewport cell acc per effective move: first 0.360 mean 0.232 last 0.000
+[sheet] experiments/colorfield-symprobe/sheets_step500\sheet_sym_revisit_seed6.png
+[sheet] viewport cell acc per effective move: first 0.320 mean 0.198 last 0.000
+=== STEP 1000 ===
+[sheet] experiments/colorfield-symprobe/sheets_step1000\sheet_sym_revisit_seed5.png
+[sheet] viewport cell acc per effective move: first 0.480 mean 0.208 last 0.000
+[sheet] experiments/colorfield-symprobe/sheets_step1000\sheet_sym_revisit_seed6.png
+[sheet] viewport cell acc per effective move: first 0.600 mean 0.219 last 0.000
+=== STEP 2000 ===
+[sheet] experiments/colorfield-symprobe/sheets_step2000\sheet_sym_revisit_seed5.png
+[sheet] viewport cell acc per effective move: first 0.480 mean 0.200 last 0.040
+[sheet] experiments/colorfield-symprobe/sheets_step2000\sheet_sym_revisit_seed6.png
+[sheet] viewport cell acc per effective move: first 0.680 mean 0.309 last 0.240
+=== STEP 3109 (final) ===
+[sheet] experiments/colorfield-symprobe/sheets_final\sheet_sym_revisit_seed5.png
+[sheet] viewport cell acc per effective move: first 0.680 mean 0.339 last 0.120
+[sheet] experiments/colorfield-symprobe/sheets_final\sheet_sym_revisit_seed6.png
+[sheet] viewport cell acc per effective move: first 0.680 mean 0.299 last 0.120
