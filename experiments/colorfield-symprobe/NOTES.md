@@ -55,3 +55,23 @@ sym tier better suited?).
   (~4800 steps): right at the start of its revisit plateau with long-age memory absent.
   Next per the task file: reference arms (vanilla --n-memory 0) + seed-noise sigma at
   this budget -> keep-rule; then the frozen_sym comeback eval numbers.
+
+## IN-WINDOW PROBE (2026-07-08, Merlin's eyeball -> quantified; probe_inwindow.py)
+
+Teacher-forced 1-step through the eval inference path (real context committed via
+adapter.begin, one rollout_step), per-cell acc split by required capability, 30 val
+episodes x cuts [50,100,150,190], OUT cells excluded, chance 0.2:
+  shift 0.424 (n=1849) | window 0.210 | past 0.204 | unseen 0.185
+=> the 10-min sym model CANNOT COPY THE PREVIOUS FRAME (shift-copy floor = 1.0) and has
+zero memory at any horizon. Low train flow (0.0106) + chance-level teacher-forced acc =
+the "learned denoising, not dynamics" signature — the SAME failure root-caused on
+GridWorld (vanilla-inwindow-diagnosis: tau0-GT-flow mass ~0.4% of loss; FIXED by the
+Arm-D sustained tau0-anchor, teacher-forced 0.09 -> 1.0).
+
+WHY mem2mem escapes this on GridWorld but not here: noise mode (50%) hides the ENTIRE
+window (memory-only reconstruction) — a perfect next-frame proxy only when the state
+fits in memory (GridWorld ~10 bits; ColorField map ~520 bits ≫ 4x35 memory tokens, so
+the gradient teaches HEDGING); clean mode is mostly mid-tau denoising (thin tau=0
+slice). Net: "predict the next frame from the VISIBLE previous frames" is never
+sustainedly demanded. Candidate seed fix (env-general, GridWorld-proven): per-frame
+p=0.5 (tau=0, d_min, GT-flow) anchor on the clean mode's new half.
