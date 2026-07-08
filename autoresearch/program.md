@@ -159,7 +159,9 @@ LOOP FOREVER:
 
 1. Look at the git state: current branch + commit.
 2. Modify the editable files with ONE experimental idea.
-3. `git commit -am "<idea>"` (the runner pushes for you; it refuses a dirty tree).
+3. `git commit -am "<idea>"` **and `git push -u origin HEAD`** — push from YOUR shell
+   (Windows Git Bash has the credentials; the WSL runner deliberately does not push and
+   will fail with `ERROR: BAD_REF` if you forgot). The runner refuses a dirty tree.
 4. Run the experiment command above (`> run.log 2>&1`).
 5. Grep the results out of `run.log`.
 6. Empty grep = crash. Read the tail, judge: dumb bug → fix (amend or new commit), re-run;

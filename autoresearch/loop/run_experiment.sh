@@ -14,7 +14,9 @@ case "$BRANCH" in autoresearch/*|exp/*) :;; *) echo "WARNING: unusual branch '$B
 
 RUN="loop-$SHA"
 echo "branch: $BRANCH  sha: $SHA  run: $RUN"
-git push -q -u origin "$BRANCH"
+# NO git push here: WSL git has no credential helper and hangs silently on private
+# remotes — the AGENT pushes from its own (Windows) shell after committing. If the
+# commit was not pushed, sync_code fails loudly with ERROR: BAD_REF below.
 bash scripts/sync_code.sh --cluster ferranti "$BRANCH" "$(git rev-parse HEAD)"
 JOB=$(bash scripts/submit_job.sh --cluster ferranti --name "$RUN" --hours 1 --cpus 16 \
         -- bash autoresearch/loop/job_payload.sh "$RUN" | sed -n 's/^JOB_ID: //p')
