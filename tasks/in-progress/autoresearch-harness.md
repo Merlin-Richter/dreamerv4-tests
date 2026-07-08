@@ -42,6 +42,17 @@ one file adds refactor risk for no control benefit; program.md scopes the loop t
   rollout_step per action + decode. The loop MAY edit this (its model may need a new inference
   path) — the frozen eval + window probe keep it honest.
 
+DRIVER METRICS (Merlin, 2026-07-08, after the god-awful 10-min sheets): every run's
+experiments.jsonl entry must ALSO log, for information (not score):
+- **In-window correctness** (BOTH tiers): the teacher-forced 1-step probe
+  (experiments/colorfield-symprobe/probe_inwindow.py is the sym prototype) — per-cell acc
+  split shift / window / past / unseen. shift-acc is the "can it even copy" gate; surface
+  as leaderboard columns + a `low_inwindow` flag (score inclusion = deliberate re-freeze,
+  Merlin's call).
+- **Ops metrics**: steps reached, s/step, GPU util (sampled nvidia-smi mean), peak VRAM,
+  params, final train flow, val mem2mem flow at budget (advisory — NOT score: pixel curve
+  proved flow descends while memory stays absent).
+
 Driver (`driver/`, NOT loop-editable; manifest.py already done):
 - `latent_cache.py`: encode both datasets once with the frozen tokenizer (fp16, ~2.6 GB;
   16-frame chunks). PREREQ CHECK: window-invariance probe on colorfield (was verified for
