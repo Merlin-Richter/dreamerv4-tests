@@ -177,7 +177,15 @@ runs -> program.md -> report calibration numbers to Merlin (first overnight loop
   ~65min; resized to ~115k expected steps so the budget binds). Remaining readout: does
   pixel-tier memory appear by 110k steps? NB the overnight local SYMCURVE died at launch
   (header-only log) — sym curve still missing, relaunch locally when the 4070 is free.
-- **WINDOW PIN (red-team consequence; design CORRECTED 2026-07-06 late)**: the driver pins the
+- **[SUPERSEDED 2026-07-08 by the CARRIED-STATE BYTE BUDGET — Merlin's call]** The hard
+  window pin below is replaced for the loop: the real-world constraint is COST, not
+  architecture, and the pin outlawed legitimate directions (eviction-exempt memory banks,
+  compressed past, sparse deep-past attention). New rule: training compute priced by the
+  600s budget; carried rollout state capped at 518400 B (1.5x measured seed baseline
+  345600 B @ f1544f3), enforced by loop/state_probe.py (object-graph sweep, params
+  excluded, per-step-growth = unbounded-state FAIL) + human review of kept diffs +
+  real_bins legibility. window_frames is now informational. Historical design follows:
+- **WINDOW PIN (red-team consequence; design CORRECTED 2026-07-06 late; see supersession above)**: the driver pins the
   model's temporal attention window (W=16) because the comeback scalar gives a window-W model
   ≈ the fraction of age bins ≤ W — without a pin the loop's cheapest move is "grow the window".
   **CORRECTION**: the original probe ("perturb a frame > W back ⇒ output must be bit-identical")
