@@ -8,6 +8,12 @@
 # (per-step check; SLURM walltime is only the outer safety margin). Snapshot 3750 is the
 # cross-backend anchor against the local kill point. Also yields the calibration's missing
 # H100 s/step number (local anchor: 3.92 s/step at this config).
+#
+# RESIZED after first submission (416895, cancelled at ~2 min): measured H100 pace is
+# 0.124 s/step (~31x local, NOT the guessed 4-6x) -> the original sched 14000 + default
+# --epochs 50 (31k-step cap) would have ended the run in ~65 min. Now sched 110000
+# (~3h48m; warmup stays min(200, 10%)=200, identical to the local run, so early snapshots
+# remain LR-matched) + --epochs 200 so the 4h budget is the binding stop.
 set -euo pipefail
 
 # Cache guard: data + latent cache were built on ferranti by job 416225 (idempotent datagen,
@@ -26,5 +32,6 @@ python -u autoresearch/editable/train.py \
   --budget-s 14400 \
   --batch-size 128 --embedding-dim 128 --depth 6 --n-heads 8 \
   --fixed-n-ctx --seed 0 \
-  --sched-steps 14000 \
-  --snapshot-at 250,500,1000,2000,3750,4000,6000,8000,10000,12000,14000
+  --epochs 200 \
+  --sched-steps 110000 \
+  --snapshot-at 250,500,1000,2000,3750,6000,8000,10000,14000,20000,28000,40000,56000,80000,110000

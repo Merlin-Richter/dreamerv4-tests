@@ -12,8 +12,9 @@ init_verb "$@"
 JOBID="${WRAP_ARGS[0]:-}"
 [ -n "$JOBID" ] || die_config "usage: cancel_job.sh --cluster X <jobid>"
 echo "$JOBID" | grep -qE '^[0-9]+$' || die_config "job id must be numeric"
-IDX="$REPO_DIR/EXPERIMENTS.md"
-[ -f "$IDX" ] || die "EXPERIMENTS.md not found — cannot verify job ownership"
+IDX="$REPO_DIR/agent/EXPERIMENTS.md"          # index moved from repo root to agent/
+[ -f "$IDX" ] || IDX="$REPO_DIR/EXPERIMENTS.md"
+[ -f "$IDX" ] || die "EXPERIMENTS.md not found (agent/ or root) — cannot verify job ownership"
 if ! grep -qE "(^|[^0-9])${JOBID}([^0-9]|$)" "$IDX"; then
   die "refusing to cancel job $JOBID — not found in EXPERIMENTS.md (record it there first if it's ours)"
 fi
