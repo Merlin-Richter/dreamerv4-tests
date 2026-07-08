@@ -42,11 +42,12 @@ FLOW=$(grep -oE 'flow [0-9.]+' "$OUT/train.log" | tail -1 | awk '{print $2}')
 PEAK_MB=$(cut -d, -f1 "$OUT/gpu_samples.csv" | sort -n | tail -1)
 UTIL=$(cut -d, -f2 "$OUT/gpu_samples.csv" | awk '{s+=$1; n++} END {if (n>0) printf "%.0f", s/n; else print 0}')
 
-# ---- window pin (hard config check) ----
-WPIN=$(python -c "
+# ---- carried-state byte budget (replaces the old hard window pin) ----
+python -u autoresearch/loop/state_probe.py --checkpoint "$OUT/dynamics_sym.pt"
+WFRAMES=$(python -c "
 import torch
 c = torch.load('$OUT/dynamics_sym.pt', map_location='cpu', weights_only=False)['config']
-print('PASS' if c.get('max_temporal_length', 999) <= 16 else 'FAIL')")
+print(c.get('max_temporal_length', '?'))")
 
 # ---- probes + reduced frozen eval ----
 python -u autoresearch/loop/probe_inwindow.py --checkpoint "$OUT/dynamics_sym.pt"
@@ -60,4 +61,4 @@ echo "sec_per_step:     $(python -c "print(f'{${ELAPSED:-0}/max(1,${STEPS:-1}):.
 echo "flow_final:       ${FLOW:-nan}"
 echo "peak_vram_mb:     ${PEAK_MB:-0}"
 echo "gpu_util_pct:     ${UTIL:-0}"
-echo "window_pin:       $WPIN"
+echo "window_frames:    $WFRAMES"

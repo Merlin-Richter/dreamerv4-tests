@@ -54,18 +54,32 @@ log (which ends in the summary + score lines) to stdout. A full cycle is ~15–2
 **What you CAN do:**
 - Modify `autoresearch/editable/{train_sym,model,rollout}.py` — everything is fair game:
   the objective, the architecture, hyperparameters (as file defaults), the memory
-  mechanism, the LR schedule, the data sampling.
+  mechanism, the LR schedule, the data sampling. Out-there ideas are explicitly welcome:
+  memory tokens retained past window eviction, learned compression of evicted frames,
+  sparse attention into the deep past, new state modalities, different backprop through
+  the relay — anything that fits the two resource prices below.
 - Modify `adapter_sym.py` ONLY if your model change requires a new inference path. The
   codec (`encode_latents`/`decode_latents`) and its dims must stay consistent with
   training — train_sym imports them from there, so drift breaks you loudly.
+
+**The two resource prices (instead of architectural bans):**
+1. **Training compute** is priced by the fixed 600s budget — a slower design trains fewer
+   steps. Nothing else limits training; widen the training window if you think it pays.
+2. **Carried rollout state is capped in BYTES**: everything your model carries across
+   inference steps (KV cache + any persistent per-episode tensors) must fit
+   `state_budget: 518400` bytes (1.5× the seed's dense-W=16 cache), measured by the job's
+   state probe (`state_check: FAIL` ⇒ the run is void; so is per-step state GROWTH —
+   unbounded accumulation is a buffer, not memory). This is why a giant dense context is
+   a non-starter, but ANY clever bounded-state mechanism is legal — including earning
+   headroom via fp16 K/V or grouped-query attention (`gqa_groups` exists in the config).
 
 **What you CANNOT do:**
 - Modify `autoresearch/frozen_sym/` (env, datagen, policies, scorer), `autoresearch/loop/`,
   `autoresearch/driver/`, `scripts/`, or the datasets. These are integrity-checked;
   a tampered run scores 0.
-- Change `W_PIN`/`max_temporal_length` above 16. The job hard-checks the checkpoint config
-  (`window_pin: FAIL` ⇒ the run is void) — growing the attention window is the one
-  cheat that trivially games a memory eval.
+- Hide carried state from the probe (stashing tensors in globals/closures). The probe
+  sweeps the adapter object graph; kept diffs are human-reviewed and buffer-shaped gains
+  are visually obvious in `real_bins` — it will be caught, and the run voided.
 - Install packages or add dependencies.
 - Touch the cluster except through `autoresearch/loop/run_experiment.sh`. Never cancel
   jobs; they self-terminate within the hour.
@@ -89,6 +103,10 @@ against improvement magnitude.
 The job log (end of your run.log) contains grep-able `key: value` lines:
 
 ```
+state_bytes:      345600
+state_growth_bps: 0.0
+state_budget:     518400
+state_check:      PASS
 inwindow_shift:   0.6720  (n=1849)
 inwindow_past:    0.2720  (n=103)
 score_gated:      0.031500
@@ -104,13 +122,13 @@ sec_per_step:     0.138
 flow_final:       0.0093
 peak_vram_mb:     4210
 gpu_util_pct:     71
-window_pin:       PASS
+window_frames:    16
 ```
 
 Extract the essentials with:
 
 ```
-grep -E "^(score_gated|inwindow_shift|inwindow_past|steps|peak_vram_mb|window_pin):" run.log
+grep -E "^(score_gated|inwindow_shift|inwindow_past|state_check|steps|peak_vram_mb):" run.log
 ```
 
 If the grep is empty, the run crashed — `tail -n 60 run.log` shows the failure (Python
