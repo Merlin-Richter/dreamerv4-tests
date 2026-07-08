@@ -37,6 +37,31 @@ Launched 2026-07-08 (Merlin's ask: "a useful ~4h cluster job on the new envs").
    decisively quantifies the pixel promotion-gate cost and strengthens the
    sym-tier-first strategy; if it DOES appear, the step count locates the memory knee.
 
+## RESULTS (2026-07-08 ~15:15, mid-run @ step ~81k — snapshots 250..80000 analyzed)
+
+Figure: `curve_pixcurve.png` (plot_curve.py; loss CSVs from both logs + sheets_sweep.log).
+
+1. **Cross-backend anchor VALIDATED**: H100 and 4070 loss curves coincide through the
+   local kill point (val @625: 0.00564 vs 0.00559; the flow curves overlay exactly on
+   the log-log plot). Same seed => same data order; silicon is irrelevant. Snapshot
+   3750 is a faithful continuation point.
+2. **Loss knee**: flow 0.0122 @3750 -> 0.0075 @10k -> 0.0060 @28k -> 0.0056 @80k —
+   plateau, on the 3e-4 flat (NOT annealing). val(normal) bottoms ~0.0032 @3k then
+   drifts up to ~0.0055 (never-trained normal loss; expected for rollout-only).
+3. **Revisit acc (driver/sheets.py, seeds 5+6, chance 0.2): WINDOW-SHAPED, NOT
+   MEMORY-SHAPED.** Mean: ~chance to 2k, lifts at 3750 (0.29), plateaus 0.32-0.35
+   from 10k -> FLAT to 80k. Per-frame: FIRST revisit frame (age ~60, nearest the
+   window) climbs 0.33 -> 0.80-0.87 by 10k; LAST frame (age ~190) stays at chance
+   (0.07-0.27) at EVERY snapshot incl 80k. The lift is all near-age frames — the
+   exact "window-shaped gains" signature the leaderboard legibility backstop
+   (autoresearch-harness task, WINDOW PIN §3) was designed to catch.
+4. **VERDICT (pre-registered Q3): pixel-tier memory does NOT emerge by 80k steps**
+   (~21x the local partial; loss+acc both flat 10k->80k, so the remaining ~30k steps
+   will not change it). Pixel tier confirmed as promotion gate at this scale — the
+   sym-tier-first strategy stands. Caveat: sheet numbers are 1 scripted episode x 2
+   map seeds (illustrative); an eval-grade claim wants the frozen comeback eval
+   (chance-corrected age bins) on ~3 snapshots (e.g. 3750/20k/final), reduced config.
+
 ## Ops
 - Job: ferranti H100, name `colorfield-pixcurve`, 1 GPU, --hours 6.
 - Pull: `scripts/pull_results.sh --cluster ferranti colorfield-pixcurve --what all`

@@ -1,0 +1,12 @@
+=== job colorfield-pixcurve on mlcbm013 | jobid 416895 | Wed Jul  8 12:07:44 CEST 2026 ===
+NVIDIA H100 80GB HBM3, 81559 MiB
+=== commit: 72ec6585e505e418804441444eb491aedcd52f7b ===
+=== reusing cached venv /weka/martius/mot936/venvs/venv-b05c6eb3f672f99e ===
+=== running: bash experiments/colorfield-pixcurve/run.sh ===
+device=cuda params=1.32M W=16 (PINNED) n_actions=5 cache=latents-bd8f18857d71.npy train_eps=5000 val_eps=250 clip_len=64 n_ctx choices=[4, 8, 16] mem2mem_frac=1.0 bootstrap=False use_ff9=False ff9_k=0 n_memory=4 budget_s=14400.0
+[snapshot] step 250 -> runs/colorfield-pixcurve/dynamics_step250.pt (elapsed 35s)
+[snapshot] step 500 -> runs/colorfield-pixcurve/dynamics_step500.pt (elapsed 66s)
+Epoch 1/50 | steps 625 | elapsed 82.7s | val(normal) 0.00564 | train mem2mem 0.03897 (flow 0.0390 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+[snapshot] step 1000 -> runs/colorfield-pixcurve/dynamics_step1000.pt (elapsed 130s)
+Epoch 2/50 | steps 1250 | elapsed 161.8s | val(normal) 0.00480 | train mem2mem 0.02280 (flow 0.0228 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+[2026-07-08T12:11:28.377] error: *** JOB 416895 ON mlcbm013 CANCELLED AT 2026-07-08T12:11:28 DUE to SIGNAL Terminated ***

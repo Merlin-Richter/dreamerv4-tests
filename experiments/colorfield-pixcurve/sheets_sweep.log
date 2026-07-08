@@ -1,0 +1,71 @@
+=== STEP 250 ===
+[sheet] experiments/colorfield-pixcurve/sheets_step250\sheet_revisit_seed5.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.227 (first 0.333 last 0.067)
+[sheet] experiments/colorfield-pixcurve/sheets_step250\sheet_revisit_seed6.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.237 (first 0.333 last 0.100)
+=== STEP 500 ===
+[sheet] experiments/colorfield-pixcurve/sheets_step500\sheet_revisit_seed5.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.221 (first 0.433 last 0.067)
+[sheet] experiments/colorfield-pixcurve/sheets_step500\sheet_revisit_seed6.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.225 (first 0.400 last 0.000)
+=== STEP 1000 ===
+[sheet] experiments/colorfield-pixcurve/sheets_step1000\sheet_revisit_seed5.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.223 (first 0.533 last 0.067)
+[sheet] experiments/colorfield-pixcurve/sheets_step1000\sheet_revisit_seed6.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.242 (first 0.567 last 0.033)
+=== STEP 2000 ===
+[sheet] experiments/colorfield-pixcurve/sheets_step2000\sheet_revisit_seed5.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.258 (first 0.533 last 0.067)
+[sheet] experiments/colorfield-pixcurve/sheets_step2000\sheet_revisit_seed6.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.219 (first 0.367 last 0.000)
+=== STEP 3750 ===
+[sheet] experiments/colorfield-pixcurve/sheets_step3750\sheet_revisit_seed5.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.294 (first 0.633 last 0.133)
+[sheet] experiments/colorfield-pixcurve/sheets_step3750\sheet_revisit_seed6.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.294 (first 0.633 last 0.100)
+=== STEP 6000 ===
+[sheet] experiments/colorfield-pixcurve/sheets_step6000\sheet_revisit_seed5.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.312 (first 0.667 last 0.067)
+[sheet] experiments/colorfield-pixcurve/sheets_step6000\sheet_revisit_seed6.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.317 (first 0.700 last 0.133)
+=== STEP 8000 ===
+[sheet] experiments/colorfield-pixcurve/sheets_step8000\sheet_revisit_seed5.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.300 (first 0.800 last 0.067)
+[sheet] experiments/colorfield-pixcurve/sheets_step8000\sheet_revisit_seed6.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.290 (first 0.733 last 0.200)
+=== STEP 10000 ===
+[sheet] experiments/colorfield-pixcurve/sheets_step10000\sheet_revisit_seed5.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.321 (first 0.867 last 0.133)
+[sheet] experiments/colorfield-pixcurve/sheets_step10000\sheet_revisit_seed6.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.358 (first 0.733 last 0.100)
+=== STEP 14000 ===
+[sheet] experiments/colorfield-pixcurve/sheets_step14000\sheet_revisit_seed5.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.329 (first 0.767 last 0.200)
+[sheet] experiments/colorfield-pixcurve/sheets_step14000\sheet_revisit_seed6.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.365 (first 0.800 last 0.133)
+=== STEP 20000 ===
+[sheet] experiments/colorfield-pixcurve/sheets_step20000\sheet_revisit_seed5.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.379 (first 0.833 last 0.133)
+[sheet] experiments/colorfield-pixcurve/sheets_step20000\sheet_revisit_seed6.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.300 (first 0.700 last 0.133)
+=== STEP 28000 ===
+[sheet] experiments/colorfield-pixcurve/sheets_step28000\sheet_revisit_seed5.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.319 (first 0.700 last 0.167)
+[sheet] experiments/colorfield-pixcurve/sheets_step28000\sheet_revisit_seed6.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.356 (first 0.667 last 0.200)
+=== STEP 40000 ===
+[sheet] experiments/colorfield-pixcurve/sheets_step40000\sheet_revisit_seed5.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.331 (first 0.767 last 0.267)
+[sheet] experiments/colorfield-pixcurve/sheets_step40000\sheet_revisit_seed6.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.304 (first 0.733 last 0.133)
+=== STEP 56000 ===
+[sheet] experiments/colorfield-pixcurve/sheets_step56000\sheet_revisit_seed5.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.327 (first 0.767 last 0.200)
+[sheet] experiments/colorfield-pixcurve/sheets_step56000\sheet_revisit_seed6.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.323 (first 0.733 last 0.200)
+=== STEP 80000 ===
+[sheet] experiments/colorfield-pixcurve/sheets_step80000\sheet_revisit_seed5.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.306 (first 0.600 last 0.200)
+[sheet] experiments/colorfield-pixcurve/sheets_step80000\sheet_revisit_seed6.png
+[sheet] mean on-screen cell acc over 16 sampled imag frames: 0.335 (first 0.667 last 0.067)
+SWEEP_DONE

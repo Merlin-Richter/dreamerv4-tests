@@ -1,0 +1,150 @@
+=== job colorfield-pixcurve on mlcbm013 | jobid 416906 | Wed Jul  8 12:12:44 CEST 2026 ===
+NVIDIA H100 80GB HBM3, 81559 MiB
+=== commit: 2461871c5295fb2476dfff614854aceca9ca2cde ===
+=== reusing cached venv /weka/martius/mot936/venvs/venv-b05c6eb3f672f99e ===
+=== running: bash experiments/colorfield-pixcurve/run.sh ===
+device=cuda params=1.32M W=16 (PINNED) n_actions=5 cache=latents-bd8f18857d71.npy train_eps=5000 val_eps=250 clip_len=64 n_ctx choices=[4, 8, 16] mem2mem_frac=1.0 bootstrap=False use_ff9=False ff9_k=0 n_memory=4 budget_s=14400.0
+[snapshot] step 250 -> runs/colorfield-pixcurve/dynamics_step250.pt (elapsed 33s)
+[snapshot] step 500 -> runs/colorfield-pixcurve/dynamics_step500.pt (elapsed 65s)
+Epoch 1/200 | steps 625 | elapsed 81.2s | val(normal) 0.00564 | train mem2mem 0.03897 (flow 0.0390 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+[snapshot] step 1000 -> runs/colorfield-pixcurve/dynamics_step1000.pt (elapsed 128s)
+Epoch 2/200 | steps 1250 | elapsed 160.4s | val(normal) 0.00480 | train mem2mem 0.02280 (flow 0.0228 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 3/200 | steps 1875 | elapsed 239.5s | val(normal) 0.00372 | train mem2mem 0.01735 (flow 0.0174 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+[snapshot] step 2000 -> runs/colorfield-pixcurve/dynamics_step2000.pt (elapsed 255s)
+Epoch 4/200 | steps 2500 | elapsed 318.7s | val(normal) 0.00338 | train mem2mem 0.01450 (flow 0.0145 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 5/200 | steps 3125 | elapsed 397.8s | val(normal) 0.00321 | train mem2mem 0.01311 (flow 0.0131 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+[snapshot] step 3750 -> runs/colorfield-pixcurve/dynamics_step3750.pt (elapsed 476s)
+Epoch 6/200 | steps 3750 | elapsed 477.0s | val(normal) 0.00316 | train mem2mem 0.01218 (flow 0.0122 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 7/200 | steps 4375 | elapsed 556.1s | val(normal) 0.00301 | train mem2mem 0.01139 (flow 0.0114 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 8/200 | steps 5000 | elapsed 635.3s | val(normal) 0.00294 | train mem2mem 0.01083 (flow 0.0108 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 9/200 | steps 5625 | elapsed 714.4s | val(normal) 0.00285 | train mem2mem 0.01030 (flow 0.0103 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+[snapshot] step 6000 -> runs/colorfield-pixcurve/dynamics_step6000.pt (elapsed 762s)
+Epoch 10/200 | steps 6250 | elapsed 793.6s | val(normal) 0.00273 | train mem2mem 0.00978 (flow 0.0098 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 11/200 | steps 6875 | elapsed 872.8s | val(normal) 0.00271 | train mem2mem 0.00946 (flow 0.0095 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 12/200 | steps 7500 | elapsed 951.9s | val(normal) 0.00272 | train mem2mem 0.00920 (flow 0.0092 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+[snapshot] step 8000 -> runs/colorfield-pixcurve/dynamics_step8000.pt (elapsed 1015s)
+Epoch 13/200 | steps 8125 | elapsed 1031.1s | val(normal) 0.00271 | train mem2mem 0.00894 (flow 0.0089 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 14/200 | steps 8750 | elapsed 1110.2s | val(normal) 0.00262 | train mem2mem 0.00866 (flow 0.0087 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 15/200 | steps 9375 | elapsed 1189.3s | val(normal) 0.00271 | train mem2mem 0.00838 (flow 0.0084 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+[snapshot] step 10000 -> runs/colorfield-pixcurve/dynamics_step10000.pt (elapsed 1268s)
+Epoch 16/200 | steps 10000 | elapsed 1268.5s | val(normal) 0.00262 | train mem2mem 0.00815 (flow 0.0081 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 17/200 | steps 10625 | elapsed 1347.6s | val(normal) 0.00263 | train mem2mem 0.00795 (flow 0.0079 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 18/200 | steps 11250 | elapsed 1426.8s | val(normal) 0.00256 | train mem2mem 0.00779 (flow 0.0078 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 19/200 | steps 11875 | elapsed 1505.9s | val(normal) 0.00251 | train mem2mem 0.00763 (flow 0.0076 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 20/200 | steps 12500 | elapsed 1585.0s | val(normal) 0.00253 | train mem2mem 0.00751 (flow 0.0075 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 21/200 | steps 13125 | elapsed 1664.2s | val(normal) 0.00261 | train mem2mem 0.00740 (flow 0.0074 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 22/200 | steps 13750 | elapsed 1743.3s | val(normal) 0.00265 | train mem2mem 0.00729 (flow 0.0073 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+[snapshot] step 14000 -> runs/colorfield-pixcurve/dynamics_step14000.pt (elapsed 1775s)
+Epoch 23/200 | steps 14375 | elapsed 1822.4s | val(normal) 0.00267 | train mem2mem 0.00720 (flow 0.0072 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 24/200 | steps 15000 | elapsed 1901.6s | val(normal) 0.00264 | train mem2mem 0.00713 (flow 0.0071 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 25/200 | steps 15625 | elapsed 1980.7s | val(normal) 0.00269 | train mem2mem 0.00704 (flow 0.0070 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 26/200 | steps 16250 | elapsed 2059.9s | val(normal) 0.00289 | train mem2mem 0.00698 (flow 0.0070 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 27/200 | steps 16875 | elapsed 2139.1s | val(normal) 0.00296 | train mem2mem 0.00691 (flow 0.0069 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 28/200 | steps 17500 | elapsed 2218.2s | val(normal) 0.00313 | train mem2mem 0.00685 (flow 0.0068 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 29/200 | steps 18125 | elapsed 2297.4s | val(normal) 0.00314 | train mem2mem 0.00679 (flow 0.0068 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 30/200 | steps 18750 | elapsed 2376.5s | val(normal) 0.00318 | train mem2mem 0.00674 (flow 0.0067 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 31/200 | steps 19375 | elapsed 2455.7s | val(normal) 0.00331 | train mem2mem 0.00669 (flow 0.0067 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+[snapshot] step 20000 -> runs/colorfield-pixcurve/dynamics_step20000.pt (elapsed 2534s)
+Epoch 32/200 | steps 20000 | elapsed 2534.8s | val(normal) 0.00347 | train mem2mem 0.00665 (flow 0.0066 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 33/200 | steps 20625 | elapsed 2614.0s | val(normal) 0.00354 | train mem2mem 0.00661 (flow 0.0066 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 34/200 | steps 21250 | elapsed 2693.1s | val(normal) 0.00375 | train mem2mem 0.00657 (flow 0.0066 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 35/200 | steps 21875 | elapsed 2772.3s | val(normal) 0.00399 | train mem2mem 0.00654 (flow 0.0065 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 36/200 | steps 22500 | elapsed 2851.4s | val(normal) 0.00386 | train mem2mem 0.00650 (flow 0.0065 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 37/200 | steps 23125 | elapsed 2930.6s | val(normal) 0.00417 | train mem2mem 0.00648 (flow 0.0065 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 38/200 | steps 23750 | elapsed 3009.8s | val(normal) 0.00409 | train mem2mem 0.00644 (flow 0.0064 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 39/200 | steps 24375 | elapsed 3089.0s | val(normal) 0.00417 | train mem2mem 0.00642 (flow 0.0064 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 40/200 | steps 25000 | elapsed 3168.1s | val(normal) 0.00410 | train mem2mem 0.00639 (flow 0.0064 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 41/200 | steps 25625 | elapsed 3247.3s | val(normal) 0.00418 | train mem2mem 0.00636 (flow 0.0064 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 42/200 | steps 26250 | elapsed 3326.5s | val(normal) 0.00401 | train mem2mem 0.00634 (flow 0.0063 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 43/200 | steps 26875 | elapsed 3405.9s | val(normal) 0.00406 | train mem2mem 0.00632 (flow 0.0063 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 44/200 | steps 27500 | elapsed 3486.1s | val(normal) 0.00416 | train mem2mem 0.00630 (flow 0.0063 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+[snapshot] step 28000 -> runs/colorfield-pixcurve/dynamics_step28000.pt (elapsed 3551s)
+Epoch 45/200 | steps 28125 | elapsed 3567.5s | val(normal) 0.00422 | train mem2mem 0.00628 (flow 0.0063 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 46/200 | steps 28750 | elapsed 3649.2s | val(normal) 0.00418 | train mem2mem 0.00625 (flow 0.0062 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 47/200 | steps 29375 | elapsed 3730.8s | val(normal) 0.00426 | train mem2mem 0.00623 (flow 0.0062 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 48/200 | steps 30000 | elapsed 3812.4s | val(normal) 0.00434 | train mem2mem 0.00620 (flow 0.0062 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 49/200 | steps 30625 | elapsed 3893.9s | val(normal) 0.00438 | train mem2mem 0.00619 (flow 0.0062 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 50/200 | steps 31250 | elapsed 3975.5s | val(normal) 0.00454 | train mem2mem 0.00616 (flow 0.0062 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 51/200 | steps 31875 | elapsed 4057.2s | val(normal) 0.00436 | train mem2mem 0.00615 (flow 0.0061 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 52/200 | steps 32500 | elapsed 4138.8s | val(normal) 0.00458 | train mem2mem 0.00614 (flow 0.0061 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 53/200 | steps 33125 | elapsed 4220.3s | val(normal) 0.00436 | train mem2mem 0.00611 (flow 0.0061 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 54/200 | steps 33750 | elapsed 4301.4s | val(normal) 0.00437 | train mem2mem 0.00610 (flow 0.0061 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 55/200 | steps 34375 | elapsed 4383.1s | val(normal) 0.00430 | train mem2mem 0.00609 (flow 0.0061 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 56/200 | steps 35000 | elapsed 4464.6s | val(normal) 0.00431 | train mem2mem 0.00608 (flow 0.0061 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 57/200 | steps 35625 | elapsed 4546.2s | val(normal) 0.00421 | train mem2mem 0.00607 (flow 0.0061 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 58/200 | steps 36250 | elapsed 4627.9s | val(normal) 0.00429 | train mem2mem 0.00605 (flow 0.0061 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 59/200 | steps 36875 | elapsed 4709.4s | val(normal) 0.00425 | train mem2mem 0.00604 (flow 0.0060 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 60/200 | steps 37500 | elapsed 4791.1s | val(normal) 0.00434 | train mem2mem 0.00603 (flow 0.0060 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 61/200 | steps 38125 | elapsed 4872.5s | val(normal) 0.00429 | train mem2mem 0.00602 (flow 0.0060 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 62/200 | steps 38750 | elapsed 4954.0s | val(normal) 0.00422 | train mem2mem 0.00601 (flow 0.0060 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 63/200 | steps 39375 | elapsed 5035.5s | val(normal) 0.00429 | train mem2mem 0.00599 (flow 0.0060 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+[snapshot] step 40000 -> runs/colorfield-pixcurve/dynamics_step40000.pt (elapsed 5116s)
+Epoch 64/200 | steps 40000 | elapsed 5117.1s | val(normal) 0.00425 | train mem2mem 0.00598 (flow 0.0060 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 65/200 | steps 40625 | elapsed 5198.7s | val(normal) 0.00425 | train mem2mem 0.00598 (flow 0.0060 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 66/200 | steps 41250 | elapsed 5280.4s | val(normal) 0.00429 | train mem2mem 0.00597 (flow 0.0060 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 67/200 | steps 41875 | elapsed 5362.2s | val(normal) 0.00436 | train mem2mem 0.00595 (flow 0.0060 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 68/200 | steps 42500 | elapsed 5443.9s | val(normal) 0.00436 | train mem2mem 0.00595 (flow 0.0059 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 69/200 | steps 43125 | elapsed 5525.5s | val(normal) 0.00433 | train mem2mem 0.00594 (flow 0.0059 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 70/200 | steps 43750 | elapsed 5607.3s | val(normal) 0.00430 | train mem2mem 0.00594 (flow 0.0059 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 71/200 | steps 44375 | elapsed 5688.0s | val(normal) 0.00448 | train mem2mem 0.00592 (flow 0.0059 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 72/200 | steps 45000 | elapsed 5767.7s | val(normal) 0.00448 | train mem2mem 0.00592 (flow 0.0059 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 73/200 | steps 45625 | elapsed 5847.5s | val(normal) 0.00452 | train mem2mem 0.00592 (flow 0.0059 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 74/200 | steps 46250 | elapsed 5927.3s | val(normal) 0.00456 | train mem2mem 0.00590 (flow 0.0059 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 75/200 | steps 46875 | elapsed 6007.0s | val(normal) 0.00458 | train mem2mem 0.00589 (flow 0.0059 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 76/200 | steps 47500 | elapsed 6086.9s | val(normal) 0.00455 | train mem2mem 0.00590 (flow 0.0059 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 77/200 | steps 48125 | elapsed 6166.8s | val(normal) 0.00450 | train mem2mem 0.00588 (flow 0.0059 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 78/200 | steps 48750 | elapsed 6246.6s | val(normal) 0.00461 | train mem2mem 0.00588 (flow 0.0059 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 79/200 | steps 49375 | elapsed 6326.4s | val(normal) 0.00463 | train mem2mem 0.00586 (flow 0.0059 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 80/200 | steps 50000 | elapsed 6406.3s | val(normal) 0.00468 | train mem2mem 0.00585 (flow 0.0059 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 81/200 | steps 50625 | elapsed 6486.1s | val(normal) 0.00470 | train mem2mem 0.00586 (flow 0.0059 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 82/200 | steps 51250 | elapsed 6565.9s | val(normal) 0.00466 | train mem2mem 0.00585 (flow 0.0058 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 83/200 | steps 51875 | elapsed 6645.8s | val(normal) 0.00473 | train mem2mem 0.00584 (flow 0.0058 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 84/200 | steps 52500 | elapsed 6725.7s | val(normal) 0.00483 | train mem2mem 0.00583 (flow 0.0058 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 85/200 | steps 53125 | elapsed 6805.5s | val(normal) 0.00478 | train mem2mem 0.00584 (flow 0.0058 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 86/200 | steps 53750 | elapsed 6885.5s | val(normal) 0.00481 | train mem2mem 0.00582 (flow 0.0058 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 87/200 | steps 54375 | elapsed 6965.4s | val(normal) 0.00495 | train mem2mem 0.00582 (flow 0.0058 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 88/200 | steps 55000 | elapsed 7045.1s | val(normal) 0.00496 | train mem2mem 0.00582 (flow 0.0058 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 89/200 | steps 55625 | elapsed 7124.9s | val(normal) 0.00498 | train mem2mem 0.00580 (flow 0.0058 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+[snapshot] step 56000 -> runs/colorfield-pixcurve/dynamics_step56000.pt (elapsed 7172s)
+Epoch 90/200 | steps 56250 | elapsed 7204.9s | val(normal) 0.00493 | train mem2mem 0.00580 (flow 0.0058 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 91/200 | steps 56875 | elapsed 7284.6s | val(normal) 0.00482 | train mem2mem 0.00580 (flow 0.0058 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 92/200 | steps 57500 | elapsed 7364.2s | val(normal) 0.00497 | train mem2mem 0.00579 (flow 0.0058 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 93/200 | steps 58125 | elapsed 7443.9s | val(normal) 0.00494 | train mem2mem 0.00579 (flow 0.0058 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 94/200 | steps 58750 | elapsed 7523.7s | val(normal) 0.00502 | train mem2mem 0.00578 (flow 0.0058 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 95/200 | steps 59375 | elapsed 7603.7s | val(normal) 0.00507 | train mem2mem 0.00576 (flow 0.0058 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 96/200 | steps 60000 | elapsed 7683.5s | val(normal) 0.00505 | train mem2mem 0.00577 (flow 0.0058 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 97/200 | steps 60625 | elapsed 7763.5s | val(normal) 0.00488 | train mem2mem 0.00577 (flow 0.0058 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 98/200 | steps 61250 | elapsed 7843.3s | val(normal) 0.00506 | train mem2mem 0.00576 (flow 0.0058 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 99/200 | steps 61875 | elapsed 7923.1s | val(normal) 0.00511 | train mem2mem 0.00575 (flow 0.0058 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 100/200 | steps 62500 | elapsed 8002.9s | val(normal) 0.00495 | train mem2mem 0.00575 (flow 0.0058 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 101/200 | steps 63125 | elapsed 8082.7s | val(normal) 0.00513 | train mem2mem 0.00574 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 102/200 | steps 63750 | elapsed 8162.6s | val(normal) 0.00515 | train mem2mem 0.00574 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 103/200 | steps 64375 | elapsed 8242.5s | val(normal) 0.00509 | train mem2mem 0.00573 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 104/200 | steps 65000 | elapsed 8322.5s | val(normal) 0.00512 | train mem2mem 0.00572 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 105/200 | steps 65625 | elapsed 8402.2s | val(normal) 0.00519 | train mem2mem 0.00571 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 106/200 | steps 66250 | elapsed 8482.1s | val(normal) 0.00535 | train mem2mem 0.00572 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 107/200 | steps 66875 | elapsed 8561.9s | val(normal) 0.00545 | train mem2mem 0.00571 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 108/200 | steps 67500 | elapsed 8641.7s | val(normal) 0.00525 | train mem2mem 0.00570 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 109/200 | steps 68125 | elapsed 8721.5s | val(normal) 0.00528 | train mem2mem 0.00571 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 110/200 | steps 68750 | elapsed 8801.2s | val(normal) 0.00538 | train mem2mem 0.00569 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 111/200 | steps 69375 | elapsed 8881.0s | val(normal) 0.00553 | train mem2mem 0.00570 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 112/200 | steps 70000 | elapsed 8960.9s | val(normal) 0.00542 | train mem2mem 0.00570 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 113/200 | steps 70625 | elapsed 9040.8s | val(normal) 0.00553 | train mem2mem 0.00569 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 114/200 | steps 71250 | elapsed 9120.5s | val(normal) 0.00540 | train mem2mem 0.00569 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 115/200 | steps 71875 | elapsed 9200.3s | val(normal) 0.00563 | train mem2mem 0.00568 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 116/200 | steps 72500 | elapsed 9280.2s | val(normal) 0.00540 | train mem2mem 0.00568 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 117/200 | steps 73125 | elapsed 9360.0s | val(normal) 0.00540 | train mem2mem 0.00567 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 118/200 | steps 73750 | elapsed 9440.0s | val(normal) 0.00552 | train mem2mem 0.00567 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 119/200 | steps 74375 | elapsed 9519.9s | val(normal) 0.00549 | train mem2mem 0.00567 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 120/200 | steps 75000 | elapsed 9599.8s | val(normal) 0.00557 | train mem2mem 0.00566 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 121/200 | steps 75625 | elapsed 9679.6s | val(normal) 0.00541 | train mem2mem 0.00566 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 122/200 | steps 76250 | elapsed 9759.5s | val(normal) 0.00548 | train mem2mem 0.00566 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 123/200 | steps 76875 | elapsed 9839.3s | val(normal) 0.00545 | train mem2mem 0.00565 (flow 0.0057 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 124/200 | steps 77500 | elapsed 9919.0s | val(normal) 0.00554 | train mem2mem 0.00565 (flow 0.0056 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 125/200 | steps 78125 | elapsed 9998.7s | val(normal) 0.00543 | train mem2mem 0.00565 (flow 0.0056 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 126/200 | steps 78750 | elapsed 10078.6s | val(normal) 0.00539 | train mem2mem 0.00565 (flow 0.0056 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 127/200 | steps 79375 | elapsed 10158.4s | val(normal) 0.00541 | train mem2mem 0.00564 (flow 0.0056 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+[snapshot] step 80000 -> runs/colorfield-pixcurve/dynamics_step80000.pt (elapsed 10238s)
+Epoch 128/200 | steps 80000 | elapsed 10238.4s | val(normal) 0.00550 | train mem2mem 0.00563 (flow 0.0056 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 129/200 | steps 80625 | elapsed 10318.4s | val(normal) 0.00548 | train mem2mem 0.00565 (flow 0.0056 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
+Epoch 130/200 | steps 81250 | elapsed 10398.3s | val(normal) 0.00553 | train mem2mem 0.00562 (flow 0.0056 ff9 0.0000) | train normal 0.00000 | d_unlocked 1/8 | lr 3.00e-04
