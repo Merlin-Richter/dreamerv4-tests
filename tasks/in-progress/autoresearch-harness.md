@@ -118,13 +118,15 @@ runs -> program.md -> report calibration numbers to Merlin (first overnight loop
   MORNING: read train.log -> sheets + (reduced) comeback eval per snapshot -> the curve ->
   budget/backend decision with Merlin.
 - 2026-07-08 (Merlin: "useful ~4h cluster job on the new envs"): PIXEL CURVE EXTENSION on
-  H100 — **ferranti job 416895 @ 72ec658**, run spec experiments/colorfield-pixcurve/run.sh.
+  H100 — **ferranti job 416906 @ 2461871**, run spec experiments/colorfield-pixcurve/run.sh.
   Same config+seed as the killed local calcurve (1.32M, bs128, fixed n_ctx), --budget-s
-  14400 (BUDGET_STOP owns the 4h; SLURM 6h = margin), sched 14000, snapshots to 14k incl
-  the 3750 cross-backend anchor. Delivers the missing **H100 s/step** calibration number
-  (local 3.92 s/step) + whether pixel-tier memory appears by 14k steps. NB the overnight
-  local SYMCURVE died at launch (header-only log) — sym curve still missing, relaunch
-  locally when the 4070 is free.
+  14400 (BUDGET_STOP owns the 4h; SLURM 6h = margin), sched 110000 + epochs 200, snapshots
+  250..110000 incl the 3750 cross-backend anchor. **H100 CALIBRATION NUMBER LANDED EARLY:
+  0.124 s/step at this config = 31x the local 3.92** (measured on first submission 416895,
+  cancelled ~2min in — its sched 14000 + default epochs 50 would have ended the "4h" run at
+  ~65min; resized to ~115k expected steps so the budget binds). Remaining readout: does
+  pixel-tier memory appear by 110k steps? NB the overnight local SYMCURVE died at launch
+  (header-only log) — sym curve still missing, relaunch locally when the 4070 is free.
 - **WINDOW PIN (red-team consequence; design CORRECTED 2026-07-06 late)**: the driver pins the
   model's temporal attention window (W=16) because the comeback scalar gives a window-W model
   ≈ the fraction of age bins ≤ W — without a pin the loop's cheapest move is "grow the window".

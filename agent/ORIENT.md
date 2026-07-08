@@ -23,10 +23,12 @@ driver/run_experiment + program.md.
 **UPDATE 2026-07-08: the SYMCURVE run DIED at launch** — train.log is header-only (218 B,
 stamped 20:00 Jul 7), train.err empty, zero snapshots, GPU idle. The sym curve does NOT
 exist; needs a relaunch (next idle local-GPU window). Meanwhile the PIXEL curve extension
-went to the cluster instead: **ferranti job 416895 @ 72ec658** (4h BUDGET_STOP, same
-config+seed as the killed local calcurve, snapshots to 14k incl the 3750 anchor; also
-measures H100 s/step for the backend decision). Spec + readouts:
+went to the cluster instead: **ferranti job 416906 @ 2461871** (4h BUDGET_STOP, same
+config+seed as the killed local calcurve, snapshots to 110k incl the 3750 anchor; first
+submission 416895 cancelled ~2min in after measuring **H100 pace 0.124 s/step = 31x
+local** — the calibration backend number, already in hand). Spec + readouts:
 experiments/colorfield-pixcurve/{run.sh,NOTES.md}; EXPERIMENTS row colorfield-pixcurve-h100.
+(cancel_job.sh fixed en route: it still looked for EXPERIMENTS.md at repo root.)
 
 ## NEW BACKLOG (2026-07-06 — autoresearch harness, Merlin's direction)
 Karpathy-autoresearch-style loop for this repo, designed with Merlin (see the two task files for
