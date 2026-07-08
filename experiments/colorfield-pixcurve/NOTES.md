@@ -67,3 +67,5 @@ Figure: `curve_pixcurve.png` (plot_curve.py; loss CSVs from both logs + sheets_s
 - Pull: `scripts/pull_results.sh --cluster ferranti colorfield-pixcurve --what all`
   (checkpoints are small: 1.32M params ~ 5-6 MB each, 11 snapshots + final).
 - SHA + JOB_ID recorded in agent/EXPERIMENTS.md (row `colorfield-pixcurve-h100`).
+
+- 2026-07-08 15:17: job 416906 CANCELLED by Merlin at 3h04m (~step 82k) — verdict already unambiguous from the 10k-80k plateau; snapshots 250..80000 + dynamics.pt (~81k) are the final artifacts (pulled local, .pt gitignored).
