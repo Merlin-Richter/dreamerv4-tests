@@ -42,6 +42,45 @@ one file adds refactor risk for no control benefit; program.md scopes the loop t
   rollout_step per action + decode. The loop MAY edit this (its model may need a new inference
   path) — the frozen eval + window probe keep it honest.
 
+## LOOP DESIGN v1 (2026-07-08, Merlin's go: "lets get this loop to work"; agents =
+## Claude Code/codex; experiments = individual H100 jobs)
+
+Three trust layers:
+1. **LOOP AGENT** (headless `claude -p` / codex, FRESH context per iteration — memory lives
+   in the ledger, not the context window). Write surface: `editable/` only. Reads
+   program.md + runs/experiments.jsonl + leaderboard.md; proposes ONE change with a tag +
+   pre-registered prediction; never scores itself.
+2. **DRIVER** (`python -m autoresearch.driver.run_experiment <tag>`, deterministic, local):
+   the only path to compute. Preflight (manifest --check on frozen/+driver, git clean,
+   AUTH probe) -> commit editable diff on branch `autoresearch-loop` -> push -> sync_code
+   -> submit_job -> wait -> parse RESULT -> gates -> append jsonl -> regen leaderboard.
+   AUTH_DEAD => PAUSE + notify (never burn iterations); job infra-failure => requeue once,
+   distinct from model-failure (scored).
+3. **CLUSTER JOB** (H100, self-terminating, --hours 1): sha-gate data (idempotent datagen)
+   -> 60s pace micro-run OUTSIDE budget -> sched := rate*600*0.95 (fixed sched would
+   nullify speedups: extra steps would ride the LR floor; sizing from measured pace keeps
+   "faster code => more effective steps" true, the Karpathy compute-pricing) -> train
+   `--budget-s 600` (BUDGET_STOP owns termination; queue time never distorts the budget)
+   -> window probe + in-window probe + REDUCED frozen eval ON the H100 -> one
+   machine-readable RESULT json line. Checkpoints stay on cluster; driver pulls metrics
+   only (kept experiments pull ckpts on demand).
+
+Keep-rule: agent applies score > best + 2*sigma (sigma from calibration, re-measured
+periodically); kept train.py snapshotted under runs/; baseline re-run every ~15
+experiments. Negative results = one jsonl line, no re-runs without a change. Serial (one
+job in flight) to start — ~12-15 min/iteration wall => ~30-40 experiments/night; go
+parallel only after the loop is trusted. Overnight constraint: master socket persists
+~8h — Merlin opens it before the night; driver pauses on AUTH_DEAD.
+
+PREREQS before the first loop night (order): (1) Merlin: sym frozen-layer delta-review +
+seal + MANIFEST-sym (hash-checking is the loop's integrity spine — can't loop on an
+unsealed layer); (2) driver/window_probe.py (memory-pinned design below); (3) in-window
+probe -> driver (from experiments/colorfield-symprobe/probe_inwindow.py); (4) reduced
+eval config chosen + sigma re-measured under it; (5) driver/run_experiment.py + the job
+payload script — its integration test IS the reference-arm batch (anchored dense mem2mem
+vs --n-memory 0 vanilla, + optional anchor-1.0 rider) x 5-8 seeds => sigma + the
+discrimination/headroom go-no-go; (6) program.md v1 (Merlin owns).
+
 DRIVER METRICS (Merlin, 2026-07-08, after the god-awful 10-min sheets): every run's
 experiments.jsonl entry must ALSO log, for information (not score):
 - **In-window correctness** (BOTH tiers): the teacher-forced 1-step probe
