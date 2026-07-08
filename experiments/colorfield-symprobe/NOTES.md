@@ -69,9 +69,14 @@ GridWorld (vanilla-inwindow-diagnosis: tau0-GT-flow mass ~0.4% of loss; FIXED by
 Arm-D sustained tau0-anchor, teacher-forced 0.09 -> 1.0).
 
 WHY mem2mem escapes this on GridWorld but not here: noise mode (50%) hides the ENTIRE
-window (memory-only reconstruction) — a perfect next-frame proxy only when the state
-fits in memory (GridWorld ~10 bits; ColorField map ~520 bits ≫ 4x35 memory tokens, so
-the gradient teaches HEDGING); clean mode is mostly mid-tau denoising (thin tau=0
-slice). Net: "predict the next frame from the VISIBLE previous frames" is never
-sustainedly demanded. Candidate seed fix (env-general, GridWorld-proven): per-frame
-p=0.5 (tau=0, d_min, GT-flow) anchor on the clean mode's new half.
+window (memory-only reconstruction) — a perfect next-frame proxy only when reconstruction
+from memory is LEARNABLE early. On GridWorld it is (~10 bits of state). On ColorField the
+memory has raw room (memory tokens live at E=128 after in_proj; 4x128 = 512 floats vs
+~520 map bits — CORRECTED from an earlier "4x35" mis-statement, dims are NOT the binding
+constraint) but constructing a write/read code for 225 iid cells through the relay is a
+hard credit-assignment problem — at k-step budgets the cheap optimum is HEDGING toward
+the color prior. Meanwhile clean mode is mostly mid-tau denoising (thin tau=0 slice).
+Net: "predict the next frame from the VISIBLE previous frames" is never sustainedly
+demanded — and unlike GridWorld, nothing else stands in for it. Candidate seed fix
+(env-general, GridWorld-proven): per-frame p=0.5 (tau=0, d_min, GT-flow) anchor on the
+clean mode's new half.
