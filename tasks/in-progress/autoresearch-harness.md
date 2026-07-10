@@ -249,6 +249,32 @@ Record everything in `autoresearch/runs/calibration/NOTES.md` + one EXPERIMENTS.
 - Never touch `frozen/`, `driver/`, the dataset, or the scorer (hash-enforced anyway).
 - Negative results get one log line too; no re-running until a change is made.
 
+## SHAKEDOWN ITERATION (2026-07-10, Merlin's ask: "one iteration with a real attempt and run")
+- ferranti+galvani sockets DOWN; **vast 5090 UP+idle** → the first live loop iteration runs on vast.
+- `loop/run_experiment.sh` gained `--cluster {ferranti|vast}` (ferranti default, unchanged;
+  vast path = sync_code → vast_run → vast_wait → vast_status --tail; same payload). Committed
+  `7e41889` on exp/mem2mem-rollout-only. NB: scores comparable only WITHIN a backend (600s
+  wall-clock budget; 5090 ≠ H100 pace) — a vast-run baseline does not transfer to ferranti.
+- BUG FOUND+FIXED before it bit: `autoresearch/results.tsv` and `/run.log` are untracked-by-design
+  but the runner refuses ANY dirty tree (`git status --porcelain` includes `??`) → iteration ≥2
+  would always DIRTY_TREE. Both gitignored now. Also gitignored `.codex/` (contains a LIVE W&B
+  bearer token — must never land in git); AGENTS.md (codex CLAUDE.md) committed.
+- Shakedown branch `autoresearch/jul10-shakedown` @ 7e41889, results.tsv header created.
+- IN FLIGHT: baseline run (code as-is, per program.md iteration 1) on vast via
+  `run_experiment.sh --cluster vast > run.log`. First run also does one-time sym datagen on the box.
+- SHAKEDOWN FINDING #2 (rc=124, live): the local runner was KILLED at the agent-shell's 2-min
+  Bash timeout (background mode does not lift it; max is 10 min < the ~20-min cycle). The remote
+  job SURVIVED (detached setsid+nohup — the design held) and was re-attached via a vast_status
+  poll. Consequences: (a) the runner's launch lock may be orphaned — the next vast_run will say
+  so loudly ("lock held"), and there is currently NO sanctioned verb to clear it (wrapper gap);
+  (b) program.md's one-command-20-min contract assumes the loop agent's shell can hold a long
+  foreground process — for Claude-Code-like agents it cannot; propose splitting run_experiment.sh
+  into fast `launch` / poll `collect` phases (Merlin's call).
+- STILL OPEN for a real loop night on vast: program.md hardcodes ferranti in its instructions
+  (health-check step, run command, job_status timeout step) — needs Merlin's edit/sign-off
+  (program.md is his file); also the noise estimate (duplicate baseline) would need re-measuring
+  per backend.
+
 ## Done when
 
 Calibration numbers recorded (budget config, σ, reference-arm scores, backend choice) and
