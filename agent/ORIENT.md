@@ -23,10 +23,15 @@ Design record: colorfield-sym task addendum; EXPERIMENTS `sym-scorer-v22`. **LIV
 loop-9e3425f: score 0.103836** (fid 0.5192 = move 0.3101/hold 0.7282, ent 1.0, composite 0) —
 the loop has gradient now (fidelity pays to 0.2; memory-only above). Dup baseline loop-9e3425f-b
 = the noise band.
-**OPEN for Merlin before a real loop night:** (1) program.md still says ferranti in 3 places +
-review my mechanical v2.2 sync of its goal/output/grep sections (his file); (2) launch/collect
-split of run_experiment.sh (agent shells can't hold the ~15-min cycle); (3) vast box — stop it
-if the session is over (billing); (4) MANIFEST-sym seal (on top of v2.2) still pending.
+**LOOP READY TO START (2026-07-10 late).** All former opens closed same session: program.md →
+vast (Merlin's ask; incl. AUTH_DEAD=self-heal + the rc=124 re-attach recipe — measured: agent-
+shell caps at 600s max even backgrounded, and WSL-detached processes don't survive, so NO
+runner split, just poll-and-reattach); **MANIFEST-sym SEALED** (frozen_sym/ + loop/, tiered
+manifest.py, runner preflight + remote payload check, tamper-trip live-tested); validation
+cycle loop-58d6c65 rc=0 through the new runner. **Three v2.2 baselines: 0.1038/0.1048/0.1072
+→ σ≈0.0017, keep needs > best + ~0.005.** START = Merlin launches the loop agent (codex /
+claude -p → autoresearch/program.md, fresh autoresearch/<tag> branch). Box up = billing (his).
+Full record: experiments/autoresearch-loop-shakedown/NOTES.md.
 
 ## NEW BACKEND (2026-07-10 — Vast.ai, Merlin's order; task -> done)
 Ferranti hit an outage mid-session (galvani stayed up); Merlin rented an RTX 5090 on Vast.ai as a

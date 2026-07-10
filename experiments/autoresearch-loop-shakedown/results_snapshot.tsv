@@ -3,3 +3,4 @@ commit	score	inwindow_shift	steps	vram_gb	status	description
 a956478	0.000000	0.7020	5378	13.2	discard	[v2.1-gated scoring] baseline seed as-is, first clean loop cycle (rc=0); fidelity 0.6622 FAIL gated score to 0 -> superseded by v2.2 rescoring, re-run follows
 9e3425f	0.103836	0.7080	5381	13.2	keep	v2.2 BASELINE (continuous scoring): fid 0.5192 (move 0.3101/hold 0.7282), ent 1.0, composite 0.0 -> score = fid*0.2; the loop finally has gradient
 9e3425f	0.104758	0.7058	5376	13.2	keep	DUPLICATE v2.2 baseline (loop-9e3425f-b): fid 0.5046 (move 0.2982/hold 0.7110), composite 0.0095; pair delta vs iter3 = 0.0009 -> v2.2 noise band ~0.001, keep-rule usable
+58d6c65	0.107238	0.7069	5430	13.2	keep	VALIDATION cycle through the NEW runner (manifest preflight + remote check live): fid 0.5339 (move 0.3387/hold 0.7290), composite 0.0011; baseline #3

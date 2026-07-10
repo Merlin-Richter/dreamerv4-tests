@@ -64,3 +64,16 @@ bit-identity of v2.1 component math vs HEAD; probes in verify_v22/).
 - Loop-viability read: baseline 0.104; fidelity work pays up to 0.200; everything above is
   memory-only. AUTH_DEAD self-heal exercised live mid-run (vast socket died; reopened by the
   agent per the no-2FA contract; detached job unaffected — third abnormal-exit survival).
+
+## READY-TO-START state (2026-07-10 late — after MANIFEST-sym seal + program.md→vast)
+- Iter 5 (`loop-58d6c65`, VALIDATION through the new runner incl. live manifest preflight +
+  remote check): rc=0, **score 0.107238** (fid 0.5339 = move 0.3387/hold 0.7290, composite
+  0.0011). **Three baselines: 0.1038 / 0.1048 / 0.1072 → σ ≈ 0.0017** (the move-fid pool
+  wobbles ±0.02; the pair-only estimate of 0.001 was optimistic). Keep-rule guidance for the
+  loop: a keep should clear best + ~0.005.
+- Every path the loop agent touches was exercised live today: preflight (incl. a real
+  tamper trip), sync, launch, budget train, state probe, in-window probe, reduced eval v2.2,
+  scoring, ledger; plus the failure modes: rc=124 kill (re-attach recipe now in program.md),
+  AUTH_DEAD (self-heal), BAD_REF, busy-guard, lock hygiene.
+- START = launch the loop agent (codex / claude -p) pointed at autoresearch/program.md on a
+  fresh autoresearch/<tag> branch. Human dependencies left: box up (billing), agent launch.
