@@ -20,10 +20,17 @@ the returned adapter must work from the prefix alone (no env peeking):
       written-memory relay — so a memory model absorbs the whole prefix into its
       memory tokens.
   step(action) -> (5,5) uint8:
-      rollout_step(commit=True): K shortcut denoising steps (K =
-      config.inference_steps, typically 4) + the near-clean commit pass with the
-      written memory token, then ARGMAX-decode the committed latents' first 30
-      dims per row back to a (5,5) grid of cell ids 0..5 (phase dims ignored).
+      HARD-DECISION COMMIT (iter 4): rollout_step(commit=False) — K shortcut
+      denoising steps (K = config.inference_steps, typically 4), read-only —
+      then ARGMAX-decode the predicted latents to a (5,5) grid, RE-ENCODE that
+      grid as an exact one-hot latent (exact phase from the absolute rollout
+      tick), and commit THAT via _commit_context_frame (near-clean re-present
+      + written-memory relay). Training context is always _noise_to_ctx(exact
+      one-hot); committing the raw denoised latent instead drifts the carried
+      world state off that manifold and compounds over the 768-tick
+      imagination phase — snapping to the decoded symbol keeps the cache/memory
+      consistent with exactly what the eval's tracker recorded (the argmax),
+      like an LLM committing hard tokens instead of soft mixtures.
 
 THE CODEC (the sym tier's tokenizer replacement — pure one-hot, exact):
   latent row r of frame t = [ onehot6(grid[t, r, 0]) | ... | onehot6(grid[t, r, 4])
@@ -138,9 +145,18 @@ class SymDynamicsAdapter:
     def step(self, action: int) -> np.ndarray:
         assert self.state is not None, "step() before begin()"
         a = torch.tensor([[int(action)]], dtype=torch.long, device=self.device)
+        tick = self.state["next_pos"]   # absolute episode tick of the frame generated now
         with self._autocast():
-            z = self.model.rollout_step(self.state, a, commit=True)  # (1, 1, 5, 35)
-        return decode_latents(z.float().cpu().numpy()[0, 0])
+            z = self.model.rollout_step(self.state, a, commit=False)  # read-only predict
+        grid = decode_latents(z.float().cpu().numpy()[0, 0])
+        # Hard-decision commit (see module header): snap the frame to its decoded symbol
+        # (argmax cells + exact phase one-hot) and teacher-force-commit the projection —
+        # the carried cache/memory stays on the one-hot manifold training conditioned on.
+        z_proj = torch.from_numpy(
+            encode_latents(grid[None], np.array([tick]))).unsqueeze(0).to(self.device)
+        with self._autocast():
+            self.model._commit_context_frame(self.state, z_proj, a)
+        return grid
 
 
 def make_adapter(ckpt_path, device: str = None, K: int = None):
