@@ -1,5 +1,26 @@
 # ColorField-SYM — symbolic (tokenizer-free) tier of the autoresearch harness
 
+## SCORING v2.2 ADDENDUM (2026-07-10, Merlin's call after the loop shakedown)
+The hard gates are GONE from the sym scorer (they zeroed the score's gradient — the seed
+baseline gated to 0.000000 at 600s, fidelity 0.65-0.66 < 0.90, leaving the loop nothing to
+climb). New continuous headline, implemented in frozen_sym/eval_comeback.py `aggregate()`:
+
+    score = fid · (0.2·ent + 0.8·composite)
+    fid   = (fid_move + fid_hold)/2    — equal-weight pools (pooled per-tick was 4/5
+                                         trivial holds; copy_last pooled ~0.8, now ~0.5)
+    ent   = clip((0.6 − KL)/0.4, 0, 1) — 1 at/below the old 0.2 gate bar, 0 at ≥ 0.6;
+                                         <20 samples → 0 (starvation guard kept)
+    composite = real_cc·(0.7 + 0.3·cons_cc)   — v2.1 memory math UNCHANGED
+
+Waypoints: oracle == 1.0 exactly; coherent scroller with zero retention = exactly 0.2
+("trivial subproblem solved"); all headroom above 0.2 is memory-only; constant-collapse ~0,
+noise ~0, copy_last ~0.1 (all below the honest floor — the red-team exploits still dead,
+now smoothly). Old numeric fences preserved verbatim on `composite` in test_eval.py; result
+schema: score / fidelity{value,move,hold} / entropy{kl,ent} / flags replace
+composite_gated / gates_passed / gates. Scope: SYM TIER ONLY — the pixel tier
+(autoresearch/frozen/) stays sealed v2.1-gated. Formula / fid split / frozen-scorer
+location all Merlin's picks (AskUserQuestion); sealing + MANIFEST-sym happens ON TOP of v2.2.
+
 Merlin's design (2026-07-07, signed off): remove the tokenizer entirely; the dynamics model
 consumes the symbolic viewport directly. Purpose: the pixel tier's 20-min budgets died learning
 the APPEARANCE prior (calibration log in autoresearch-harness.md); one-hot cells have no

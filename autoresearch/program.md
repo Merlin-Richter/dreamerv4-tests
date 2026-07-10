@@ -84,12 +84,23 @@ log (which ends in the summary + score lines) to stdout. A full cycle is ~15–2
 - Touch the cluster except through `autoresearch/loop/run_experiment.sh`. Never cancel
   jobs; they self-terminate within the hour.
 
-**The goal: the highest `score_gated`** (0..1; the frozen comeback eval's chance-corrected,
-gate-protected composite; ties broken by simpler code). Secondary signals to guide you —
-`inwindow_shift` (can it copy the visible frame — the health floor; currently the seed's
-weak spot at ~0.67), `inwindow_past` (carried memory — the actual research target),
-`flow_final`, `real_bins` (the per-age curve: memory-shaped gains lift FAR bins, not just
-near ones). These inform your next idea but only `score_gated` decides keep/discard.
+**The goal: the highest `score`** (0..1; v2.2-sym, continuous — no hard gates):
+
+    score = fid · (0.2·ent + 0.8·composite)
+
+- `fid` = (move-fidelity + hold-fidelity)/2 — exact shift/hold correctness of your
+  imagined rollout (the seed's weak spot: move ≪ hold). Improving it pays score directly.
+- `ent` — degenerate-collapse guard (≈1 for any honest model; 0 for a color-collapsed
+  world, so collapse can't farm the fidelity credit).
+- `composite` — the memory term (chance-corrected comeback accuracy, consistency can only
+  amplify real retention).
+
+A perfectly coherent scroller with ZERO retention scores exactly **0.2** — that's the
+"trivial subproblem solved" waypoint; **all headroom above 0.2 is memory-only**. Ties
+broken by simpler code. Secondary signals to guide you — `inwindow_shift`/`inwindow_past`
+(teacher-forced probes), `flow_final`, `real_bins` (the per-age curve: memory-shaped gains
+lift FAR bins, not just near ones). These inform your next idea but only `score` decides
+keep/discard.
 
 **VRAM** is a soft constraint (H100, 80 GB — `peak_vram_mb` in the summary). Some increase
 is fine for real gains; do not blow it up.
@@ -109,12 +120,15 @@ state_budget:     518400
 state_check:      PASS
 inwindow_shift:   0.6720  (n=1849)
 inwindow_past:    0.2720  (n=103)
-score_gated:      0.031500
-real_cc:          0.045000
-fidelity:         0.8120 (PASS)
-gates_passed:     True  fail=[] flags=[]
-real_bins:        {'[1, 2)': '0.410', ...}
-eval_seconds:     190.2
+score:            0.135200
+fid:              0.5480  (move 0.4102 n=1843 / hold 0.6858 n=7373)
+ent:              1.000  (kl 0.0026 n=482)
+composite:        0.004631
+real_cc:          0.006608
+consistency_cc:   0.002780
+flags:            []
+real_bins:        {'[1,17)': '0.032', '[17,33)': '0.005!', ...}
+eval_seconds:     96.0
 ---
 steps:            4339
 train_seconds:    600.0
@@ -128,7 +142,7 @@ window_frames:    16
 Extract the essentials with:
 
 ```
-grep -E "^(score_gated|inwindow_shift|inwindow_past|state_check|steps|peak_vram_mb):" run.log
+grep -E "^(score|fid|inwindow_shift|inwindow_past|state_check|steps|peak_vram_mb):" run.log
 ```
 
 If the grep is empty, the run crashed — `tail -n 60 run.log` shows the failure (Python
@@ -140,11 +154,11 @@ When an experiment finishes, append it to `autoresearch/results.tsv` (tab-separa
 Header + 7 columns:
 
 ```
-commit	score_gated	inwindow_shift	steps	vram_gb	status	description
+commit	score	inwindow_shift	steps	vram_gb	status	description
 ```
 
 1. git commit hash (short, 7 chars)
-2. score_gated (e.g. 0.031500) — 0.000000 for crashes
+2. score (e.g. 0.135200) — 0.000000 for crashes
 3. inwindow_shift (e.g. 0.6720) — 0.0 for crashes
 4. steps completed in the budget
 5. peak VRAM in GB (peak_vram_mb / 1024, .1f)
@@ -168,7 +182,7 @@ LOOP FOREVER:
    fundamentally broken idea → log `crash`, revert, move on. `ERROR: AUTH_DEAD` is the ONE
    exception to autonomy: stop and tell the human to reopen the master socket.
 7. Append the row to `autoresearch/results.tsv` (never commit this file).
-8. If `score_gated` improved beyond the noise band (from your duplicate-baseline runs):
+8. If `score` improved beyond the noise band (from your duplicate-baseline runs):
    ADVANCE — keep the commit as the new base.
 9. Otherwise: `git reset --hard HEAD~1` back to the previous best.
 
@@ -177,7 +191,8 @@ branch and iterate. Rewind past your best very, very sparingly (if ever).
 
 **Where to hunt (context from the manual probes that seeded this loop):** the current
 recipe's teacher-forced shift-copy acc is ~0.67 (floor for a healthy dynamics model ≈ 1.0)
-— fixing in-window prediction fully is likely prerequisite to any real memory gain. Levers
+— fixing in-window prediction fully is likely prerequisite to any real memory gain, and
+under v2.2 it pays score DIRECTLY (fid climbs toward the 0.2 floor; the seed starts ~0.13). Levers
 already suspected but untested: `tau0_anchor` → 1.0; the ramp weight `w(τ)` giving anchored
 τ=0 frames only `ramp_min` weight; the 50/50 clean/noise mode ratio; FF9 (`--ff9 k` — OFF
 in the seed, but it was load-bearing in one GridWorld regime); memory token count; LR.

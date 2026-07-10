@@ -2,9 +2,10 @@
 reference adapters land where the design says, bookkeeping matches an
 independent brute-force reimplementation from position traces, aggregation
 math is what the spec claims (OUT exclusion, chance clamp, multiplicative
-composite), and the bounded-memory monotonicity fence holds under 5x-dilated
-tick ages. FROZEN-LAYER-sym test; spec:
-tasks/in-progress/colorfield-sym-frozen-layer.md."""
+composite, the v2.2 continuous score fid*(0.2*ent + 0.8*composite)), and the
+bounded-memory monotonicity fence holds under 5x-dilated tick ages.
+FROZEN-LAYER-sym test; spec: tasks/in-progress/colorfield-sym-frozen-layer.md
+(+ the dated v2.2 scoring addendum)."""
 
 import os
 import sys
@@ -33,53 +34,73 @@ SMALL = dict(suite=SMALL_SUITE, n_seeds=2, prefix_len=240, imag_len=1280,
              min_events=10, privileged=True)
 
 
+def _score_identity(r):
+    """The v2.2 formula must hold exactly on the returned components."""
+    comp = r["composite"] if r["composite"] is not None else 0.0
+    want = r["fidelity"]["value"] * (0.2 * r["entropy"]["ent"] + 0.8 * comp)
+    assert abs(r["score"] - want) < 1e-12, (r["score"], want)
+
+
 def test_oracle_scores_exactly_one():
     r = run_eval(make_adapter("oracle"), **SMALL)
-    assert r["gates_passed"], r["fail_reasons"]
-    assert r["composite"] == 1.0 and r["composite_gated"] == 1.0
+    assert r["score"] == 1.0 and r["composite"] == 1.0
     assert r["real_anchored"]["score"] == 1.0 and r["consistency"]["score"] == 1.0
     assert r["real_anchored"]["n_events"] >= 50 and r["consistency"]["n_events"] >= 20
-    assert r["gates"]["fidelity"]["value"] == 1.0
+    assert r["fidelity"]["value"] == 1.0
+    assert r["fidelity"]["move"] == 1.0 and r["fidelity"]["hold"] == 1.0
+    assert r["entropy"]["ent"] == 1.0
     assert r["border_drift_cells"] == 0.0
+    _score_identity(r)
 
 
-def test_perfect_imaginary_liar_scores_zero():
-    """The 'consistent liar' (perfect self-consistency of a WRONG world) passes
-    the gates but must score ~0: real-anchored is at chance, chance correction
-    clamps it to ~0, and consistency can only MULTIPLY real retention (the
-    pixel red-team's non-monotonicity finding, inherited verbatim)."""
+def test_perfect_imaginary_liar_capped_at_fidelity_floor():
+    """The 'consistent liar' (perfect self-consistency of a WRONG world) is a
+    coherent scroller with zero real retention: under v2.2 it earns AT MOST
+    the 0.2 fidelity floor — real-anchored is at chance (chance correction
+    clamps to ~0) and consistency can only MULTIPLY real retention (pixel
+    red-team, inherited verbatim). It must never beat a model with genuine
+    retention: everything above the floor requires real_cc > 0."""
     r = run_eval(make_adapter("perfect_imaginary"), **SMALL)
-    assert r["gates_passed"], r["fail_reasons"]
     assert r["consistency"]["score"] == 1.0
-    assert r["composite_gated"] <= 0.05, r["composite_gated"]
+    assert r["composite"] <= 0.05, r["composite"]
+    assert r["score"] <= 0.2 + 0.8 * 0.05, r["score"]
+    _score_identity(r)
 
 
-def test_constant_color_is_gated_to_zero():
+def test_constant_color_scores_near_zero():
     """Sym-tier nuance: a uniform grid is shift-invariant, so constant_color
-    PASSES fidelity (unlike the pixel tier, where the shift estimator's
-    tie-break failed it) — the ENTROPY gate must be the killer."""
+    earns FULL fidelity (unlike the pixel tier, where the shift estimator's
+    tie-break failed it) — the ENTROPY ramp must be the killer (KL = ln 5 >>
+    0.6 -> ent = 0), leaving only 0.8*composite, itself ~0 at chance. The
+    collapse must land WELL BELOW the 0.2 honest-scroller floor, or collapse
+    would be the loop's cheapest 'improvement'."""
     r = run_eval(make_adapter("constant_color"), **SMALL)
-    assert not r["gates_passed"]
-    assert r["gates"]["fidelity"]["passed"]           # shift-invariant: passes
-    assert not r["gates"]["entropy"]["passed"]        # the load-bearing gate
-    assert r["composite_gated"] == 0.0
+    assert r["fidelity"]["value"] >= 0.99            # shift-invariant: full credit
+    assert r["entropy"]["ent"] == 0.0                # the load-bearing guard
+    assert r["score"] <= 0.10, r["score"]
+    _score_identity(r)
 
 
-def test_noise_cells_fails_fidelity():
+def test_noise_cells_scores_near_zero():
     r = run_eval(make_adapter("noise_cells"), **SMALL)
-    assert not r["gates"]["fidelity"]["passed"]
-    assert r["composite_gated"] == 0.0
+    assert r["fidelity"]["value"] < 0.10             # both pools fail
+    assert r["score"] <= 0.05, r["score"]
+    _score_identity(r)
 
 
-def test_copy_last_is_gated_to_zero():
-    """A frozen grid under a MOVING registration still yields (garbage)
-    comeback reads — the fidelity gate is what kills it: the ~80% off-phase
-    ticks pass free (unchanged grid IS the correct off-phase prediction), but
-    every phase-0 move fails, pinning the fraction near 0.8 < 0.90."""
+def test_copy_last_pins_at_half_fidelity():
+    """A frozen grid under a MOVING registration: every off-phase hold passes
+    free (unchanged grid IS the correct off-phase prediction), every phase-0
+    move fails — the v2.2 equal-weight split pins fid at ~0.5 (the pooled
+    per-tick mean would have said ~0.8, diluted by the 4:1 holds). Garbage
+    comeback reads keep composite ~0, so the score sits near 0.5*0.2 = 0.1,
+    below the 0.2 coherent-scroller floor."""
     r = run_eval(make_adapter("copy_last"), **SMALL)
-    assert r["composite_gated"] == 0.0
-    assert not r["gates"]["fidelity"]["passed"]
-    assert r["gates"]["fidelity"]["value"] < 0.9
+    assert r["fidelity"]["hold"] >= 0.99
+    assert r["fidelity"]["move"] <= 0.05
+    assert 0.45 <= r["fidelity"]["value"] <= 0.55
+    assert r["score"] <= 0.15, r["score"]
+    _score_identity(r)
 
 
 def test_unprivileged_factories_get_none():
@@ -157,17 +178,27 @@ def test_bounded_window_monotone_and_capped():
     floor, and consistency must not add anything on top (multiplicative).
     W=16 ticks = 3.2 effective moves (the relay-training window); W=80 ticks
     = 16 moves; huge = full memory."""
-    scores, results = {}, {}
+    scores, comps, results = {}, {}, {}
     for W in (16, 80, 10**9):
         r = run_eval(lambda env, W=W: BoundedMemoryAdapter(env, W), **SMALL)
-        assert r["gates_passed"], (W, r["fail_reasons"])
-        scores[W], results[W] = r["composite_gated"], r
-    assert scores[10**9] >= 0.99, scores            # full memory ~ oracle
-    assert scores[16] + 0.03 < scores[80] < scores[10**9] - 0.05, scores
+        # honest bounded-memory worlds earn the full fid/ent factors — the
+        # composite fences below are then EXACTLY the v2.1 fences, unchanged
+        assert r["fidelity"]["value"] >= 0.99 and r["entropy"]["ent"] == 1.0, (W, r["fidelity"], r["entropy"])
+        _score_identity(r)
+        scores[W], comps[W], results[W] = r["score"], r["composite"], r
+    # v2.1 fences on the memory term (verbatim — the red-team's exploit fence):
+    assert comps[10**9] >= 0.99, comps              # full memory ~ oracle
+    assert comps[16] + 0.03 < comps[80] < comps[10**9] - 0.05, comps
     # W=16 ticks (the relay window) bridges almost nothing: ~0, and W=80's
     # credit ~ its covered-bin fraction (2/6 fully + partials; observed 0.34)
-    assert scores[16] <= 0.15, scores
-    assert 0.20 <= scores[80] <= 0.55, scores
+    assert comps[16] <= 0.15, comps
+    assert 0.20 <= comps[80] <= 0.55, comps
+    # v2.2 fences on the headline: monotone in W, floor+0.8*comp shape, and a
+    # bounded window must NOT reach the top (0.2 + 0.8*comp caps it):
+    assert scores[16] < scores[80] < scores[10**9], scores
+    assert scores[10**9] >= 0.99, scores
+    assert scores[16] <= 0.2 + 0.8 * 0.15 + 1e-9, scores
+    assert scores[80] <= 0.2 + 0.8 * 0.55 + 1e-9, scores
     # the semantics fence: fully-covered bins high, beyond-window bins dead.
     # NB the [1,16] bin is EXCLUDED from the high fence: young comebacks are
     # dominated by flickers of long-expired, self-refresh-hallucinated path
@@ -264,14 +295,21 @@ def test_aggregate_math():
     events += [_ev("imag", 5, i < 6) for i in range(10)]
     # unqualified stragglers must be ignored (n < min_events)
     events += [_ev("real", 300, True) for _ in range(3)]
-    fidelity = [True] * 95 + [False] * 5              # 0.95 >= 0.9 -> pass
-    colors = list(np.tile(np.arange(5), 8))           # perfectly uniform -> pass
+    # fidelity (v2.2): (is_move, ok) pairs — 80 holds all pass, 20 moves 15/20
+    # -> fid_hold 1.0, fid_move 0.75, fid = 0.875
+    fidelity = ([(False, True)] * 80
+                + [(True, True)] * 15 + [(True, False)] * 5)
+    colors = list(np.tile(np.arange(5), 8))           # uniform -> KL 0 -> ent 1
     r = aggregate(events, fidelity, colors, min_events=10)
-    assert r["gates_passed"], r["fail_reasons"]
     want_real = (0.6875 + 0.25) / 2                   # equal-weight over cc bins
     assert abs(r["real_anchored"]["score"] - want_real) < 1e-12
     assert abs(r["consistency"]["score"] - 0.5) < 1e-12
-    assert abs(r["composite"] - want_real * (0.7 + 0.3 * 0.5)) < 1e-12
+    want_comp = want_real * (0.7 + 0.3 * 0.5)
+    assert abs(r["composite"] - want_comp) < 1e-12
+    assert r["fidelity"]["move"] == 0.75 and r["fidelity"]["hold"] == 1.0
+    assert abs(r["fidelity"]["value"] - 0.875) < 1e-12
+    assert r["entropy"]["ent"] == 1.0
+    assert abs(r["score"] - 0.875 * (0.2 * 1.0 + 0.8 * want_comp)) < 1e-12
 
     # border (OUT-referenced) events must NOT move the scored accuracy — they
     # are pure geometry (pixel red-team S3). Only the border_recall diagnostic.
@@ -293,19 +331,35 @@ def test_aggregate_math():
     r_liar = aggregate(events_liar, fidelity, colors, min_events=10)
     assert r_liar["composite"] == 0.0
 
-    # prefix-phase events must be excluded
+    # prefix-phase events must be excluded: no qualified real bins -> composite
+    # None -> the memory term contributes 0, the fidelity floor remains
     r2 = aggregate([dict(e, phase="prefix") for e in events], fidelity, colors,
                    min_events=10)
-    assert r2["real_anchored"]["score"] is None and r2["composite_gated"] == 0.0
-    # fidelity gate
-    r3 = aggregate(events, [True] * 80 + [False] * 20, colors, min_events=10)
-    assert not r3["gates_passed"] and r3["composite_gated"] == 0.0
-    # entropy gate: collapsed colors
+    assert r2["real_anchored"]["score"] is None and r2["composite"] is None
+    assert "no_qualified_real_bins" in r2["flags"]
+    assert abs(r2["score"] - 0.875 * 0.2 * 1.0) < 1e-12
+    # fidelity scales the WHOLE score linearly (v2.2: factor, not gate)
+    r3 = aggregate(events, [(False, True)] * 80 + [(True, i < 10) for i in range(20)],
+                   colors, min_events=10)
+    assert abs(r3["fidelity"]["value"] - 0.75) < 1e-12         # (1.0 + 0.5)/2
+    assert abs(r3["score"] - 0.75 * (0.2 * 1.0 + 0.8 * want_comp)) < 1e-12
+    # entropy ramp endpoint: collapsed colors (KL = ln 5 > 0.6) -> ent 0 -> the
+    # fidelity floor vanishes, memory term survives (damped by fid only)
     r4 = aggregate(events, fidelity, [1] * 40, min_events=10)
-    assert not r4["gates"]["entropy"]["passed"] and r4["composite_gated"] == 0.0
-    # entropy gate: insufficient samples (< 20) must FAIL, not pass by default
+    assert r4["entropy"]["ent"] == 0.0
+    assert abs(r4["score"] - 0.875 * 0.8 * want_comp) < 1e-12
+    # entropy: insufficient samples (< 20) must earn ent 0, not 1 by default
     r5 = aggregate(events, fidelity, [0, 1, 2, 3, 4] * 3, min_events=10)
-    assert not r5["gates"]["entropy"]["passed"] and r5["composite_gated"] == 0.0
+    assert r5["entropy"]["ent"] == 0.0 and "insufficient_imag_colors" in r5["flags"]
+    assert abs(r5["score"] - 0.875 * 0.8 * want_comp) < 1e-12
+    # entropy ramp midpoint: a distribution with 0.2 < KL < 0.6 must land
+    # strictly between 0 and 1, at the documented linear position
+    skew = [0] * 24 + [1, 2, 3, 4] * 4                # heavy-0 skew
+    r6 = aggregate(events, fidelity, skew, min_events=10)
+    kl6 = r6["entropy"]["kl_to_uniform"]
+    assert 0.2 < kl6 < 0.6, kl6                       # mid-ramp by construction
+    assert abs(r6["entropy"]["ent"] - (0.6 - kl6) / 0.4) < 1e-12
+    assert 0.0 < r6["entropy"]["ent"] < 1.0
 
 
 if __name__ == "__main__":

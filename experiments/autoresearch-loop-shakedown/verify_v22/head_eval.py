@@ -28,50 +28,35 @@ components are EQUAL-WEIGHT means over qualified bins. Ages are 5x dilated by
 the phase rule: bin edges are kept from the pixel tier, bin [1,16] is expected
 sparse (min leave-and-return ~ 2 effective moves ~ 10 ticks).
 
-Component math, verbatim v2.1 from the pixel tier (post red-team):
+v2.1 scoring, verbatim from the pixel tier (post red-team):
   - per-bin CHANCE CORRECTION over IN-MAP events: acc_cc = max(0, (acc-.2)/.8);
   - BORDER (OUT-referenced) events EXCLUDED from the score, reported as the
     border_recall diagnostic (pure geometry, zero content-memory signal);
   - composite = real_cc * (0.7 + 0.3 * consistency_cc) — consistency can only
     AMPLIFY genuine ground-truth-anchored retention, never substitute for it.
 
-Headline score (v2.2-sym, Merlin 2026-07-10 — the HARD GATES ARE GONE; every
-term contributes continuously so improving any subproblem improves the score):
-
-    score = fid * (0.2 * ent + 0.8 * composite)
-
-  - fid = (fid_move + fid_hold) / 2 — action fidelity, EXACT on symbols,
-    equal-weight over the two check pools so the trivial off-phase holds
-    (4/5 of ticks) cannot dilute the move checks: at a phase-0 MOVE the
-    predicted grid must equal the previous grid shifted by the action
-    (checked on the overlap; the newly revealed line is unconstrained —
-    border/OUT fill or recalled content is the comeback eval's business,
-    not fidelity's); at an off-phase tick or STAY it must equal the previous
-    grid UNCHANGED. copy_last pins at ~0.5 (holds 1.0, moves ~0).
-  - ent — the entropy guard, a ramp instead of a cliff: KL(first-seen
-    imagination-born in-map colors || uniform-5) <= 0.2 (the old gate bar)
-    -> ent = 1 (honest models measure ~0.003); linear to 0 at KL >= 0.6;
-    < 20 samples -> ent = 0. Kills the constant-color world (KL = ln 5):
-    a uniform grid is shift-invariant so fid cannot catch it (sym nuance).
-
-Waypoints: oracle == 1.0 EXACTLY; a perfectly coherent scroller with zero
-retention scores exactly 0.2 (the fidelity floor — "trivial subproblem
-solved"); ALL headroom above 0.2 is memory-only. Degenerate worlds sit below
-the floor (constant-color ~0, noise ~0, copy_last ~0.1). The old hard gates
-(fid >= 0.90 / KL <= 0.2, score := 0 on failure) zeroed the gradient for any
-model below the bar; v2.2 keeps their intent multiplicatively — incoherent
-rollouts DAMP the memory credit instead of voiding the run.
-(Driver-level frozen-layer hash check unchanged — outside this module.)
+Hard gates (score := 0.0 + flags on failure) — the Goodhart guards:
+  1. action fidelity, EXACT on symbols: at a phase-0 tick the predicted grid
+     must equal the previous grid shifted by the action (checked on the
+     overlap; the newly revealed line is unconstrained — border/OUT fill or
+     recalled content is the eval's business, not the gate's), AND at an
+     off-phase tick the predicted grid must equal the previous grid UNCHANGED
+     (the new, free gate). Pooled fraction >= 0.90. NB: unlike the pixel tier
+     a constant-color grid PASSES this gate (a uniform grid is
+     shift-invariant) — the entropy gate is what kills it, by design.
+  2. color-marginal entropy: imagination-born first-seen IN-MAP colors ~
+     uniform over the 5 palette colors (KL <= 0.2, >= 20 samples else fail).
+  3. (driver-level) frozen-layer hash check — outside this module.
 """
 
 import json
 
 import numpy as np
 
-from .adapters import make_adapter  # noqa: F401  (re-export convenience)
-from .env import (BOARD, ColorFieldSymEnv, DELTAS, OUT_IDX, PHASE_PERIOD, STAY,
+from autoresearch.frozen_sym.adapters import make_adapter  # noqa: F401  (re-export convenience)
+from autoresearch.frozen_sym.env import (BOARD, ColorFieldSymEnv, DELTAS, OUT_IDX, PHASE_PERIOD, STAY,
                   VIEW_CELLS, VIEW_HALF, apply_action, out_bands)
-from .eval_policies import EVAL_SUITE
+from autoresearch.frozen_sym.eval_policies import EVAL_SUITE
 
 # --- Frozen eval configuration (defaults; the driver must not override the
 # --- scoring semantics, only sizes for calibration) ---------------------------
@@ -85,10 +70,8 @@ W_REAL, W_IMAG = 0.7, 0.3               # composite = real_cc * (W_REAL + W_IMAG
 OUT_TILE_WEIGHT = 0.1                   # kept in the EVENT LOG for analysis only;
                                         # border cells are excluded from the score
 CHANCE_IN_MAP = 1.0 / 5.0               # uniform guess over the 5 map colors
-W_FID_FLOOR = 0.2                       # fidelity's share of the score range;
-                                        # (1 - W_FID_FLOOR) is memory-only headroom
-ENTROPY_KL_MAX = 0.20                   # ent = 1 at or below (the old gate bar)
-ENTROPY_KL_ZERO = 0.60                  # ent = 0 at or above; linear ramp between
+FIDELITY_THRESHOLD = 0.90
+ENTROPY_KL_MAX = 0.20
 ENTROPY_MIN_SAMPLES = 20
 
 
@@ -190,13 +173,12 @@ def corner_start(rng):
 
 
 def fidelity_ok(prev, nxt, action, t):
-    """One fidelity check, exact on symbols (v2.2: a score factor, not a gate).
-    Off-phase ticks (t % 5 != 0) and STAY: the predicted grid must equal the
-    previous grid UNCHANGED. Phase-0 moves: the predicted grid must equal the
-    previous grid SHIFTED by the action — checked on the 4x5/5x4 overlap; the
-    newly revealed line is unconstrained (it may be OUT fill at a border or
-    recalled/imagined map content — the comeback eval scores that, not
-    fidelity)."""
+    """Gate 1, exact on symbols. Off-phase ticks (t % 5 != 0) and STAY: the
+    predicted grid must equal the previous grid UNCHANGED. Phase-0 moves: the
+    predicted grid must equal the previous grid SHIFTED by the action — checked
+    on the 4x5/5x4 overlap; the newly revealed line is unconstrained (it may be
+    OUT fill at a border or recalled/imagined map content — the comeback eval
+    scores that, not the gate)."""
     if t % PHASE_PERIOD != 0 or action == STAY:
         return bool(np.array_equal(nxt, prev))
     dr, dc = DELTAS[action]
@@ -221,11 +203,9 @@ def _band_abs_err(grid, pos):
 
 def run_episode(adapter_factory, policy, map_seed, ep_seed,
                 prefix_len=PREFIX_LEN, imag_len=IMAG_LEN, privileged=False):
-    """One eval episode. Returns (events, fidelity_checks, first_imag_colors,
-    band_abs_err, positions) — fidelity_checks is a list of (is_move, ok)
-    pairs (v2.2 pools moves and holds separately); positions is the per-TICK
-    registration (true positions during the prefix, action path-integral
-    during imagination).
+    """One eval episode. Returns (events, fidelity_matches, first_imag_colors,
+    band_abs_err, positions) — positions is the per-TICK registration (true
+    positions during the prefix, action path-integral during imagination).
 
     privileged=False (the DEFAULT, and the only mode the harness driver may use
     for candidate models): adapter_factory receives None — a model must work
@@ -271,10 +251,7 @@ def run_episode(adapter_factory, policy, map_seed, ep_seed,
         nxt = adapter.step(a)
         if t % PHASE_PERIOD == 0:
             pos = apply_action(pos, a, check=False)  # may leave the board: allowed
-        # (is_move, ok): MOVE checks (phase-0, non-STAY) pool separately from
-        # HOLD checks — v2.2's fid is the equal-weight mean of the two pools.
-        fidelity.append((t % PHASE_PERIOD == 0 and a != STAY,
-                         fidelity_ok(cur, nxt, a, t)))
+        fidelity.append(fidelity_ok(cur, nxt, a, t))
         band_err.append(_band_abs_err(nxt, pos))
         tracker.observe(t, nxt, pos, is_real=False)
         positions.append(pos)
@@ -284,12 +261,11 @@ def run_episode(adapter_factory, policy, map_seed, ep_seed,
 
 
 def aggregate(events, fidelity, first_imag_colors,
-              bin_edges=BIN_EDGES, min_events=MIN_EVENTS_PER_BIN):
-    """Age-standardized components + the continuous v2.2 score. Pure function
-    of the collected statistics — the driver calls THIS for the loop's number.
-    Component (bin) math identical to the pixel tier's frozen-v2.1 aggregate;
-    the headline is score = fid * (0.2*ent + 0.8*composite) (v2.2-sym).
-    `fidelity` is a list of (is_move, ok) pairs from run_episode."""
+              bin_edges=BIN_EDGES, min_events=MIN_EVENTS_PER_BIN,
+              fidelity_threshold=FIDELITY_THRESHOLD):
+    """Age-standardized components + gates + composite. Pure function of the
+    collected statistics — the driver calls THIS for the loop's number.
+    Identical math to the pixel tier's frozen-v2.1 aggregate."""
     edges = list(bin_edges) + [np.inf]
     imag_phase = [e for e in events if e["phase"] == "imag"]
 
@@ -322,63 +298,41 @@ def aggregate(events, fidelity, first_imag_colors,
     real_score, real_bins, n_real = component("real")
     imag_score, imag_bins, n_imag = component("imag")
 
-    # --- fidelity factor: equal-weight mean of the MOVE and HOLD check pools
-    # --- (pooled per-tick would be 4/5 trivial holds; copy_last would sit at
-    # --- ~0.8 instead of ~0.5). An empty pool contributes 0 — no free credit
-    # --- for unchecked behavior. ----------------------------------------------
-    move_oks = [ok for is_move, ok in fidelity if is_move]
-    hold_oks = [ok for is_move, ok in fidelity if not is_move]
-    fid_move = float(np.mean(move_oks)) if move_oks else 0.0
-    fid_hold = float(np.mean(hold_oks)) if hold_oks else 0.0
-    fid = 0.5 * (fid_move + fid_hold)
-
-    # --- entropy factor: ramp, 1.0 at/below the old gate bar (KL 0.2), 0.0 at
-    # --- KL >= 0.6; a color-collapsed world (KL = ln 5 ~ 1.61) gets 0. --------
-    flags = []
+    fid = float(np.mean(fidelity)) if len(fidelity) else 0.0
+    gates = {"fidelity": {"value": fid, "passed": fid >= fidelity_threshold}}
     if len(first_imag_colors) >= ENTROPY_MIN_SAMPLES:
         counts = np.bincount(first_imag_colors, minlength=5)[:5].astype(float)
         p = counts / counts.sum()
         kl = float(np.sum([pi * np.log(pi / 0.2) for pi in p if pi > 0]))
-        ent = float(np.clip((ENTROPY_KL_ZERO - kl)
-                            / (ENTROPY_KL_ZERO - ENTROPY_KL_MAX), 0.0, 1.0))
-        entropy = {"kl_to_uniform": kl, "n": int(counts.sum()), "ent": ent}
+        gates["entropy"] = {"kl_to_uniform": kl, "n": int(counts.sum()),
+                            "passed": kl <= ENTROPY_KL_MAX}
     else:
-        ent = 0.0
-        entropy = {"kl_to_uniform": None, "n": len(first_imag_colors), "ent": 0.0,
-                   "reason": "insufficient imagination-born cells"}
-        flags.append("insufficient_imag_colors")
+        gates["entropy"] = {"kl_to_uniform": None, "n": len(first_imag_colors),
+                            "passed": False, "reason": "insufficient imagination-born cells"}
 
+    reasons = [k for k, g in gates.items() if not g["passed"]]
+    flags = []
     composite = None
     if real_score is not None:
         # Multiplicative: consistency AMPLIFIES real retention, never substitutes.
         amp = W_REAL + W_IMAG * (imag_score if imag_score is not None else 0.0)
         composite = real_score * amp
         if imag_score is None:
-            flags.append("no_qualified_imag_bins")   # amp floor 0.7, not zeroed
+            flags.append("no_qualified_imag_bins")   # not gating: amp floor 0.7
     else:
-        flags.append("no_qualified_real_bins")
-
-    # --- THE headline (v2.2-sym): continuous, no gates. fid multiplies
-    # --- everything (memory measured on an incoherent rollout counts less);
-    # --- ent guards the fidelity floor against degenerate collapse; all
-    # --- headroom above W_FID_FLOOR is memory-only. ---------------------------
-    score = fid * (W_FID_FLOOR * ent
-                   + (1.0 - W_FID_FLOOR) * (composite if composite is not None else 0.0))
+        reasons.append("no_qualified_real_bins")
 
     ages = [e["age"] for e in imag_phase]
     return {
-        "score": score,
         "composite": composite,
-        "fidelity": {"value": fid, "move": fid_move, "hold": fid_hold,
-                     "n_move": len(move_oks), "n_hold": len(hold_oks)},
-        "entropy": entropy,
+        "composite_gated": (composite if not reasons and composite is not None else 0.0),
+        "gates_passed": not reasons,
+        "fail_reasons": reasons,
         "flags": flags,
         "real_anchored": {"score": real_score, "bins": real_bins, "n_events": n_real},
         "consistency": {"score": imag_score, "bins": imag_bins, "n_events": n_imag},
-        "scoring": {"formula": "fid * (0.2*ent + 0.8*composite); "
-                               "fid = (fid_move + fid_hold)/2; "
-                               "composite = real_cc * (0.7 + 0.3*consistency_cc)",
-                    "version": "v2.2-sym",
+        "gates": gates,
+        "scoring": {"formula": "real_cc * (0.7 + 0.3 * consistency_cc)",
                     "chance_in_map": CHANCE_IN_MAP,
                     "border_cells": "excluded from score; border_recall diagnostic",
                     "age_units": "ticks (phase-5 dilated)"},

@@ -44,15 +44,16 @@ def main():
 
     real = r["real_anchored"]
     cons = r["consistency"]
-    print(f"score_gated:      {r['composite_gated']:.6f}")
-    print(f"composite_raw:    {r['composite'] if r['composite'] is not None else 0.0:.6f}")
+    fid = r["fidelity"]
+    ent = r["entropy"]
+    print(f"score:            {r['score']:.6f}")
+    print(f"fid:              {fid['value']:.4f}  "
+          f"(move {fid['move']:.4f} n={fid['n_move']} / hold {fid['hold']:.4f} n={fid['n_hold']})")
+    print(f"ent:              {ent['ent']:.3f}  (kl {ent['kl_to_uniform']} n={ent['n']})")
+    print(f"composite:        {r['composite'] if r['composite'] is not None else 0.0:.6f}")
     print(f"real_cc:          {real['score'] if real['score'] is not None else 0.0:.6f}")
     print(f"consistency_cc:   {cons['score'] if cons['score'] is not None else 0.0:.6f}")
-    print(f"fidelity:         {r['gates']['fidelity']['value']:.4f} "
-          f"({'PASS' if r['gates']['fidelity']['passed'] else 'FAIL'})")
-    ent = r["gates"].get("entropy", {})
-    print(f"entropy_kl:       {ent.get('kl_to_uniform')}")
-    print(f"gates_passed:     {r['gates_passed']}  fail={r['fail_reasons']} flags={r['flags']}")
+    print(f"flags:            {r['flags']}")
     # frozen scorer returns bins as a LIST of dicts (lo/hi/acc_cc/qualified/...);
     # show the chance-corrected acc the score is built from, "!" = unqualified
     # (n < min_events, excluded from the score), "-" = no in-map events.
