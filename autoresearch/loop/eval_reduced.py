@@ -53,8 +53,13 @@ def main():
     ent = r["gates"].get("entropy", {})
     print(f"entropy_kl:       {ent.get('kl_to_uniform')}")
     print(f"gates_passed:     {r['gates_passed']}  fail={r['fail_reasons']} flags={r['flags']}")
-    bins = {str(k): (f"{v:.3f}" if v is not None else "-")
-            for k, v in (real.get("bins") or {}).items()}
+    # frozen scorer returns bins as a LIST of dicts (lo/hi/acc_cc/qualified/...);
+    # show the chance-corrected acc the score is built from, "!" = unqualified
+    # (n < min_events, excluded from the score), "-" = no in-map events.
+    bins = {f"[{b['lo']},{b['hi'] if b['hi'] is not None else 'inf'})":
+            (f"{b['acc_cc']:.3f}" if b["acc_cc"] is not None else "-")
+            + ("" if b["qualified"] else "!")
+            for b in (real.get("bins") or [])}
     print(f"real_bins:        {bins}")
     print(f"eval_seconds:     {dt:.1f}")
     print(f"eval_json:        {out}")
