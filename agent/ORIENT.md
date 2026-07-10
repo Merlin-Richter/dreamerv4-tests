@@ -2,6 +2,24 @@
 
 Rewritten: 2026-06-26.
 
+## LOOP SHAKEDOWN DONE (2026-07-10 evening — Merlin's ask: "one real autoresearch iteration")
+**The autoresearch loop ran a full live iteration end-to-end on vast and WORKS.** ferranti+galvani
+sockets DOWN → wired `--cluster {ferranti|vast}` into `autoresearch/loop/run_experiment.sh`
+(7e41889; ferranti default unchanged). Branch `autoresearch/jul10-shakedown` @ a956478; ledger
+`autoresearch/results.tsv` (untracked by design — now gitignored, along with `/run.log`, else the
+runner's DIRTY_TREE check kills iteration 2; ALSO gitignored `.codex/` — it holds a LIVE W&B
+bearer token, never commit; consider rotating). Two iterations: iter1 rc=1 (eval_reduced bins-
+schema crash at the very last print — fixed 778fd63; plus the local runner died at the agent-shell
+Bash timeout rc=124 — remote job survived detached, re-attached via vast_status poll); iter2
+**rc=0 CLEAN**: 5378 steps/600s on the 5090 (0.112 s/step, util 92%), state probe PASS, shift
+0.702/past 0.233, **score_gated 0.000000 — seed baseline FAILS the fidelity gate (0.65–0.66)** at
+this budget/backend; real_bins ~0 at every age. Full detail: tasks/in-progress/
+autoresearch-harness.md (SHAKEDOWN section) + EXPERIMENTS `autoresearch-loop-shakedown`.
+**OPEN for Merlin before a real loop night:** (1) 0-scoring baseline = acceptable calibration?
+(2) program.md still says ferranti in 3 places (his file); (3) launch/collect split of
+run_experiment.sh (agent shells can't hold the ~15-min cycle); (4) vast box left idle — stop it
+if the session is over (billing).
+
 ## NEW BACKEND (2026-07-10 — Vast.ai, Merlin's order; task -> done)
 Ferranti hit an outage mid-session (galvani stayed up); Merlin rented an RTX 5090 on Vast.ai as a
 third compute tier and asked to wire it into the `scripts/` wrapper discipline. **DONE, live-tested

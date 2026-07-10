@@ -270,10 +270,39 @@ Record everything in `autoresearch/runs/calibration/NOTES.md` + one EXPERIMENTS.
   (b) program.md's one-command-20-min contract assumes the loop agent's shell can hold a long
   foreground process — for Claude-Code-like agents it cannot; propose splitting run_experiment.sh
   into fast `launch` / poll `collect` phases (Merlin's call).
-- STILL OPEN for a real loop night on vast: program.md hardcodes ferranti in its instructions
-  (health-check step, run command, job_status timeout step) — needs Merlin's edit/sign-off
-  (program.md is his file); also the noise estimate (duplicate baseline) would need re-measuring
-  per backend.
+- ITERATION 1 (loop-7e41889) LANDED rc=1: **pipeline green end-to-end through train+probes+eval**
+  (datagen sha-gate OK on the 3rd backend; pace 543 steps/min on the 5090; 5380 steps in the 600s
+  budget, flow 0.030→0.0085; state probe PASS 345600 B growth 0; inwindow shift 0.7058 / past
+  0.2039; frozen eval scored: fidelity 0.6536 FAIL → score_gated 0.000000, real_bins ~0 at every
+  age) — then crashed at the LAST line: eval_reduced's real_bins printer assumed dict, frozen
+  scorer returns a list of bin dicts. Fixed (778fd63), verified against the pulled eval JSON.
+  NB: **the seed baseline gates to 0 on vast@600s** (fidelity 0.65 < threshold) — duplicate-
+  baseline noise estimate is degenerate at 0; program.md's "fix shift-copy first" guidance is
+  what the loop must climb. Flag for Merlin: is a 0-baseline acceptable loop calibration?
+- ITERATION 2 (loop-a956478) launched MESSILY: a `sync | tail && vast_run` chain masked a
+  BAD_REF (hand-typed wrong full SHA) behind tail's rc=0 → vast_run launched at the box's stale
+  7e41889 checkout; the corrective sync then moved the checkout to a956478 UNDER the running job.
+  Verified harmless here (only diff between the SHAs = the eval_reduced fix; training code
+  byte-identical; stages import from disk → job uses the FIXED printer) but recorded as an
+  operator lesson: never pipe a wrapper's output before checking its exit; never hand-type SHAs.
+  LOCK RESOLVED: attempt 2 got past lock-acquire to the busy-check → no orphaned launch lock
+  from either abnormal exit.
+- **ITERATION 2 (loop-a956478) CLEAN rc=0 — SHAKEDOWN COMPLETE 2026-07-10 17:59.** Full cycle
+  green: pace 544/min → sched 5168 → 5378 steps in the 600s budget (0.112 s/step, util 92%,
+  peak 13.2 GB) → state PASS (345600 B, growth 0) → probes (shift 0.7020 / window 0.2469 /
+  past 0.2330 / unseen 0.2350) → reduced eval 96 s → full summary block incl fixed real_bins.
+  score_gated 0.000000 (fidelity 0.6622 FAIL). Metrics pulled: runs/loop-a956478/.
+- **DUPLICATE-BASELINE NOISE (free, from the pair)**: identical config, wall-clock jitter only —
+  steps 5380/5378, shift 0.7058/0.7020, fidelity 0.6536/0.6622, composite_raw 0.0092/0.0046,
+  real_cc 0.0131/0.0066. Sub-gate metrics tight (±0.01); the ungated composite varies ~2× at
+  these near-zero magnitudes → at THIS budget the only trustworthy improvement signal is
+  clearing the fidelity gate (score>0), not composite deltas near 0.
+- STILL OPEN for a real loop night on vast (Merlin's calls): (1) program.md hardcodes ferranti
+  in its instructions (health-check step, run command, job_status timeout step) — his file;
+  (2) is a gates-to-0 seed baseline acceptable calibration, or should the seed recipe/budget be
+  adjusted until the baseline scores >0 first? (3) launch/collect split of run_experiment.sh so
+  agent shells never hold the ~15-min cycle (rc=124 finding); (4) box stop/start between
+  sessions (billing) is Merlin's.
 
 ## Done when
 
