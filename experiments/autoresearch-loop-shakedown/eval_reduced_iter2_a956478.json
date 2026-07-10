@@ -1,0 +1,214 @@
+{
+ "composite": 0.004631366373870777,
+ "composite_gated": 0.0,
+ "gates_passed": false,
+ "fail_reasons": [
+  "fidelity"
+ ],
+ "flags": [],
+ "real_anchored": {
+  "score": 0.0066083651926431815,
+  "bins": [
+   {
+    "lo": 1,
+    "hi": 17,
+    "n": 328,
+    "acc": 0.22560975609756098,
+    "acc_cc": 0.03201219512195121,
+    "n_border": 176,
+    "border_recall": 0.13636363636363635,
+    "qualified": true
+   },
+   {
+    "lo": 17,
+    "hi": 33,
+    "n": 421,
+    "acc": 0.2042755344418052,
+    "acc_cc": 0.005344418052256501,
+    "n_border": 153,
+    "border_recall": 0.0457516339869281,
+    "qualified": true
+   },
+   {
+    "lo": 33,
+    "hi": 65,
+    "n": 1081,
+    "acc": 0.19056429232192415,
+    "acc_cc": 0.0,
+    "n_border": 696,
+    "border_recall": 0.06752873563218391,
+    "qualified": true
+   },
+   {
+    "lo": 65,
+    "hi": 129,
+    "n": 396,
+    "acc": 0.17676767676767677,
+    "acc_cc": 0.0,
+    "n_border": 178,
+    "border_recall": 0.1348314606741573,
+    "qualified": true
+   },
+   {
+    "lo": 129,
+    "hi": 257,
+    "n": 218,
+    "acc": 0.2018348623853211,
+    "acc_cc": 0.0022935779816513763,
+    "n_border": 74,
+    "border_recall": 0.25675675675675674,
+    "qualified": true
+   },
+   {
+    "lo": 257,
+    "hi": null,
+    "n": 163,
+    "acc": 0.15950920245398773,
+    "acc_cc": 0.0,
+    "n_border": 98,
+    "border_recall": 0.04081632653061224,
+    "qualified": true
+   }
+  ],
+  "n_events": 3982
+ },
+ "consistency": {
+  "score": 0.002779678412589802,
+  "bins": [
+   {
+    "lo": 1,
+    "hi": 17,
+    "n": 237,
+    "acc": 0.20253164556962025,
+    "acc_cc": 0.0031645569620252986,
+    "n_border": 4,
+    "border_recall": 0.75,
+    "qualified": true
+   },
+   {
+    "lo": 17,
+    "hi": 33,
+    "n": 106,
+    "acc": 0.14150943396226415,
+    "acc_cc": 0.0,
+    "n_border": 6,
+    "border_recall": 0.8333333333333334,
+    "qualified": true
+   },
+   {
+    "lo": 33,
+    "hi": 65,
+    "n": 321,
+    "acc": 0.19626168224299065,
+    "acc_cc": 0.0,
+    "n_border": 19,
+    "border_recall": 0.6842105263157895,
+    "qualified": true
+   },
+   {
+    "lo": 65,
+    "hi": 129,
+    "n": 279,
+    "acc": 0.13978494623655913,
+    "acc_cc": 0.0,
+    "n_border": 26,
+    "border_recall": 0.4230769230769231,
+    "qualified": true
+   },
+   {
+    "lo": 129,
+    "hi": 257,
+    "n": 185,
+    "acc": 0.21081081081081082,
+    "acc_cc": 0.013513513513513514,
+    "n_border": 9,
+    "border_recall": 0.2222222222222222,
+    "qualified": true
+   },
+   {
+    "lo": 257,
+    "hi": null,
+    "n": 121,
+    "acc": 0.1487603305785124,
+    "acc_cc": 0.0,
+    "n_border": 8,
+    "border_recall": 0.0,
+    "qualified": true
+   }
+  ],
+  "n_events": 1321
+ },
+ "gates": {
+  "fidelity": {
+   "value": 0.6622178819444444,
+   "passed": false
+  },
+  "entropy": {
+   "kl_to_uniform": 0.0025967453590572016,
+   "n": 2937,
+   "passed": true
+  }
+ },
+ "scoring": {
+  "formula": "real_cc * (0.7 + 0.3 * consistency_cc)",
+  "chance_in_map": 0.2,
+  "border_cells": "excluded from score; border_recall diagnostic",
+  "age_units": "ticks (phase-5 dilated)"
+ },
+ "age_stats": {
+  "n": 5303,
+  "mean": 82.26852724872714,
+  "median": 45.0
+ },
+ "per_policy": {
+  "oab_mid": {
+   "n_events": 1345,
+   "weighted_acc": 0.17014293276866066
+  },
+  "box_small": {
+   "n_events": 1506,
+   "weighted_acc": 0.18969884604559525
+  },
+  "sweep_wide": {
+   "n_events": 208,
+   "weighted_acc": 0.20526315789473684
+  },
+  "idiot_fast": {
+   "n_events": 319,
+   "weighted_acc": 0.21571648690292755
+  },
+  "retrace_mid": {
+   "n_events": 1250,
+   "weighted_acc": 0.19042080778177206
+  },
+  "dwell_dart": {
+   "n_events": 675,
+   "weighted_acc": 0.17801311144730209
+  }
+ },
+ "border_drift_cells": 1.9567328559027777,
+ "config": {
+  "suite": [
+   "oab_mid",
+   "box_small",
+   "sweep_wide",
+   "idiot_fast",
+   "retrace_mid",
+   "dwell_dart"
+  ],
+  "n_seeds": 2,
+  "prefix_len": 192,
+  "imag_len": 768,
+  "seed0": 0,
+  "bin_edges": [
+   1,
+   17,
+   33,
+   65,
+   129,
+   257
+  ],
+  "min_events_per_bin": 10,
+  "privileged": false
+ }
+}
