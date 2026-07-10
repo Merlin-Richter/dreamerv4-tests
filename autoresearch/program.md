@@ -22,12 +22,14 @@ To set up a new experiment run, work with the user to:
    - `autoresearch/editable/adapter_sym.py` — eval bridge + one-hot codec (editable, but
      see the warning below).
    - `autoresearch/frozen_sym/env.py` + `eval_comeback.py` — environment + scorer
-     (READ-ONLY; read them to understand what is scored).
-4. **Verify the cluster is reachable**:
-   `wsl.exe -e bash -lc "cd /mnt/c/Users/richt/OneDrive/Desktop/Code/transformer && bash scripts/cluster_health.sh --cluster ferranti"`
-   If it prints `ERROR: AUTH_DEAD`, STOP and tell the human to open the master socket
-   (`scripts/open_master.sh --cluster ferranti` in a WSL terminal). This is the ONE
-   dependency you cannot fix yourself.
+     (READ-ONLY; read them to understand what is scored; editing will result in fail automatically).
+4. **Verify the compute box is reachable** (a rented Vast.ai box, RTX 5090 — no queue):
+   `wsl.exe -e bash -lc "cd /mnt/c/Users/richt/OneDrive/Desktop/Code/transformer && bash scripts/vast_status.sh"`
+   If it prints `ERROR: AUTH_DEAD`, SELF-HEAL it — vast has no 2FA, you are allowed and
+   expected to reopen the socket yourself:
+   `wsl.exe -e bash -lc "cd /mnt/c/Users/richt/OneDrive/Desktop/Code/transformer && bash scripts/open_master.sh --cluster vast"`
+   Only if reopening fails repeatedly is the box itself down/stopped — THEN stop and tell
+   the human (restarting the instance needs the Vast console, which only they have).
 5. **Initialize the ledger**: create `autoresearch/results.tsv` with just the header row
    (see Logging results). Leave it untracked by git — do NOT commit it.
 6. **Confirm and go.** Your very first run establishes the BASELINE: run the experiment
@@ -37,19 +39,28 @@ To set up a new experiment run, work with the user to:
 
 ## Experimentation
 
-Each experiment trains on one H100 for a **fixed budget of 600 seconds** (wall clock,
-enforced remotely by the trainer's per-step BUDGET_STOP — you never manage time), then
-runs a fixed probe + eval suite. You launch it as ONE command (from the repo root, after
-committing your change):
+Each experiment trains on the vast box's RTX 5090 for a **fixed budget of 600 seconds**
+(wall clock, enforced remotely by the trainer's per-step BUDGET_STOP — you never manage
+time), then runs a fixed probe + eval suite. You launch it as ONE command (from the repo
+root, after committing your change):
 
 ```
-wsl.exe -e bash -lc "cd /mnt/c/Users/richt/OneDrive/Desktop/Code/transformer && bash autoresearch/loop/run_experiment.sh" > run.log 2>&1
+wsl.exe -e bash -lc "cd /mnt/c/Users/richt/OneDrive/Desktop/Code/transformer && bash autoresearch/loop/run_experiment.sh --cluster vast" > run.log 2>&1
 ```
 
 Redirect everything as shown — do NOT tee or stream the output into your context.
-The command pushes your commit, submits the cluster job, waits, and appends the job's
-log (which ends in the summary + score lines) to stdout. A full cycle is ~15–20 min
-(1 min sync/queue + 1 min pace probe + 10 min train + ~3–5 min probes/eval).
+The command syncs your pushed commit, launches the box job, waits, and appends the job's
+log (which ends in the summary + score lines) to stdout. A full cycle is ~14–16 min
+(no queue: ~1 min sync/launch + 1 min pace probe + 10 min train + ~3 min probes/eval).
+
+**If your shell kills long commands** (symptom: the run command dies with rc=124 mid-wait
+— e.g. a 10-minute tool cap): the REMOTE job is already running detached and is
+unaffected; only the local waiter died. Do NOT relaunch. Re-attach instead: poll
+`wsl.exe -e bash -lc "cd ... && bash scripts/vast_status.sh"` about once a minute until
+your run (`loop-<sha>`) shows DONE, then fetch its log with
+`wsl.exe -e bash -lc "cd ... && bash scripts/vast_status.sh loop-<sha> --tail 500" >> run.log`
+and continue as normal. Give the initial command your shell's maximum timeout so the
+launch phase (~2 min) always completes inside it.
 
 **What you CAN do:**
 - Modify `autoresearch/editable/{train_sym,model,rollout}.py` — everything is fair game:
@@ -57,14 +68,14 @@ log (which ends in the summary + score lines) to stdout. A full cycle is ~15–2
   mechanism, the LR schedule, the data sampling. Out-there ideas are explicitly welcome:
   memory tokens retained past window eviction, learned compression of evicted frames,
   sparse attention into the deep past, new state modalities, different backprop through
-  the relay — anything that fits the two resource prices below.
+  the relay — anything that fits the two resource prices below. The only thing is that it has to stay a transformer.
 - Modify `adapter_sym.py` ONLY if your model change requires a new inference path. The
   codec (`encode_latents`/`decode_latents`) and its dims must stay consistent with
   training — train_sym imports them from there, so drift breaks you loudly.
 
 **The two resource prices (instead of architectural bans):**
 1. **Training compute** is priced by the fixed 600s budget — a slower design trains fewer
-   steps. Nothing else limits training; widen the training window if you think it pays.
+   steps. Nothing else limits training.
 2. **Carried rollout state is capped in BYTES**: everything your model carries across
    inference steps (KV cache + any persistent per-episode tensors) must fit
    `state_budget: 518400` bytes (1.5× the seed's dense-W=16 cache), measured by the job's
@@ -81,8 +92,10 @@ log (which ends in the summary + score lines) to stdout. A full cycle is ~15–2
   sweeps the adapter object graph; kept diffs are human-reviewed and buffer-shaped gains
   are visually obvious in `real_bins` — it will be caught, and the run voided.
 - Install packages or add dependencies.
-- Touch the cluster except through `autoresearch/loop/run_experiment.sh`. Never cancel
-  jobs; they self-terminate within the hour.
+- Touch the box except through `autoresearch/loop/run_experiment.sh`, plus exactly two
+  sanctioned extras: the read-only `scripts/vast_status.sh` (health check / re-attach) and
+  `scripts/open_master.sh --cluster vast` (AUTH_DEAD self-heal). Never `vast_run.sh` or
+  `vast_cancel.sh` directly; never cancel jobs — they self-terminate within the hour.
 
 **The goal: the highest `score`** (0..1; v2.2-sym, continuous — no hard gates):
 
@@ -102,8 +115,9 @@ broken by simpler code. Secondary signals to guide you — `inwindow_shift`/`inw
 lift FAR bins, not just near ones). These inform your next idea but only `score` decides
 keep/discard.
 
-**VRAM** is a soft constraint (H100, 80 GB — `peak_vram_mb` in the summary). Some increase
-is fine for real gains; do not blow it up.
+**VRAM** is a soft constraint (RTX 5090, 32 GB — `peak_vram_mb` in the summary; the seed
+peaks ~13.5 GB). Some increase is fine for real gains; do not blow it up — an OOM crash
+burns a full cycle.
 
 **Simplicity criterion**: all else equal, simpler is better. A tiny gain that adds ugly
 complexity is not worth it; equal results from less code is a keep. Weigh complexity cost
@@ -118,26 +132,28 @@ state_bytes:      345600
 state_growth_bps: 0.0
 state_budget:     518400
 state_check:      PASS
-inwindow_shift:   0.6720  (n=1849)
-inwindow_past:    0.2720  (n=103)
-score:            0.135200
-fid:              0.5480  (move 0.4102 n=1843 / hold 0.6858 n=7373)
-ent:              1.000  (kl 0.0026 n=482)
-composite:        0.004631
-real_cc:          0.006608
-consistency_cc:   0.002780
+inwindow_shift:   0.7080  (n=1849)
+inwindow_past:    0.2136  (n=103)
+score:            0.103836
+fid:              0.5192  (move 0.3101 n=1680 / hold 0.7282 n=7536)
+ent:              1.000  (kl 0.0018 n=3126)
+composite:        0.000000
+real_cc:          0.000000
+consistency_cc:   0.003438
 flags:            []
-real_bins:        {'[1,17)': '0.032', '[17,33)': '0.005!', ...}
-eval_seconds:     96.0
+real_bins:        {'[1,17)': '0.000', '[17,33)': '0.000', ...}
+eval_seconds:     95.7
 ---
-steps:            4339
-train_seconds:    600.0
-sec_per_step:     0.138
-flow_final:       0.0093
-peak_vram_mb:     4210
-gpu_util_pct:     71
+steps:            5381
+train_seconds:    600.1
+sec_per_step:     0.112
+flow_final:       0.0085
+peak_vram_mb:     13560
+gpu_util_pct:     92
 window_frames:    16
 ```
+(these are the REAL v2.2 seed-baseline numbers — your first run should land very close;
+the measured duplicate-baseline pair was 0.103836 / 0.104758, i.e. noise ≈ 0.001)
 
 Extract the essentials with:
 
@@ -179,8 +195,9 @@ LOOP FOREVER:
 4. Run the experiment command above (`> run.log 2>&1`).
 5. Grep the results out of `run.log`.
 6. Empty grep = crash. Read the tail, judge: dumb bug → fix (amend or new commit), re-run;
-   fundamentally broken idea → log `crash`, revert, move on. `ERROR: AUTH_DEAD` is the ONE
-   exception to autonomy: stop and tell the human to reopen the master socket.
+   fundamentally broken idea → log `crash`, revert, move on. `ERROR: AUTH_DEAD` → SELF-HEAL
+   (`open_master.sh --cluster vast`, see Setup step 4) and retry; escalate to the human only
+   if reopening itself fails repeatedly (box down/stopped).
 7. Append the row to `autoresearch/results.tsv` (never commit this file).
 8. If `score` improved beyond the noise band (from your duplicate-baseline runs):
    ADVANCE — keep the commit as the new base.
@@ -199,9 +216,10 @@ in the seed, but it was load-bearing in one GridWorld regime); memory token coun
 History that transfers from GridWorld: bootstrap distillation bought nothing at K=1-4;
 relay grad explodes at init (~3×/hop) — `relay_grad_clip` exists if training destabilizes.
 
-**Timeout**: if a run exceeds ~45 minutes wall, check once with
-`wsl.exe -e bash -lc "... bash scripts/job_status.sh --cluster ferranti"` — a deep queue
-just means wait; a vanished job means treat as crash.
+**Timeout**: there is no queue on vast, so a healthy cycle is ~14–16 min. If a run exceeds
+~25 minutes wall, check once with
+`wsl.exe -e bash -lc "... bash scripts/vast_status.sh"` — RUNNING with a progressing log
+line means wait; a vanished run or a stalled log means treat as crash.
 
 **NEVER STOP**: once the loop has begun, do NOT pause to ask the human whether to
 continue. No "should I keep going?". The human might be asleep and expects you to work

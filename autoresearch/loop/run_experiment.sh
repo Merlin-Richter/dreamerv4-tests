@@ -28,6 +28,13 @@ SHA=$(git rev-parse --short=7 HEAD)
 case "$BRANCH" in autoresearch/*|exp/*) :;; *) echo "WARNING: unusual branch '$BRANCH' for a loop run";; esac
 [ -z "$(git status --porcelain)" ] || { echo "ERROR: DIRTY_TREE — commit your change first"; exit 2; }
 
+# Integrity preflight: frozen_sym/ + loop/ must match MANIFEST-sym (code files
+# only here — the job payload re-checks INCLUDING the dataset sidecars). A
+# mismatch means the tree moved the goalposts: the run is refused, not scored.
+PY=$(command -v python3 || command -v python)
+"$PY" -m autoresearch.driver.manifest --check --tier sym --no-artifacts \
+  || { echo "ERROR: TAMPERED — frozen_sym/ or loop/ differs from MANIFEST-sym; only editable/ may change"; exit 8; }
+
 RUN="loop-$SHA"
 echo "branch: $BRANCH  sha: $SHA  run: $RUN  cluster: $CLUSTER"
 # NO git push here: WSL git has no credential helper and hangs silently on private

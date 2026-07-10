@@ -17,6 +17,10 @@ mkdir -p "$OUT"
 echo "d8cb99f24671ddcc5925733c9d3be0947aa84125125b6d67144645bfad79ffb0  data/colorfield_sym/actions.npy" | sha256sum -c -
 echo "68c22b9616ba16cc451dc1e6308a777b28493163649a541d8f7117eff5110dff  data/colorfield_sym_val/actions.npy" | sha256sum -c -
 
+# ---- frozen-layer integrity (MANIFEST-sym: frozen_sym/ + loop/ + sidecars) ----
+python -u -m autoresearch.driver.manifest --check --tier sym \
+  || { echo "TAMPERED: frozen_sym/ or loop/ differs from MANIFEST-sym — run void"; exit 8; }
+
 # ---- GPU sampler (peak VRAM + mean util over the training phase) ----
 ( while true; do nvidia-smi --query-gpu=memory.used,utilization.gpu --format=csv,noheader,nounits; sleep 5; done \
   > "$OUT/gpu_samples.csv" 2>/dev/null ) & GPUMON=$!

@@ -1,0 +1,32 @@
+{
+ "artifacts": {
+  "data/colorfield_sym/actions.npy": "d8cb99f24671ddcc5925733c9d3be0947aa84125125b6d67144645bfad79ffb0",
+  "data/colorfield_sym_val/actions.npy": "68c22b9616ba16cc451dc1e6308a777b28493163649a541d8f7117eff5110dff"
+ },
+ "dataset_seeds": {
+  "regen": "python -m autoresearch.frozen_sym.datagen",
+  "train": 0,
+  "val": 777
+ },
+ "files": {
+  "autoresearch/frozen_sym/BUILD_NOTES.md": "fee2ca69b944b819a668ca899cdb34cfbec4fd7b31d464569c57b8a4318a1d86",
+  "autoresearch/frozen_sym/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "autoresearch/frozen_sym/adapters.py": "06ea2e6b8127938a25c90ac300694bceb27f6e48b14f81d2cc7af598e58de654",
+  "autoresearch/frozen_sym/datagen.py": "109d207da8761786e6a04a23b4899fdf85b4900f04053ae1a0a01027844b9970",
+  "autoresearch/frozen_sym/env.py": "d2329a190dffdc122bba417cfe6e905aef04c49ad5b15759448aa14c8d5eed2a",
+  "autoresearch/frozen_sym/eval_comeback.py": "f180782479ba99c383b9596ab9c0d75f976db0eadfd3e8b69467f6f7b38caf69",
+  "autoresearch/frozen_sym/eval_policies.py": "3a69ceefef4d004af4248b7a42d3788c6ecc6c0b13375dd54574628e04c7492b",
+  "autoresearch/frozen_sym/policies.py": "8020b7759fbf7a86ce55b88b7159bbf0d49db255173c4badb32c0b9470e2c9cb",
+  "autoresearch/frozen_sym/tests/test_datagen.py": "a30deffb769d4a32671efb347cc1e1dabb57bfe76579cd411c90b44994b6c897",
+  "autoresearch/frozen_sym/tests/test_env.py": "a112746c8dae1c789f01c3f8a3ac1647c27449cd052c316e773453739df0a52f",
+  "autoresearch/frozen_sym/tests/test_eval.py": "08653e54075bdc0fdc6aed15efdc605637db8b190a3d22e1b1a62533ea240532",
+  "autoresearch/frozen_sym/tests/test_policies.py": "0c4c615b738dd92aaca5bf0446420d8449307e00f54dd485e77b21591a775555",
+  "autoresearch/loop/eval_reduced.py": "8e621b573f7fa099baf4b4958cec8944d08d18252cf2a44dd9b7cc166c4ebf36",
+  "autoresearch/loop/job_payload.sh": "f4e58c7a87e2a902b92540b42ba94cda543bc7b55fbe0b92401c3bd2ed38f664",
+  "autoresearch/loop/probe_inwindow.py": "45ef09e09bd42d3b743e5f2858a07b4622dab8802a1f5c9dcff70decda1da231",
+  "autoresearch/loop/run_experiment.sh": "4374e2ab7d9b46ea932beb65ac20170d50065e6c77d016869c3b1f01651e6994",
+  "autoresearch/loop/state_probe.py": "e96fc6a2308b984eabd7e9b14fc9471820cf63904a64916db786ece361e2a77b"
+ },
+ "signed_off": "Merlin 2026-07-10 (v2.2 continuous scoring: fid*(0.2*ent + 0.8*composite), move/hold fid split, entropy ramp)",
+ "version": "colorfield-sym-frozen-v2.2"
+}
