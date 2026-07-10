@@ -59,7 +59,7 @@ def _sample_tau_d(model, B, T, device, gen, n_d_unlocked=None):
 
 
 def _newhalf_loss(model, *, old_part, tau_old, new_part, tau_new_idx, d_new_idx, z1_new,
-                  af_win, memory_in, positions, half, bootstrap):
+                  af_win, memory_in, positions, half, bootstrap, anchored=None):
     """Shortcut-forcing diffusion loss on the NEW half, holding the OLD half fixed as context.
 
     Mirrors ``DynamicsModel.loss``'s diffusion term, restricted to the new half: at the finest step
@@ -120,6 +120,12 @@ def _newhalf_loss(model, *, old_part, tau_old, new_part, tau_new_idx, d_new_idx,
         per_token = flow_loss
 
     w = (1 - model.config.ramp_min) * tau_new + model.config.ramp_min     # ramp weight, Eq. 8
+    if anchored is not None:
+        # TARGETED ramp override (iter-3): full weight ONLY on the tau0-anchored CLEAN-mode
+        # frames — the frames that train visible-context next-frame prediction (the fid-paying
+        # signal). Noise-mode tau=0 frames keep w=ramp_min (their loss is mostly irreducible
+        # early — globally flattening the ramp amplified that noise floor and hurt, iter-1).
+        w = torch.where(anchored[..., None, None], torch.ones_like(w), w)
     flow_norm = (w * flow_loss).mean()   # pure-flow magnitude (bootstrap-independent) — FF9 norm basis
     return (w * per_token).mean(), new_mem, flow_norm
 
@@ -173,8 +179,8 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
                  pos_acc 0.09 -> 1.0). Rationale: the sampled grid demands visible-context next-frame
                  prediction only ~1/K_max of clean-mode frames (ramp-down-weighted on top), so the model
                  learns denoising, never dynamics — measured on ColorField-sym at the 10-min budget:
-                 teacher-forced shift-copy acc 0.42 (probe_inwindow.py). Ramp weight deliberately left
-                 untouched (faithful to the proven Arm D).
+                 teacher-forced shift-copy acc 0.42 (probe_inwindow.py). Anchored frames get FULL loss
+                 weight (w=1, targeted ramp override — iter-3); all other frames keep the ramp.
 
     Loss = shortcut-forcing diffusion on the new half (flow at the finest step + bootstrap distillation
     at coarser steps) [+ FF9 sufficiency (new-half memories) when use_ff9], normalized like model.loss.
@@ -254,6 +260,7 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
         # (noise mode -> memory is the only scene carrier; d still varies to train coarse steps-from-noise).
         tau_new_idx, d_new_idx = _sample_tau_d(model, B, half, device, gen, n_d_unlocked=n_d_unlocked)
         tau_new_idx = torch.where(modes.view(B, 1), torch.zeros_like(tau_new_idx), tau_new_idx)
+        anchored = None
         if tau0_anchor > 0:  # Arm-D anchor: clean-mode frames get (tau=0, finest d) w.p. tau0_anchor
             anchored = (torch.rand(B, half, device=device, generator=gen) < tau0_anchor) \
                        & ~modes.view(B, 1)
@@ -269,7 +276,8 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
             model, old_part=old_part, tau_old=tau_old, new_part=new_part,
             tau_new_idx=tau_new_idx, d_new_idx=d_new_idx, z1_new=z1_win[:, half:],
             af_win=af(s, s + W), memory_in=memory_in,
-            positions=torch.arange(W, device=device), half=half, bootstrap=bootstrap)
+            positions=torch.arange(W, device=device), half=half, bootstrap=bootstrap,
+            anchored=anchored)
         # new_mem: (B, half, M, E) — graph-attached; carried + FF9-scored
         if use_ff9 and k > 0 and new_b + k <= T:
             z1_sub = z1[:, new_a:new_b + k]                          # (B, half+k, L, D)
