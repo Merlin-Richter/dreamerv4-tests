@@ -55,8 +55,8 @@ self-heal an `AUTH_DEAD` without escalating to Merlin, unlike ferranti/galvani.
 2. ferranti/galvani, in WSL: open the master socket (interactive, completes 2FA — **Merlin only**):
    `scripts/open_master.sh --cluster ferranti` (and/or galvani). Persists ~8h. A wrapper printing
    `ERROR: AUTH_DEAD` means re-run this (in WSL).
-   vast, in Git Bash: `scripts/open_master.sh --cluster vast` (no 2FA — anyone/anything holding
-   the key can run this, including the orchestrator).
+   vast, in WSL too (D-036): `scripts/open_master.sh --cluster vast` (no 2FA — anyone/anything
+   holding the key can run this, including the orchestrator).
 3. vast only, one-time: `git clone` the repo onto the box at `VAST_REMOTE_PATH` before the first
    `sync_code.sh` (it fetches/checks-out an existing clone, it doesn't create one). Re-clone if the
    instance was `destroy`ed/recycled (disk not persistent — see cluster.env.example's warning).
@@ -97,7 +97,7 @@ scripts/wait_for_jobs.sh --cluster ferranti "$JOB"
 scripts/pull_results.sh --cluster ferranti EXP-024-tok --what metrics
 ```
 
-## Typical flow (vast, no scheduler — run in Git Bash, not WSL)
+## Typical flow (vast, no scheduler — in WSL like everything else, per D-036)
 ```
 scripts/cluster_health.sh --cluster vast           # or just check vast_status.sh — no fairshare/queue to read
 SHA=$(scripts/sync_code.sh --cluster vast exp/x | sed 's/SHA: //')
