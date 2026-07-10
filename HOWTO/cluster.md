@@ -75,6 +75,42 @@ won't kill it. `--poll 60` is gentle on the scheduler; the default is 30s.
 - **Scheduling:** jobs landed on an H100 immediately both times (fairshare ~0.39); queue depth (30–60
   pending) hasn't been a problem.
 
+## Vast.ai (rented GPU box, no scheduler — added 2026-07-10)
+
+A third backend for when ferranti/galvani are down or queued: a single rented box (e.g. RTX 5090),
+not a shared SLURM cluster. Same `scripts/` wrapper discipline, different verb family — see
+`scripts/README.md` for the full split (`vast_run.sh`/`vast_status.sh`/`vast_wait.sh`/
+`vast_cancel.sh` instead of `submit_job.sh`/etc.) and the two vast-specific WSL gotchas (no
+`rsync` in plain Git Bash; the dedicated SSH key must live in WSL's own native `~/.ssh/`, not
+`/mnt/c/...`, or `ssh` refuses it on permissions). Config lives in `cluster.env`'s `VAST_*` stanza
+(host/port from the Vast dashboard's Connect panel — the port can change on stop/start, so verify
+before trusting a stale value).
+
+**Storage is NOT persistent across recycle/destroy** — only `stop`/`start` preserves the container
+disk (the repo clone, the built venv). `stop` halts GPU billing and keeps everything; only
+`destroy`/`recycle` wipes it (requiring a fresh `git clone` to `VAST_REMOTE_PATH` + venv rebuild).
+Always `stop`, never `destroy`, between sessions.
+
+**No 2FA** (plain SSH key) — unlike ferranti/galvani, the agent may open/re-open the vast master
+socket itself (`open_master.sh --cluster vast`) and self-heal an `AUTH_DEAD` without escalating.
+
+**Known quirk, not a bug:** this box's ssh mux layer reliably fails to open a *session* channel
+over an established ControlMaster (`mux_client_request_session: read from master failed:
+Connection reset by peer` on essentially every call), transparently falling back to a fresh direct
+connection each time (~1-3s tax per call, occasionally more). Every call still completes correctly
+— it's just slower than true multiplexing would be. The wrapper scripts are written around this
+(single remote-side poll loops instead of repeated local polling; `SSH_CALL_TIMEOUT` bounds a rarer
+true hang) — see the comments in `vast_run.sh`/`vast_wait.sh` if extending them further.
+
+**Live-tested end-to-end** (2026-07-10): RTX 5090 rental, key auth, repo clone, venv build (torch
+2.13.0+cu13/torchvision 0.28.0 — confirmed working on Blackwell/cc12.0), `vast_run.sh` →
+`vast_wait.sh` → `pull_results.sh` full cycle, concurrent-launch busy-guard (atomic remote `mkdir`
+lock — an unguarded busy-check had a real TOCTOU race, fixed), `sync_code.sh`/`pull_results.sh`
+reused unmodified. Three real bugs found and fixed during this session's live testing (port not
+propagated to `open_master.sh`'s diagnostic checks; a login-banner-contamination bug in
+`vast_wait.sh`'s ALIVE/DEAD comparison that caused it to poll forever past job completion; the
+TOCTOU race above) — see the git history on this date for details.
+
 ## Pre-T-003 history (manual runs)
 
 Observed throughput (tokenizer, 100 epochs, occluded.npy): galvani-cn109 ≈ 30

@@ -39,9 +39,9 @@ parse_cluster() {
     esac
   done
   case "$CLUSTER" in
-    ferranti|galvani) : ;;
-    "") die_config "--cluster {ferranti|galvani} is required (no default — pick per live fairshare/queue)" ;;
-    *) die_config "unknown cluster '$CLUSTER' (expected ferranti|galvani)" ;;
+    ferranti|galvani|vast) : ;;
+    "") die_config "--cluster {ferranti|galvani|vast} is required (no default — pick per live fairshare/queue)" ;;
+    *) die_config "unknown cluster '$CLUSTER' (expected ferranti|galvani|vast)" ;;
   esac
 }
 
@@ -62,6 +62,9 @@ load_config() {
   RUNS_SUBDIR="$(_cfg "${P}_RUNS_SUBDIR")"
   # optional keys (may be empty)
   PROXY_JUMP="$(_cfg_opt "${P}_PROXY_JUMP")"
+  PORT="$(_cfg_opt "${P}_SSH_PORT")"        # non-standard port (Vast-style rentals); blank = ssh default 22
+  IDENTITY="$(_cfg_opt "${P}_SSH_KEY")"     # explicit -i keyfile (Vast-style dedicated key); blank = ssh default identity/agent
+  IDENTITY="${IDENTITY/#\~/$HOME}"
   PARTITION="$(_cfg_opt "${P}_PARTITION")"
   ACCOUNT="$(_cfg_opt "${P}_ACCOUNT")"
   GRES="$(_cfg_opt "${P}_GRES")"
@@ -83,6 +86,8 @@ _ssh_opts() {
   local opts=(-S "$CONTROL_PATH" -o ControlMaster=no -o BatchMode=yes
               -o ConnectTimeout=10 -o ServerAliveInterval=15)
   [ -n "$PROXY_JUMP" ] && opts+=(-o "ProxyJump=$PROXY_JUMP")
+  [ -n "$PORT" ] && opts+=(-p "$PORT")
+  [ -n "$IDENTITY" ] && opts+=(-i "$IDENTITY" -o IdentitiesOnly=yes)
   printf '%s\n' "${opts[@]}"
 }
 
@@ -96,9 +101,20 @@ require_master() {
 
 # Run a command on the cluster over the master socket. Echoes remote stdout.
 # Usage: ssh_cluster '<remote shell command>'
+# Optional: export SSH_CALL_TIMEOUT=<secs> before calling to hard-bound THIS call
+# (via `timeout`) — opt-in, unset by default so ferranti/galvani are unaffected.
+# Added for vast (observed live 2026-07-10: its ssh mux layer can hang a channel
+# request indefinitely, not just reset+retry — ConnectTimeout only bounds the
+# initial TCP handshake, not a hang after connecting). Polling loops (vast_wait.sh)
+# set this so a hang becomes a detected, retryable failure instead of blocking the
+# script — and a real autoresearch loop iteration — forever.
 ssh_cluster() {
   local opts; mapfile -t opts < <(_ssh_opts)
-  ssh "${opts[@]}" "${USERNAME}@${HOST}" "$@"
+  if [ -n "${SSH_CALL_TIMEOUT:-}" ]; then
+    timeout "$SSH_CALL_TIMEOUT" ssh "${opts[@]}" "${USERNAME}@${HOST}" "$@"
+  else
+    ssh "${opts[@]}" "${USERNAME}@${HOST}" "$@"
+  fi
 }
 
 # Run a remote command IN the repo dir (most verbs want this).

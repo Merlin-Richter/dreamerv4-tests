@@ -2,6 +2,31 @@
 
 Rewritten: 2026-06-26.
 
+## NEW BACKEND (2026-07-10 — Vast.ai, Merlin's order; task -> done)
+Ferranti hit an outage mid-session (galvani stayed up); Merlin rented an RTX 5090 on Vast.ai as a
+third compute tier and asked to wire it into the `scripts/` wrapper discipline. **DONE, live-tested
+end-to-end** (not just written): new verbs `vast_run.sh`/`vast_status.sh`/`vast_wait.sh`/
+`vast_cancel.sh` (no scheduler — detached setsid+nohup, self-registered PID, atomic-`mkdir`-locked
+one-job-at-a-time) alongside the existing `sync_code.sh`/`pull_results.sh`/`pull_file.sh` (reused
+unmodified). Full cycle verified: venv-by-hash bootstrap installed torch 2.13.0+cu13 on the
+RTX 5090 (Blackwell cc12.0) correctly; launch -> status -> wait -> pull_results all green through
+the real wrappers. **Three real bugs found + fixed live** (port not propagated to
+`open_master.sh`'s diagnostic checks; a genuine TOCTOU race in the busy-guard, closed with an
+atomic remote lock; a login-banner-contamination bug in `vast_wait.sh` that made it poll forever
+past job completion — caught because Merlin pushed back on "something is broken" instead of
+accepting it as flakiness, which it wasn't). Runs in **WSL** like ferranti/galvani (corrected
+mid-session from an initial wrong call to use Git Bash — no `rsync` there, and WSL's `drvfs` won't
+hold the key's Unix permissions; fixed by copying the key into WSL's own native `~/.ssh/`). Full
+writeup + bug details: `tasks/done/vast-ai-backend-integration.md`. Docs updated:
+`scripts/README.md`, `scripts/cluster.env.example`, `CLAUDE.md`, `HOWTO/cluster.md`.
+**Remote box state**: clean (no leftover test runs), repo cloned + venv cached, ready for real
+work. Storage is NOT persistent across recycle/destroy (only stop/start) — always `stop` between
+sessions.
+**OPEN for Merlin**: the autoresearch loop's `run_experiment.sh` still hardcodes SLURM verbs
+against `--cluster ferranti` — doesn't know how to target vast yet. If the plan is to actually run
+the loop on this box (plausible, since the outage was the trigger), that needs a vast-flavored
+run_experiment.sh — not started, needs a design call (separate script vs. branch by `--cluster`).
+
 ## PIVOT (2026-07-07 ~01:00 — Merlin): ColorField-SYM, the tokenizer-free tier
 20-min budgets died on the APPEARANCE prior (both model sizes — see harness task calibration
 log). Merlin's fix: symbolic tier — 5×5 CELL viewport as one-hots fed straight to the dynamics
