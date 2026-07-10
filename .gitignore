@@ -90,3 +90,4 @@ external/
 # trip run_experiment.sh's DIRTY_TREE check)
 autoresearch/results.tsv
 /run.log
+autoresearch/NOTES.md

@@ -1,6 +1,6 @@
 # autoresearch — ColorField-sym
 
-This is an experiment to have the LLM do its own research: improve a small world model's
+Improve a small world model's
 **memory** on the ColorField-sym environment (5×5 one-hot viewport scrolling over a 15×15
 iid-color board; info seen long ago must be repainted when revisited). Training uses a
 mem→mem rollout objective; scoring uses a frozen "comeback" eval that rewards correctly
@@ -8,7 +8,7 @@ repainting cells by how long ago they were seen.
 
 ## Setup
 
-To set up a new experiment run, work with the user to:
+To set up a new experiment run (if truely new; first check rather you can continue an existing loop), work with the user to:
 
 1. **Agree on a run tag**: propose a tag based on today's date (e.g. `jul9`). The branch
    `autoresearch/<tag>` must not already exist — this is a fresh run.
@@ -30,7 +30,7 @@ To set up a new experiment run, work with the user to:
    `wsl.exe -e bash -lc "cd /mnt/c/Users/richt/OneDrive/Desktop/Code/transformer && bash scripts/open_master.sh --cluster vast"`
    Only if reopening fails repeatedly is the box itself down/stopped — THEN stop and tell
    the human (restarting the instance needs the Vast console, which only they have).
-5. **Initialize the ledger**: create `autoresearch/results.tsv` with just the header row
+5. **Initialize the ledger**: create/read `autoresearch/results.tsv` with just the header row
    (see Logging results). Leave it untracked by git — do NOT commit it.
 6. **Confirm and go.** Your very first run establishes the BASELINE: run the experiment
    with the code exactly as-is. Your second run repeats the baseline unchanged — the
