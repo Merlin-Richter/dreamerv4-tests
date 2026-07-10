@@ -1,0 +1,212 @@
+{
+ "score": 0.10383568395511072,
+ "composite": 0.0,
+ "fidelity": {
+  "value": 0.5191784197755536,
+  "move": 0.3101190476190476,
+  "hold": 0.7282377919320594,
+  "n_move": 1680,
+  "n_hold": 7536
+ },
+ "entropy": {
+  "kl_to_uniform": 0.0017759379580417553,
+  "n": 3126,
+  "ent": 1.0
+ },
+ "flags": [],
+ "real_anchored": {
+  "score": 0.0,
+  "bins": [
+   {
+    "lo": 1,
+    "hi": 17,
+    "n": 321,
+    "acc": 0.17757009345794392,
+    "acc_cc": 0.0,
+    "n_border": 178,
+    "border_recall": 0.16292134831460675,
+    "qualified": true
+   },
+   {
+    "lo": 17,
+    "hi": 33,
+    "n": 428,
+    "acc": 0.19158878504672897,
+    "acc_cc": 0.0,
+    "n_border": 145,
+    "border_recall": 0.10344827586206896,
+    "qualified": true
+   },
+   {
+    "lo": 33,
+    "hi": 65,
+    "n": 1102,
+    "acc": 0.17785843920145192,
+    "acc_cc": 0.0,
+    "n_border": 686,
+    "border_recall": 0.08017492711370262,
+    "qualified": true
+   },
+   {
+    "lo": 65,
+    "hi": 129,
+    "n": 379,
+    "acc": 0.16094986807387862,
+    "acc_cc": 0.0,
+    "n_border": 185,
+    "border_recall": 0.12432432432432433,
+    "qualified": true
+   },
+   {
+    "lo": 129,
+    "hi": 257,
+    "n": 175,
+    "acc": 0.1657142857142857,
+    "acc_cc": 0.0,
+    "n_border": 73,
+    "border_recall": 0.2054794520547945,
+    "qualified": true
+   },
+   {
+    "lo": 257,
+    "hi": null,
+    "n": 147,
+    "acc": 0.19047619047619047,
+    "acc_cc": 0.0,
+    "n_border": 76,
+    "border_recall": 0.05263157894736842,
+    "qualified": true
+   }
+  ],
+  "n_events": 3895
+ },
+ "consistency": {
+  "score": 0.0034384371680251193,
+  "bins": [
+   {
+    "lo": 1,
+    "hi": 17,
+    "n": 223,
+    "acc": 0.21524663677130046,
+    "acc_cc": 0.01905829596412556,
+    "n_border": 9,
+    "border_recall": 0.4444444444444444,
+    "qualified": true
+   },
+   {
+    "lo": 17,
+    "hi": 33,
+    "n": 110,
+    "acc": 0.2,
+    "acc_cc": 0.0,
+    "n_border": 4,
+    "border_recall": 1.0,
+    "qualified": true
+   },
+   {
+    "lo": 33,
+    "hi": 65,
+    "n": 318,
+    "acc": 0.20125786163522014,
+    "acc_cc": 0.0015723270440251569,
+    "n_border": 28,
+    "border_recall": 0.4642857142857143,
+    "qualified": true
+   },
+   {
+    "lo": 65,
+    "hi": 129,
+    "n": 270,
+    "acc": 0.17037037037037037,
+    "acc_cc": 0.0,
+    "n_border": 11,
+    "border_recall": 1.0,
+    "qualified": true
+   },
+   {
+    "lo": 129,
+    "hi": 257,
+    "n": 192,
+    "acc": 0.1875,
+    "acc_cc": 0.0,
+    "n_border": 3,
+    "border_recall": 0.6666666666666666,
+    "qualified": true
+   },
+   {
+    "lo": 257,
+    "hi": null,
+    "n": 80,
+    "acc": 0.175,
+    "acc_cc": 0.0,
+    "n_border": 4,
+    "border_recall": 0.0,
+    "qualified": true
+   }
+  ],
+  "n_events": 1252
+ },
+ "scoring": {
+  "formula": "fid * (0.2*ent + 0.8*composite); fid = (fid_move + fid_hold)/2; composite = real_cc * (0.7 + 0.3*consistency_cc)",
+  "version": "v2.2-sym",
+  "chance_in_map": 0.2,
+  "border_cells": "excluded from score; border_recall diagnostic",
+  "age_units": "ticks (phase-5 dilated)"
+ },
+ "age_stats": {
+  "n": 5147,
+  "mean": 76.46201670876239,
+  "median": 45.0
+ },
+ "per_policy": {
+  "oab_mid": {
+   "n_events": 1311,
+   "weighted_acc": 0.16929478756022776
+  },
+  "box_small": {
+   "n_events": 1506,
+   "weighted_acc": 0.19054320292710383
+  },
+  "sweep_wide": {
+   "n_events": 38,
+   "weighted_acc": 0.09740259740259741
+  },
+  "idiot_fast": {
+   "n_events": 354,
+   "weighted_acc": 0.15987055016181229
+  },
+  "retrace_mid": {
+   "n_events": 1263,
+   "weighted_acc": 0.17551986823141857
+  },
+  "dwell_dart": {
+   "n_events": 675,
+   "weighted_acc": 0.20154647839973105
+  }
+ },
+ "border_drift_cells": 2.0157606336805554,
+ "config": {
+  "suite": [
+   "oab_mid",
+   "box_small",
+   "sweep_wide",
+   "idiot_fast",
+   "retrace_mid",
+   "dwell_dart"
+  ],
+  "n_seeds": 2,
+  "prefix_len": 192,
+  "imag_len": 768,
+  "seed0": 0,
+  "bin_edges": [
+   1,
+   17,
+   33,
+   65,
+   129,
+   257
+  ],
+  "min_events_per_bin": 10,
+  "privileged": false
+ }
+}

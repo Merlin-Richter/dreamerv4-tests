@@ -1,0 +1,212 @@
+{
+ "score": 0.10475750277047832,
+ "composite": 0.009505901215511692,
+ "fidelity": {
+  "value": 0.5046007734303912,
+  "move": 0.2982142857142857,
+  "hold": 0.7109872611464968,
+  "n_move": 1680,
+  "n_hold": 7536
+ },
+ "entropy": {
+  "kl_to_uniform": 0.0014594783549321953,
+  "n": 3006,
+  "ent": 1.0
+ },
+ "flags": [],
+ "real_anchored": {
+  "score": 0.013529245730298461,
+  "bins": [
+   {
+    "lo": 1,
+    "hi": 17,
+    "n": 327,
+    "acc": 0.22324159021406728,
+    "acc_cc": 0.029051987767584088,
+    "n_border": 178,
+    "border_recall": 0.10674157303370786,
+    "qualified": true
+   },
+   {
+    "lo": 17,
+    "hi": 33,
+    "n": 421,
+    "acc": 0.21852731591448932,
+    "acc_cc": 0.023159144893111633,
+    "n_border": 153,
+    "border_recall": 0.0457516339869281,
+    "qualified": true
+   },
+   {
+    "lo": 33,
+    "hi": 65,
+    "n": 1081,
+    "acc": 0.20906567992599445,
+    "acc_cc": 0.011332099907493051,
+    "n_border": 701,
+    "border_recall": 0.04992867332382311,
+    "qualified": true
+   },
+   {
+    "lo": 65,
+    "hi": 129,
+    "n": 397,
+    "acc": 0.2141057934508816,
+    "acc_cc": 0.017632241813601984,
+    "n_border": 173,
+    "border_recall": 0.1676300578034682,
+    "qualified": true
+   },
+   {
+    "lo": 129,
+    "hi": 257,
+    "n": 188,
+    "acc": 0.1702127659574468,
+    "acc_cc": 0.0,
+    "n_border": 83,
+    "border_recall": 0.1927710843373494,
+    "qualified": true
+   },
+   {
+    "lo": 257,
+    "hi": null,
+    "n": 162,
+    "acc": 0.19135802469135801,
+    "acc_cc": 0.0,
+    "n_border": 110,
+    "border_recall": 0.045454545454545456,
+    "qualified": true
+   }
+  ],
+  "n_events": 3974
+ },
+ "consistency": {
+  "score": 0.008729041517179544,
+  "bins": [
+   {
+    "lo": 1,
+    "hi": 17,
+    "n": 235,
+    "acc": 0.19574468085106383,
+    "acc_cc": 0.0,
+    "n_border": 13,
+    "border_recall": 0.6153846153846154,
+    "qualified": true
+   },
+   {
+    "lo": 17,
+    "hi": 33,
+    "n": 109,
+    "acc": 0.23853211009174313,
+    "acc_cc": 0.0481651376146789,
+    "n_border": 8,
+    "border_recall": 1.0,
+    "qualified": true
+   },
+   {
+    "lo": 33,
+    "hi": 65,
+    "n": 306,
+    "acc": 0.18627450980392157,
+    "acc_cc": 0.0,
+    "n_border": 17,
+    "border_recall": 1.0,
+    "qualified": true
+   },
+   {
+    "lo": 65,
+    "hi": 129,
+    "n": 248,
+    "acc": 0.20161290322580644,
+    "acc_cc": 0.002016129032258035,
+    "n_border": 26,
+    "border_recall": 0.4230769230769231,
+    "qualified": true
+   },
+   {
+    "lo": 129,
+    "hi": 257,
+    "n": 205,
+    "acc": 0.18536585365853658,
+    "acc_cc": 0.0,
+    "n_border": 4,
+    "border_recall": 0.5,
+    "qualified": true
+   },
+   {
+    "lo": 257,
+    "hi": null,
+    "n": 114,
+    "acc": 0.20175438596491227,
+    "acc_cc": 0.002192982456140323,
+    "n_border": 4,
+    "border_recall": 0.0,
+    "qualified": true
+   }
+  ],
+  "n_events": 1289
+ },
+ "scoring": {
+  "formula": "fid * (0.2*ent + 0.8*composite); fid = (fid_move + fid_hold)/2; composite = real_cc * (0.7 + 0.3*consistency_cc)",
+  "version": "v2.2-sym",
+  "chance_in_map": 0.2,
+  "border_cells": "excluded from score; border_recall diagnostic",
+  "age_units": "ticks (phase-5 dilated)"
+ },
+ "age_stats": {
+  "n": 5263,
+  "mean": 84.34448033441004,
+  "median": 45.0
+ },
+ "per_policy": {
+  "oab_mid": {
+   "n_events": 1340,
+   "weighted_acc": 0.20760202433509206
+  },
+  "box_small": {
+   "n_events": 1506,
+   "weighted_acc": 0.2056478093629796
+  },
+  "sweep_wide": {
+   "n_events": 38,
+   "weighted_acc": 0.19480519480519481
+  },
+  "idiot_fast": {
+   "n_events": 454,
+   "weighted_acc": 0.1738655002733734
+  },
+  "retrace_mid": {
+   "n_events": 1250,
+   "weighted_acc": 0.20568193730999057
+  },
+  "dwell_dart": {
+   "n_events": 675,
+   "weighted_acc": 0.196503614052782
+  }
+ },
+ "border_drift_cells": 2.0260145399305554,
+ "config": {
+  "suite": [
+   "oab_mid",
+   "box_small",
+   "sweep_wide",
+   "idiot_fast",
+   "retrace_mid",
+   "dwell_dart"
+  ],
+  "n_seeds": 2,
+  "prefix_len": 192,
+  "imag_len": 768,
+  "seed0": 0,
+  "bin_edges": [
+   1,
+   17,
+   33,
+   65,
+   129,
+   257
+  ],
+  "min_events_per_bin": 10,
+  "privileged": false
+ }
+}

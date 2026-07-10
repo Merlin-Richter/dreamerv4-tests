@@ -15,10 +15,18 @@ Bash timeout rc=124 — remote job survived detached, re-attached via vast_statu
 0.702/past 0.233, **score_gated 0.000000 — seed baseline FAILS the fidelity gate (0.65–0.66)** at
 this budget/backend; real_bins ~0 at every age. Full detail: tasks/in-progress/
 autoresearch-harness.md (SHAKEDOWN section) + EXPERIMENTS `autoresearch-loop-shakedown`.
-**OPEN for Merlin before a real loop night:** (1) 0-scoring baseline = acceptable calibration?
-(2) program.md still says ferranti in 3 places (his file); (3) launch/collect split of
-run_experiment.sh (agent shells can't hold the ~15-min cycle); (4) vast box left idle — stop it
-if the session is over (billing).
+**SCORING v2.2 same evening (Merlin: "hard gates are a bad idea")**: sym scorer's gates replaced
+by continuous score = fid·(0.2·ent + 0.8·composite), fid = (move+hold)/2 equal-weight pools,
+ent = clip((0.6−KL)/0.4,0,1); v2.1 memory math untouched (verifier: bit-identical); SYM ONLY
+(pixel tier stays sealed v2.1). @ 9e3425f, 9/9 tests, critical-claim-verifier 5/5 CONFIRMED.
+Design record: colorfield-sym task addendum; EXPERIMENTS `sym-scorer-v22`. **LIVE v2.2 baseline
+loop-9e3425f: score 0.103836** (fid 0.5192 = move 0.3101/hold 0.7282, ent 1.0, composite 0) —
+the loop has gradient now (fidelity pays to 0.2; memory-only above). Dup baseline loop-9e3425f-b
+= the noise band.
+**OPEN for Merlin before a real loop night:** (1) program.md still says ferranti in 3 places +
+review my mechanical v2.2 sync of its goal/output/grep sections (his file); (2) launch/collect
+split of run_experiment.sh (agent shells can't hold the ~15-min cycle); (3) vast box — stop it
+if the session is over (billing); (4) MANIFEST-sym seal (on top of v2.2) still pending.
 
 ## NEW BACKEND (2026-07-10 — Vast.ai, Merlin's order; task -> done)
 Ferranti hit an outage mid-session (galvani stayed up); Merlin rented an RTX 5090 on Vast.ai as a

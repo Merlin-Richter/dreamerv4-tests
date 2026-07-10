@@ -44,5 +44,23 @@ signal is clearing the fidelity gate, not composite deltas near 0.
    The launch lock survived both abnormal exits — no orphan.
 
 ## Open for Merlin (before a real loop night)
-program.md still targets ferranti in 3 places (his file); 0-scoring baseline acceptable as
-calibration?; launch/collect runner split; vast box stop/start (billing).
+program.md still targets ferranti in 3 places (his file); ~~0-scoring baseline acceptable as
+calibration?~~ RESOLVED by v2.2 below; launch/collect runner split; vast box stop/start (billing).
+
+## v2.2 SCORING + RE-BASELINE (same day, Merlin's call: "hard gates are a bad idea")
+Gates replaced by the continuous score = fid·(0.2·ent + 0.8·composite) — full design in the
+colorfield-sym task addendum; implemented @ `9e3425f`, 9/9 tests green (v2.1 fences kept
+verbatim on composite), independently verified by critical-claim-verifier (5/5 CONFIRMED, incl.
+bit-identity of v2.1 component math vs HEAD; probes in verify_v22/).
+- Iter 3 (`loop-9e3425f`, v2.2 baseline, rc=0): **score 0.103836** = fid 0.5192·0.2 exactly
+  (move 0.3101 / hold 0.7282 — the split exposes how weak the actual scrolling is; the old
+  pooled 0.66 was 4/5 trivial holds), ent 1.0 (kl 0.0018), composite 0.000000 (all bins 0).
+  5381 steps/600s, state PASS. eval_reduced_iter3_9e3425f_v22.json.
+- Iter 4 (`loop-9e3425f-b`, duplicate baseline, rc=0): **score 0.104758** (fid 0.5046 =
+  move 0.2982/hold 0.7110, ent 1.0, composite 0.0095 — near-zero bins fluctuate ~0.01 but
+  the headline barely moves). **Pair Δ = 0.0009 ⇒ the v2.2 run-to-run noise band ≈ 0.001**;
+  a keep needs > best + ~0.002-0.003. Sub-metrics noise: fid ±0.015, composite ±0.01 (at
+  near-zero magnitude). eval_reduced_iter4_9e3425fb_v22.json.
+- Loop-viability read: baseline 0.104; fidelity work pays up to 0.200; everything above is
+  memory-only. AUTH_DEAD self-heal exercised live mid-run (vast socket died; reopened by the
+  agent per the no-2FA contract; detached job unaffected — third abnormal-exit survival).
