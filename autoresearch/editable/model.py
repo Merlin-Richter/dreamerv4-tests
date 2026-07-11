@@ -189,8 +189,13 @@ class Attention(nn.Module):
             else:
                 k_all, v_all = k, v
             if commit and layer_cache is not None:
-                layer_cache['k'] = k_all
-                layer_cache['v'] = v_all
+                # Cache in bf16 (sanctioned fp16-K/V headroom, program.md). Numerically a
+                # no-op on the GPU eval path: under autocast K leaves RMSNorm in fp32 but the
+                # attention matmul casts it to bf16 at USE time anyway — storing bf16 moves
+                # that cast to commit time (bf16(fp32(bf16(x))) == bf16(x); V is already
+                # bf16). Halves cached-K bytes: 3 temporal layers fit 345600 B, not 518400.
+                layer_cache['k'] = k_all.to(torch.bfloat16)
+                layer_cache['v'] = v_all.to(torch.bfloat16)
 
             # Causal mask (T_query, T_all): cached keys (the first T_all-T cols) are earlier
             # frames -> visible; new keys are causal among themselves. No cache -> triu(T,T).

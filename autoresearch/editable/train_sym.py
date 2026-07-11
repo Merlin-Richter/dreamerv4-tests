@@ -205,7 +205,11 @@ def main():
     p.add_argument("--clip-len", type=int, default=64, help="Long-clip length fed to the rollout.")
     # model dims (defaults = the ~7.5M GridWorld dynamics sizing)
     p.add_argument("--embedding-dim", type=int, default=128)
-    p.add_argument("--depth", type=int, default=6, help="Multiple of 3 ([spatial,temporal,spatial]).")
+    p.add_argument("--depth", type=int, default=9, help="Multiple of 3 ([spatial,temporal,spatial]). "
+                   "9 (iter-8): 6 spatial layers for cross-row shift transport — the teacher-forced "
+                   "shift ceiling sat FLAT at ~0.70 across all depth-6 runs; iter-7's mechanism note "
+                   "says vertical-shift content must be PRE-PACKED per row-slot by SPATIAL layers "
+                   "(4 at depth 6). ~1.5x step cost, priced by the pace-sized schedule.")
     p.add_argument("--n-heads", type=int, default=8)
     p.add_argument("--gqa-groups", type=int, default=1)
     p.add_argument("--n-registers", type=int, default=4)
