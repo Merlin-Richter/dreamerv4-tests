@@ -142,7 +142,9 @@ def _sample_modes(B, device, gen, force_mode):
 def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
                          tbptt_frames=None, max_frames=None, gen=None, force_mode=None,
                          bootstrap=True, n_d_unlocked=None, use_ff9=True, ff9_norm_flow=False,
-                         relay_grad_clip=None, tau0_anchor=0.0):
+                         relay_grad_clip=None, tau0_anchor=0.0,
+                         probe_head=None, probe_board=None, probe_mask=None, probe_age=None,
+                         probe_weight=1.0, probe_bins=(16, 32, 48)):
     """One mem->mem rollout over a long clip. Returns (total_loss, parts_dict).
 
     z1:          (B, T, L, D) clean latents (T should be long, e.g. up to 5*max_temporal_length).
@@ -181,6 +183,19 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
                  learns denoising, never dynamics — measured on ColorField-sym at the 10-min budget:
                  teacher-forced shift-copy acc 0.42 (probe_inwindow.py). Anchored frames get FULL loss
                  weight (w=1, targeted ramp override — iter-3); all other frames keep the ramp.
+    probe_head:  SUPERVISED MEMORY-STATE PROBE (iter-12 positive control) — a trainer-owned nn.Linear
+                 mapping each frame's written memory tokens (M*E flat) to per-board-cell color logits
+                 (225*n_colors). None (default) = OFF, byte-identical. When given, each slide adds a
+                 masked CE on the NEW half's written memory: predict the true board color of every cell
+                 that was seen earlier in the clip but NOT within the last W ticks (probe_mask, computed
+                 from GT sidecars by the trainer — never a model input). Those cells are outside the
+                 attention window by construction, so any above-chance accuracy MUST have transited the
+                 memory relay: gradient flows probe_head -> written memory -> write path + relay chain.
+                 This answers "CAN the relay carry state at this budget when given direct pressure?" —
+                 distinguishing gradient starvation (probe acc high) from an untrainable relay (acc at
+                 chance 0.2). Normalized like FF9 (flow.detach()/ce.detach(), scaled by probe_weight).
+    probe_board: (B, 15, 15) long GT board maps. probe_age: (B, T, 225) long ticks-since-last-seen
+                 (for the age-binned accuracy diagnostic in parts; bins from probe_bins).
 
     Loss = shortcut-forcing diffusion on the new half (flow at the finest step + bootstrap distillation
     at coarser steps) [+ FF9 sufficiency (new-half memories) when use_ff9], normalized like model.loss.
@@ -236,6 +251,11 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
     total = z1.new_zeros(())
     n_terms = 0
     sum_flow = sum_ff9 = sum_flow_norm = 0.0
+    sum_probe = 0.0
+    n_probe = 0
+    n_bins = len(probe_bins)
+    probe_hit = [0] * n_bins   # per-age-bin correct counts (bin i: age in [bins[i], bins[i+1]))
+    probe_tot = [0] * n_bins
 
     s = half  # next window starts here: window [s, s+W), old half [s, s+half) == carried frames
     while s + W <= end:
@@ -292,6 +312,34 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
             sum_ff9 += float(ff9.detach())
         else:
             slide_loss = flow
+
+        # ---- supervised memory-state probe on the new half's WRITTEN memory (OFF when head=None) ----
+        if probe_head is not None:
+            pm = probe_mask[:, new_a:new_b]                              # (B, half, 225) bool
+            if bool(pm.any()):
+                n_cells = pm.shape[-1]
+                logits = probe_head(new_mem.reshape(B, half, -1))        # (B, half, 225*C)
+                n_col = logits.shape[-1] // n_cells
+                logits = logits.view(B, half, n_cells, n_col)
+                tgt = probe_board.reshape(B, 1, n_cells).expand(B, half, n_cells)
+                ce = torch.nn.functional.cross_entropy(
+                    logits.reshape(-1, n_col), tgt.reshape(-1),
+                    reduction="none").view(B, half, n_cells)
+                probe_ce = (ce * pm).sum() / pm.sum()
+                scale_p = flow.detach() / probe_ce.detach().clamp(min=1e-8)  # FF9-style normalizer
+                slide_loss = slide_loss + probe_weight * scale_p * probe_ce
+                sum_probe += float(probe_ce.detach())
+                n_probe += 1
+                with torch.no_grad():                                    # age-binned acc diagnostic
+                    correct = (logits.argmax(-1) == tgt) & pm
+                    age_w = probe_age[:, new_a:new_b]
+                    for i in range(n_bins):
+                        lo = probe_bins[i]
+                        hi = probe_bins[i + 1] if i + 1 < n_bins else 10 ** 9
+                        in_bin = pm & (age_w >= lo) & (age_w < hi)
+                        probe_tot[i] += int(in_bin.sum())
+                        probe_hit[i] += int((correct & in_bin).sum())
+
         total = total + slide_loss
         sum_flow += float(flow.detach())
         sum_flow_norm += float(flow_norm.detach())
@@ -307,4 +355,8 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
     n_terms = max(1, n_terms)
     parts = {"flow": sum_flow / n_terms, "flow_norm": sum_flow_norm / n_terms,
              "ff9": sum_ff9 / n_terms, "n_slides": float(n_terms), "n_ctx": float(W)}
+    if probe_head is not None:
+        parts["probe_ce"] = sum_probe / max(1, n_probe)
+        parts["probe_hit"] = probe_hit    # per-bin ints; trainer accumulates across batches
+        parts["probe_tot"] = probe_tot
     return total / n_terms, parts

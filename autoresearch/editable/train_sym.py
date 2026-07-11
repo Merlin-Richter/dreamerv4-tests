@@ -72,16 +72,16 @@ try:  # package import (the driver's path)
     from .model import DynamicsModel, DynamicsModelConfig
     from .rollout import mem2mem_rollout_loss
     from ..frozen_sym.datagen import ColorFieldSymDataset
-    from ..frozen_sym.env import (BOARD, DELTAS, PHASE_PERIOD, STAY,
-                                  positions_from, render_grid)
+    from ..frozen_sym.env import (BOARD, DELTAS, N_COLORS, PHASE_PERIOD, STAY,
+                                  VIEW_HALF, positions_from, render_grid)
 except ImportError:  # run as a script: python autoresearch/editable/train_sym.py
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from autoresearch.editable import adapter_sym as codec
     from autoresearch.editable.model import DynamicsModel, DynamicsModelConfig
     from autoresearch.editable.rollout import mem2mem_rollout_loss
     from autoresearch.frozen_sym.datagen import ColorFieldSymDataset
-    from autoresearch.frozen_sym.env import (BOARD, DELTAS, PHASE_PERIOD, STAY,
-                                             positions_from, render_grid)
+    from autoresearch.frozen_sym.env import (BOARD, DELTAS, N_COLORS, PHASE_PERIOD, STAY,
+                                             VIEW_HALF, positions_from, render_grid)
 
 encode_latents = codec.encode_latents
 
@@ -163,7 +163,11 @@ class SymClipDataset(Dataset):
             grids[i] = render_grid(m, self.positions[ep, s + i])
         z = torch.from_numpy(encode_latents(grids, np.arange(s, s + self.clip_len)))
         a = self.actions[ep, s:s + self.clip_len].clone()
-        return z, a
+        # GT sidecars for the supervised memory-state probe (iter-12): the static board map
+        # + the clip's per-tick viewport centers. NEVER model inputs — probe targets only.
+        board = torch.from_numpy(m.astype(np.int64))                       # (15, 15)
+        pos = torch.from_numpy(self.positions[ep, s:s + self.clip_len].copy())  # (clip_len, 2)
+        return z, a, board, pos
 
 
 # ------------------------------------------------------------------ recipe helpers
@@ -185,6 +189,29 @@ def valid_n_ctx(N: int, clip_len: int) -> list:
             out.append(w)
         w *= 2
     return out or [min(4, N)]
+
+
+def probe_mask_age(pos: torch.Tensor, W: int):
+    """Supervision mask + ages for the memory-state probe, from GT viewport centers only.
+
+    pos: (B, T, 2) long clip centers. Returns (mask, age), both (B, T, 225):
+    age[b,t,cell] = ticks since the cell was last inside the 5x5 viewport (clip-relative;
+    huge where never seen); mask = seen earlier in the clip AND age >= W — i.e. cells
+    OUTSIDE the last-W-ticks footprint, strictly beyond the attention window, so a correct
+    probe readout can only have come through the carried memory relay. Conservative by
+    construction: t - W + 1 can reach half a window before the current slide start, so we
+    only ever EXCLUDE more than attention truly sees, never supervise an in-window cell."""
+    B, T, _ = pos.shape
+    idx = torch.arange(BOARD, device=pos.device)
+    vis_r = (idx.view(1, 1, -1) - pos[:, :, 0:1]).abs() <= VIEW_HALF       # (B, T, 15)
+    vis_c = (idx.view(1, 1, -1) - pos[:, :, 1:2]).abs() <= VIEW_HALF
+    vis = (vis_r.unsqueeze(3) & vis_c.unsqueeze(2)).reshape(B, T, -1)      # (B, T, 225)
+    t_idx = torch.arange(T, device=pos.device).view(1, T, 1)
+    neg1 = torch.full((), -1, dtype=torch.long, device=pos.device)
+    last = torch.where(vis, t_idx.expand(B, T, vis.shape[-1]), neg1).cummax(dim=1).values
+    age = t_idx - last                                                     # t+1 where never seen
+    mask = (last >= 0) & (age >= W)
+    return mask, age
 
 
 # ------------------------------------------------------------------ main
@@ -230,6 +257,14 @@ def main():
                    help="Normalize FF9 by the pure d_min flow magnitude (bootstrap-invariant weight).")
     p.add_argument("--relay-grad-clip", type=float, default=None, metavar="C",
                    help="Per-hop relay gradient normalizer (see rollout.py). None = OFF.")
+    p.add_argument("--probe-weight", type=float, default=1.0, metavar="L",
+                   help="Supervised memory-state probe (iter-12 POSITIVE CONTROL): a trainer-owned "
+                        "linear head decodes every board cell's color from each frame's written "
+                        "memory tokens; masked CE on cells seen earlier in the clip but NOT in the "
+                        "last W ticks (outside attention by construction -> pure relay pressure). "
+                        "FF9-normalized, so L is the weight relative to the flow term. 0 = OFF "
+                        "(byte-identical to iter-8 best). Distinguishes gradient starvation (probe "
+                        "acc >> chance 0.2) from an untrainable relay (acc ~ 0.2) at this budget.")
     p.add_argument("--tau0-anchor", type=float, default=0.5, metavar="P",
                    help="Per-frame P of forcing (tau=0, finest d, GT flow) on the clean mode's "
                         "new half (Arm-D sustained anchor; trains visible-context next-frame "
@@ -278,6 +313,14 @@ def main():
         mem2mem_frac = 0.0
     use_ff9 = args.ff9 > 0
 
+    # Supervised memory-state probe head (iter-12 positive control). Trainer-owned: NOT part of
+    # the model, NOT in the checkpoint payload — eval/adapter/state-probe see nothing new.
+    assert int(maps.max()) < N_COLORS, "board cell id outside the palette"
+    probe_head = None
+    if args.probe_weight > 0 and cfg.n_memory > 0 and mem2mem_frac > 0:
+        probe_head = torch.nn.Linear(cfg.n_memory * args.embedding_dim,
+                                     BOARD * BOARD * N_COLORS).to(device)
+
     train_ds = SymClipDataset(maps, positions, actions, clip_len, random_offsets=True)
     val_ds = SymClipDataset(val_maps, val_positions, val_actions, clip_len,
                             random_offsets=False)
@@ -293,9 +336,13 @@ def main():
           f"codec=onehot({N_LATENTS}x{BOTTLENECK_DIM}) train_eps={maps.shape[0]} "
           f"val_eps={val_maps.shape[0]} clip_len={clip_len} n_ctx choices={ncts} "
           f"mem2mem_frac={mem2mem_frac} bootstrap={args.bootstrap} use_ff9={use_ff9} "
-          f"ff9_k={args.ff9} n_memory={cfg.n_memory} budget_s={args.budget_s}", flush=True)
+          f"ff9_k={args.ff9} n_memory={cfg.n_memory} budget_s={args.budget_s} "
+          f"probe={'OFF' if probe_head is None else f'ON(w={args.probe_weight})'}", flush=True)
 
-    opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    params = list(model.parameters())
+    if probe_head is not None:
+        params += list(probe_head.parameters())
+    opt = torch.optim.AdamW(params, lr=args.lr)
     total_steps = args.sched_steps or max(1, len(train_loader) * args.epochs)
     if args.sched_steps:
         # Budget-sized run: the recipe's 200-step warmup floor would eat a short
@@ -326,9 +373,11 @@ def main():
     last_unlocked = 1
     for epoch in range(args.epochs):
         model.train()
-        agg = {"normal": 0.0, "mem2mem": 0.0, "flow": 0.0, "ff9": 0.0, "n_m": 0, "n_n": 0}
+        agg = {"normal": 0.0, "mem2mem": 0.0, "flow": 0.0, "ff9": 0.0, "n_m": 0, "n_n": 0,
+               "probe_ce": 0.0, "n_p": 0, "probe_hit": [0, 0, 0], "probe_tot": [0, 0, 0]}
         for batch in train_loader:
             z1, acts = batch[0].to(device), batch[1].to(device)
+            board, pos = batch[2].to(device), batch[3].to(device)
             if not args.bootstrap:
                 n_unlocked = 1                      # winner: d_min only, pure flow
             elif args.no_curriculum:
@@ -344,14 +393,24 @@ def main():
                         W = W_PIN   # fixed full-window slides: fewest, fattest forwards
                     else:
                         W = ncts[torch.randint(len(ncts), (1,), generator=gen, device=device).item()]
+                    pmask = page = None
+                    if probe_head is not None:
+                        pmask, page = probe_mask_age(pos, W_PIN)  # GT-only; W_PIN even if W < W_PIN
                     loss, parts = mem2mem_rollout_loss(
                         model, z1, acts, n_ctx=W, device=device, gen=gen,
                         tbptt_frames=args.tbptt_frames, max_frames=args.max_frames,
                         bootstrap=args.bootstrap, n_d_unlocked=n_unlocked,
                         use_ff9=use_ff9, ff9_norm_flow=args.ff9_norm_flow,
-                        relay_grad_clip=args.relay_grad_clip, tau0_anchor=args.tau0_anchor)
+                        relay_grad_clip=args.relay_grad_clip, tau0_anchor=args.tau0_anchor,
+                        probe_head=probe_head, probe_board=board, probe_mask=pmask,
+                        probe_age=page, probe_weight=args.probe_weight)
                     agg["mem2mem"] += float(loss.detach()); agg["n_m"] += 1
                     agg["flow"] += parts["flow"]; agg["ff9"] += parts["ff9"]
+                    if "probe_ce" in parts:
+                        agg["probe_ce"] += parts["probe_ce"]; agg["n_p"] += 1
+                        for i in range(3):
+                            agg["probe_hit"][i] += parts["probe_hit"][i]
+                            agg["probe_tot"][i] += parts["probe_tot"][i]
                 else:
                     off = int(torch.randint(0, clip_len - W_PIN + 1, (1,),
                                             generator=gen, device=device))
@@ -359,7 +418,7 @@ def main():
                     agg["normal"] += float(loss.detach()); agg["n_n"] += 1
             opt.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            torch.nn.utils.clip_grad_norm_(params, 1.0)
             opt.step(); sched.step(); gstep += 1
             if args.snapshot_at and gstep in args.snapshot_at:
                 sp = args.checkpoint.with_name(args.checkpoint.stem + f"_step{gstep}.pt")
@@ -387,11 +446,18 @@ def main():
             vloss = vsum / max(1, nb)
         nm, nn = max(1, agg["n_m"]), max(1, agg["n_n"])
         elapsed = time.perf_counter() - t0
+        pstr = ""
+        if probe_head is not None:
+            acc = ["-" if t == 0 else f"{h / t:.3f}" for h, t in
+                   zip(agg["probe_hit"], agg["probe_tot"])]
+            pstr = (f"| probe ce {agg['probe_ce'] / max(1, agg['n_p']):.3f} "
+                    f"acc {acc[0]}/{acc[1]}/{acc[2]} (n {agg['probe_tot'][0]}/"
+                    f"{agg['probe_tot'][1]}/{agg['probe_tot'][2]}) ")
         print(f"Epoch {epoch + 1}/{args.epochs} | steps {gstep} | elapsed {elapsed:.1f}s | "
               f"val(normal) {vloss:.5f} | train mem2mem {agg['mem2mem'] / nm:.5f} "
               f"(flow {agg['flow'] / nm:.4f} ff9 {agg['ff9'] / nm:.4f}) "
               f"| train normal {agg['normal'] / nn:.5f} | d_unlocked {last_unlocked}/{model.n_d} "
-              f"| lr {opt.param_groups[0]['lr']:.2e}", flush=True)
+              f"{pstr}| lr {opt.param_groups[0]['lr']:.2e}", flush=True)
         save()
         if budget_hit:
             break
@@ -402,6 +468,15 @@ def main():
         print(f"BUDGET_STOP step={gstep} elapsed={elapsed:.1f}", flush=True)
     else:
         print(f"EPOCHS_DONE step={gstep} elapsed={elapsed:.1f}", flush=True)
+    if probe_head is not None:
+        # Final grep-able probe block (last epoch's aggregate; chance = 1/N_COLORS = 0.2).
+        # THE positive-control readout: >> 0.2 in the old bins = the relay CAN carry state
+        # at this budget (memory failure is gradient starvation); ~ 0.2 = it cannot.
+        keys = ("probe_acc_16_32", "probe_acc_32_48", "probe_acc_48p")
+        for k, h, t in zip(keys, agg["probe_hit"], agg["probe_tot"]):
+            v = h / t if t else float("nan")
+            print(f"{k}:   {v:.4f}  (n={t})", flush=True)
+        print(f"probe_ce_final:   {agg['probe_ce'] / max(1, agg['n_p']):.4f}", flush=True)
     print(f"saved -> {args.checkpoint}", flush=True)
 
 
