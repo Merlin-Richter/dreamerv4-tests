@@ -12,6 +12,7 @@
 set -euo pipefail
 
 echo $$ > "@RUN_DIR@/run.pid"
+trap 'rm -f "@RUN_DIR@/run.pid"' EXIT   # a set-e death before the trailer (e.g. venv build) must still free the box
 echo "=== job @RUN_NAME@ on $(hostname) | pid $$ | $(date) ==="
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
 
@@ -19,13 +20,25 @@ cd "@REMOTE_PATH@"
 echo "=== commit: $(git rev-parse HEAD) ==="
 
 # --- venv keyed on sha256(requirements.txt): build once, reuse thereafter (same as ferranti/galvani) ---
+# Reuse keys on the .ready marker, NOT on bin/python: `python3 -m venv` succeeding says nothing
+# about `pip install -r` having finished, and an interrupted install used to poison the cache
+# forever (live failure 2026-07-11: torch wheel download broke mid-transfer, next run "reused"
+# a venv with zero packages). pip re-install into a half-built venv is idempotent, so a
+# markerless dir is simply resumed, and flaky-network installs get 3 attempts.
 REQ_HASH="$(sha256sum requirements.txt | cut -c1-16)"
 VENV="@VENV_ROOT@/venv-${REQ_HASH}"
-if [ ! -x "${VENV}/bin/python" ]; then
+if [ ! -f "${VENV}/.ready" ]; then
   echo "=== building venv ${VENV} (requirements hash ${REQ_HASH}) ==="
-  python3 -m venv "${VENV}"
+  [ -x "${VENV}/bin/python" ] || python3 -m venv "${VENV}"
   "${VENV}/bin/pip" install --upgrade pip
-  "${VENV}/bin/pip" install -r requirements.txt
+  ok=0
+  for attempt in 1 2 3; do
+    if "${VENV}/bin/pip" install -r requirements.txt; then ok=1; break; fi
+    echo "=== pip install failed (attempt ${attempt}/3) — retrying in 15s ==="
+    sleep 15
+  done
+  [ "$ok" = 1 ] || { echo "=== venv build FAILED after 3 attempts ==="; exit 1; }
+  touch "${VENV}/.ready"
 else
   echo "=== reusing cached venv ${VENV} ==="
 fi
