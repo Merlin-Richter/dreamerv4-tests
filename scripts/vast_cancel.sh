@@ -36,7 +36,12 @@ ssh_cluster "test -d '$RUN_DIR'" || die_badref "no such run on vast: $RUN"
 
 PID="$(ssh_cluster "cat '$RUN_DIR/run.pid' 2>/dev/null" || true)"
 [ -n "$PID" ] || die "run $RUN has no live pidfile — already finished?"
-out="$(ssh_cluster "kill -TERM '$PID' 2>&1" || true)"
-log "sent SIGTERM to vast run $RUN (pid $PID)"
-echo "cancelled: $RUN (pid $PID)"
+# Kill the PROCESS GROUP, not just job.sh: setsid gives the job its own PGID (= the pidfile
+# PID), and TERMing only the shell runs its EXIT trap and exits while the python child keeps
+# training as an orphan (live failure 2026-07-12: an orphaned trainer held 22 GiB and OOM'd
+# the next launch). Group-kill takes the shell AND every child down together; fall back to
+# the single PID if the group is already gone.
+out="$(ssh_cluster "kill -TERM -- -'$PID' 2>&1 || kill -TERM '$PID' 2>&1" || true)"
+log "sent SIGTERM to vast run $RUN (process group $PID)"
+echo "cancelled: $RUN (pgid $PID)"
 [ -z "$out" ] || echo "$out"
