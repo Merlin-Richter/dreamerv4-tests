@@ -47,7 +47,13 @@ fi
 
 echo "$RUN" | grep -qE '^[A-Za-z0-9._-]+$' || die_config "run name must be [A-Za-z0-9._-]"
 RUN_DIR="$RUNS_DIR/$RUN"
-ssh_cluster "test -d '$RUN_DIR'" || die_badref "no such run on vast: $RUN"
+# Retried: a mux channel reset fails this call even when the dir exists (live 2026-07-12).
+EXISTS=""
+for _try in 1 2 3; do
+  ssh_cluster "test -d '$RUN_DIR'" && { EXISTS=1; break; }
+  sleep 10
+done
+[ -n "$EXISTS" ] || die_badref "no such run on vast: $RUN"
 
 STATE="DONE"
 PID="$(ssh_cluster "cat '$RUN_DIR/run.pid' 2>/dev/null" || true)"

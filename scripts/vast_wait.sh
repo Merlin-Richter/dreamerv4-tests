@@ -42,7 +42,15 @@ RUN_DIR="$RUNS_DIR/$RUN"
 # of blocking this script — and a real autoresearch loop iteration — forever.
 export SSH_CALL_TIMEOUT=45
 
-ssh_cluster "test -d '$RUN_DIR'" || die_badref "no such run on vast: $RUN"
+# Retry the existence gate: a mux channel reset makes ssh_cluster fail even though the
+# dir exists (observed live 2026-07-12, while a concurrent rsync push saturated the mux
+# connection) — one flaky call must not BAD_REF a wait on a real run.
+EXISTS=""
+for _try in 1 2 3; do
+  ssh_cluster "test -d '$RUN_DIR'" && { EXISTS=1; break; }
+  sleep 10
+done
+[ -n "$EXISTS" ] || die_badref "no such run on vast: $RUN"
 
 log "waiting on vast run $RUN (poll ${POLL}s)"
 FAILS=0; MAX_FAILS=3
