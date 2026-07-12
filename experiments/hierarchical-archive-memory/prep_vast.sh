@@ -22,7 +22,9 @@ echo "########## [1/3] download + unzip $PART ##########"
 # full blackout window; skip straight through if the extracted dir already has the npz.
 ZIP="data/memmaze9x9_raw/${PART}.zip"
 EXDIR="data/memmaze9x9_raw/${PART}"
-NPZ_COUNT="$(find "$EXDIR" -name '*.npz' 2>/dev/null | wc -l)"
+# NB: guard the dir — under `set -euo pipefail` a failing find inside $() kills the script.
+NPZ_COUNT=0
+if [ -d "$EXDIR" ]; then NPZ_COUNT="$(find "$EXDIR" -name '*.npz' | wc -l)"; fi
 if [ "$NPZ_COUNT" -gt 100 ]; then
   echo "extracted dir already has $NPZ_COUNT npz — skipping download"
 else
