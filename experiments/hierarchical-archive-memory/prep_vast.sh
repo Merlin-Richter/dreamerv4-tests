@@ -16,9 +16,33 @@ pip install --quiet gdown
 pip cache purge >/dev/null 2>&1 || true   # the venv build leaves a ~3 GB torch wheel cached
 
 echo "########## [1/3] download + unzip $PART ##########"
-python -u experiments/memmaze-tokenizer/download_memmaze.py \
-  --parts "$PART" --out-dir data/memmaze9x9_raw --unzip
-rm -f "data/memmaze9x9_raw/${PART}.zip"   # zip + extracted must not coexist longer than needed
+# This host's network blacks out for ~35 min at a time (3x on 2026-07-12 alone). gdown can't
+# resume, and download_memmaze.py treats any size>0 zip as complete — so a blackout mid-download
+# leaves a corrupt zip that would sail into unzip. Retry with integrity checks, tolerating one
+# full blackout window; skip straight through if the extracted dir already has the npz.
+ZIP="data/memmaze9x9_raw/${PART}.zip"
+EXDIR="data/memmaze9x9_raw/${PART}"
+NPZ_COUNT="$(find "$EXDIR" -name '*.npz' 2>/dev/null | wc -l)"
+if [ "$NPZ_COUNT" -gt 100 ]; then
+  echo "extracted dir already has $NPZ_COUNT npz — skipping download"
+else
+  ok=0
+  for attempt in $(seq 12); do
+    if [ -f "$ZIP" ] && ! python -c "import sys,zipfile; sys.exit(0 if zipfile.is_zipfile('$ZIP') and zipfile.ZipFile('$ZIP').testzip() is None else 1)" 2>/dev/null; then
+      echo "=== attempt $attempt: existing zip is partial/corrupt — deleting ==="
+      rm -f "$ZIP"
+    fi
+    if python -u experiments/memmaze-tokenizer/download_memmaze.py \
+         --parts "$PART" --out-dir data/memmaze9x9_raw --unzip \
+       && [ "$(find "$EXDIR" -name '*.npz' 2>/dev/null | wc -l)" -gt 100 ]; then
+      ok=1; break
+    fi
+    echo "=== download/unzip attempt $attempt/12 failed — sleeping 240s (network blackout?) ==="
+    sleep 240
+  done
+  [ "$ok" = 1 ] || { echo "download failed after 12 attempts"; exit 1; }
+fi
+rm -f "$ZIP"   # zip + extracted must not coexist longer than needed
 df -h / | tail -1
 
 echo "########## [2/3] stream npz -> latent cache + actions + placeholder ##########"
