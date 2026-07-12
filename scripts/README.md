@@ -77,6 +77,7 @@ self-heal an `AUTH_DEAD` without escalating to Merlin, unlike ferranti/galvani.
 | `vast_cancel.sh <RUN>` | vast | SIGTERM the run's pid — refuses names not in EXPERIMENTS.md |
 | `pull_results.sh --cluster X <run> [--what all\|logs\|metrics\|checkpoints]` | all | rsync back a whole `runs/<run>/` dir; *.pt only on demand |
 | `pull_file.sh --cluster X <remote-path> [--dest LOCAL]` | all | rsync back ONE file from outside `runs/` (e.g. a checkpoint at `checkpoints/<env>/x.pt`); path is repo-relative, mirrors locally by default |
+| `push_file.sh --cluster X <local-path> [--dest REMOTE]` | all | inverse of pull_file.sh: rsync ONE local file up (binary INPUTS only — warm-start checkpoints, tokenizers; code still goes up ONLY via sync_code.sh) |
 | `clean_run.sh --cluster X <run>` | ferranti/galvani | rm runs/<run> — refuses anything escaping the runs/ subtree |
 
 ## Error contract (machine-parseable FIRST stderr line)
