@@ -68,7 +68,9 @@ def main():
             if dest.exists() and dest.stat().st_size > 0:
                 print(f"  already present ({dest.stat().st_size / 1e9:.2f} GB), skipping download", flush=True)
             else:
-                got = gdown.download(url, str(dest), quiet=False)
+                # resume=True continues from gdown's own .part file — load-bearing on the vast
+                # box, whose network blacks out mid-download (2026-07-12: 3 outages in one prep).
+                got = gdown.download(url, str(dest), quiet=False, resume=True)
                 if not got:
                     raise RuntimeError("gdown returned None (download quota exceeded / not public?)")
             if args.unzip:
