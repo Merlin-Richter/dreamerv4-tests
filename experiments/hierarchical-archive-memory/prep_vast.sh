@@ -22,6 +22,13 @@ rm -f "data/memmaze9x9_raw/${PART}.zip"   # zip + extracted must not coexist lon
 df -h / | tail -1
 
 echo "########## [2/3] stream npz -> latent cache + actions + placeholder ##########"
+# The tokenizer may still be mid-upload (push_file.sh from local) — wait up to 30 min for it.
+for i in $(seq 180); do
+  [ -f checkpoints/memmaze/tokenizer.pt ] && break
+  [ "$i" = 1 ] && echo "waiting for checkpoints/memmaze/tokenizer.pt (push_file.sh in flight)..."
+  sleep 10
+done
+[ -f checkpoints/memmaze/tokenizer.pt ] || { echo "tokenizer.pt never arrived"; exit 1; }
 python -u experiments/hierarchical-archive-memory/prep_vast.py \
   --raw data/memmaze9x9_raw --frames data/memmaze9x9.npy \
   --tokenizer checkpoints/memmaze/tokenizer.pt
