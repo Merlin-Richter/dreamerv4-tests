@@ -17,6 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 init_verb "$@"
 
 opts=(-M -S "$CONTROL_PATH" -o ControlPersist=8h -o ServerAliveInterval=30 -fN)
+[ "$CLUSTER" = vast ] && opts+=(-o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new)
 [ -n "$PROXY_JUMP" ] && opts+=(-o "ProxyJump=$PROXY_JUMP")
 [ -n "$PORT" ] && opts+=(-p "$PORT")
 [ -n "$IDENTITY" ] && opts+=(-i "$IDENTITY" -o IdentitiesOnly=yes)
