@@ -59,10 +59,13 @@ class RolloutGame:
     context window; step = ONE committed rollout_step + trailing-window decode. pygame-free."""
 
     def __init__(self, *, frames, actions, ids, tokenizer, model, device,
-                 n_ctx, decode_ctx, K, window=None, episode=None, seed=None):
+                 n_ctx, decode_ctx, K, window=None, episode=None, seed=None,
+                 memory_only_after=None, fake_noise=False):
         self.frames, self.actions, self.ids = frames, actions, ids
         self.tokenizer, self.model, self.device = tokenizer, model, device
         self.K, self.decode_ctx, self.episode = K, decode_ctx, episode
+        self.memory_only_after = memory_only_after  # total committed frames; None = off
+        self.fake_noise = fake_noise  # commit at context_signal's tau label without real noise
         self.max_ctx = None if window is None else max(1, window - 1)
         self.window = window if window is not None else model.config.max_temporal_length
         self.rng = random.Random(seed)
@@ -79,6 +82,7 @@ class RolloutGame:
         self.steps = 0               # generated frames so far
         self.step_ms = None          # last model step latency (ms)
         self.last_action = 0
+        self.blind = False           # last step committed blind (memory-only)?
         self.current = None          # displayed frame, uint8 (H, W, 3), stored channel order
 
     @property
@@ -100,7 +104,8 @@ class RolloutGame:
         if self.actions is not None and self.model.n_actions > 0:
             a = np.asarray(self.actions[self.ep, self.start:self.start + self.n_ctx]).astype(np.int64)
             ctx_act = torch.from_numpy(a).unsqueeze(0).to(self.device)
-        self.state = self.model.rollout_init(ctx_lat, ctx_act, K=self.K, max_ctx=self.max_ctx)
+        self.state = self.model.rollout_init(ctx_lat, ctx_act, K=self.K, max_ctx=self.max_ctx,
+                                             fake_noise=self.fake_noise)
         self.lat_buf = ctx_lat[:, -self.decode_ctx:]
 
         self._ctx_frames = clip                       # raw dataset frames for the replay
@@ -108,6 +113,7 @@ class RolloutGame:
                              if self.actions is not None else np.zeros(self.n_ctx, np.int64))
         self.replay_pos = self.steps = 0
         self.step_ms = None
+        self.blind = False
         self.advance_replay()
         print(f"reset: episode {self.episode_label()}  start t={self.start}  "
               f"ctx {self.n_ctx} frames  window {self.window}", flush=True)
@@ -126,7 +132,12 @@ class RolloutGame:
         a = None
         if self.model.n_actions > 0:
             a = torch.tensor([[action]], device=self.device, dtype=torch.long)
-        nxt = self.model.rollout_step(self.state, a, commit=True)
+        # Memory-only probe: past the threshold (counted in TOTAL committed frames, context
+        # included) commit the frame BLIND — its latents enter the cache as tau=0 noise, so
+        # from here on the scene can persist only through the memory-token relay.
+        self.blind = (self.memory_only_after is not None
+                      and self.state["next_pos"] >= self.memory_only_after)
+        nxt = self.model.rollout_step(self.state, a, commit=True, blind_commit=self.blind)
         self.lat_buf = torch.cat((self.lat_buf, nxt), dim=1)[:, -self.decode_ctx:]
         frame = self.tokenizer.decoder(self.lat_buf)[0, -1].clamp(0.0, 1.0)
         if self.device == "cuda":
@@ -146,7 +157,7 @@ def stats_text(game, model, device):
         kvs.append(("phase", "CTX REPLAY"))
         kvs.append(("ctx frame", f"{game.replay_pos}/{game.n_ctx}"))
     else:
-        kvs.append(("phase", "ROLLOUT"))
+        kvs.append(("phase", "MEM-ONLY" if game.blind else "ROLLOUT"))
         kvs.append(("step", game.steps))
     kvs.append(("action", ACTION_NAMES.get(game.last_action, game.last_action)))
     if game.step_ms is not None:
@@ -154,6 +165,8 @@ def stats_text(game, model, device):
         kvs.append(("model fps", f"{1000.0 / max(game.step_ms, 1e-6):.1f}"))
     kvs.append(("window", game.window))
     kvs.append(("memory", f"n_mem={model.n_memory}" if model.n_memory > 0 else "vanilla"))
+    commit_tag = " FAKE" if game.fake_noise else ""
+    kvs.append(("commit tau", f"{model.config.context_signal:.2f}{commit_tag}"))
     kvs.append(("device", device))
     return [f"{k:<11} {v!s:>10}" for k, v in kvs]
 
@@ -181,6 +194,18 @@ def main() -> None:
     parser.add_argument("--K", type=int, default=4, help="Shortcut denoising steps per frame.")
     parser.add_argument("--window", type=int, default=None,
                         help="Force a shorter sliding context window (total frames); default native.")
+    parser.add_argument("--memory-only-after", type=int, default=None, metavar="N",
+                        help="Memory probe: from the N-th committed frame on (context counts), "
+                             "generated frames are committed BLIND (latents cached as tau=0 noise) — "
+                             "only the memory-token relay carries the scene. Inference-only; off by default.")
+    parser.add_argument("--commit-signal", type=float, default=None, metavar="TAU",
+                        help="Override the commit signal level (context_signal) frames are held at "
+                             "when committed to the cache. Default: the checkpoint's trained value "
+                             "(typically ~0.9). 1.0 = fully clean, 0.0 = pure noise.")
+    parser.add_argument("--fake-noise", action="store_true",
+                        help="Commit frames labeled at the commit signal level WITHOUT actually "
+                             "adding noise — probes whether the model needs real corruption at "
+                             "commit time or just reads the signal-level label as a hint.")
     parser.add_argument("--episode", type=int, default=None, help="Fix the episode index.")
     parser.add_argument("--seed", type=int, default=None, help="Seed episode/offset sampling.")
     parser.add_argument("--size", type=int, nargs=2, default=(600, 600))
@@ -199,6 +224,8 @@ def main() -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = load_dynamics(args.checkpoint, device)
     tokenizer = load_tokenizer(args.tokenizer, device)
+    if args.commit_signal is not None:
+        model.config.context_signal = args.commit_signal
 
     frames = np.load(args.frames, mmap_mode="r")
     if frames.ndim != 5 or frames.shape[-1] != 3:
@@ -212,12 +239,16 @@ def main() -> None:
                          f"actions file at {act_path} — an unconditioned memmaze rollout is meaningless.")
     if model.n_actions == 0:
         print("!! unconditioned model — action keys have no effect (free run).", flush=True)
+    if args.memory_only_after is not None and model.n_memory == 0:
+        print("!! --memory-only-after with n_memory=0: nothing can carry the scene — expect collapse "
+              "(useful only as a no-memory baseline).", flush=True)
     ids_path = args.frames.with_name(args.frames.stem + "_ids.npy")
     ids = np.load(ids_path) if ids_path.is_file() else None
 
     game = RolloutGame(frames=frames, actions=actions, ids=ids, tokenizer=tokenizer, model=model,
                        device=device, n_ctx=args.n_ctx, decode_ctx=args.decode_ctx, K=args.K,
-                       window=args.window, episode=args.episode, seed=args.seed)
+                       window=args.window, episode=args.episode, seed=args.seed,
+                       memory_only_after=args.memory_only_after, fake_noise=args.fake_noise)
 
     render_size = tuple(args.size)
     window_size = (render_size[0] + PANEL_LEFT + PANEL_RIGHT, render_size[1])

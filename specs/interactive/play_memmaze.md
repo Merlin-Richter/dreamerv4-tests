@@ -14,8 +14,10 @@ keeps the maze consistent when you look away and back.
   one-shot encode); `--decode-ctx` (default 16) trailing latents given to the temporal decoder;
   `--K` (default 4) shortcut steps; `--window` forces a shorter sliding window (total frames, like
   the recall eval); `--episode` fixes the episode index; `--seed` seeds episode/offset sampling;
-  `--size`/`--fps`/`--fullscreen`/`--nonoop` as in `run_gui.py`; `--selftest N` (headless smoke
-  mode, below).
+  `--memory-only-after N` (memory probe, below; off by default); `--commit-signal TAU` (override
+  the commit signal level `context_signal`, below; default the checkpoint's trained value);
+  `--fake-noise` (fake-noise probe, below; off by default); `--size`/`--fps`/`--fullscreen`/
+  `--nonoop` as in `run_gui.py`; `--selftest N` (headless smoke mode, below).
 - Keymap (identical to `run_gui.py`): no key = 0 (noop), ↑ = 1 (forward), ← = 2 (turn left),
   → = 3 (turn right), ↑← = 4, ↑→ = 5 — the dataset's 6 discrete actions. Specials: space = pause,
   backspace = reset (new episode), tab = speed up (held), esc/close = quit.
@@ -39,9 +41,27 @@ keeps the maze consistent when you look away and back.
   window-delta recon error ≪ recon error). Phase label `ROLLOUT (model)`. With `--nonoop`, no keys
   = no step (pause-like) instead of stepping a noop. The rollout has no terminal state — it runs
   (sliding/evicting past the window) until reset or quit.
+- **Memory-only probe** (`--memory-only-after N`): from the `N`-th committed frame on (counted in
+  TOTAL committed frames, context included — `rollout_init` context always commits normally),
+  every generated frame is committed via `rollout_step(..., blind_commit=True)`: its latents enter
+  the KV cache as `τ=0` pure noise and only its written memory token carries the scene — the FF9
+  training condition reproduced at rollout, an inference-only change. Checks whether rollouts can
+  run on the memory relay alone. Stats phase shows `MEM-ONLY` while blind. Displayed frames still
+  decode the model's predicted latents (display only — they are never fed back). With `n_memory=0`
+  the probe is a no-memory collapse baseline (warned).
+- **Commit signal override** (`--commit-signal TAU`): sets `model.config.context_signal` after
+  loading, before the first `rollout_init` — every subsequent commit (context replay AND rollout)
+  holds frames at `TAU` instead of the checkpoint's trained value. Applies for the whole session
+  (persists across resets).
+- **Fake-noise probe** (`--fake-noise`): passed to `rollout_init` as `fake_noise=True` so every
+  frame this rollout state commits — context and generated alike — is labeled at the commit signal
+  level via `tau_idx` but is NOT actually corrupted with noise (`dynamics_model.rollout_init`/
+  `_noise_to_ctx`). Checks whether the model relies on real corruption at commit time or just reads
+  `tau_idx` as a hint. Inference-only; off by default; combining with `--memory-only-after` is fine
+  (blind commits still use real tau=0 noise, per `dynamics_model.rollout_step`).
 - Side panels mirror `run_gui.py`: left = stats (episode id — the original dataset id when the
   `_ids` sidecar exists — start offset, phase, step, action name, per-step model ms + achieved
-  fps, window, `n_memory`, device); right = keymap help.
+  fps, window, `n_memory`, device, commit tau [+ `FAKE` when `--fake-noise`]); right = keymap help.
 - `--selftest N` runs the SAME loop headless (SDL dummy video driver, speedup forced, scripted
   action cycle after the replay), auto-quits after `N` generated frames and prints per-step
   latency stats — the smoke gate that reset + rollout + render run clean without a human.

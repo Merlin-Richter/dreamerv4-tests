@@ -325,8 +325,13 @@ class DynamicsModel(nn.Module):
         B, T = action_idx.shape
         return self.action_table(action_idx).reshape(B, T, self.n_action_tokens, -1)
 
-    def _noise_to_ctx(self, z: torch.Tensor) -> torch.Tensor:
-        """Hold clean latents at signal level context_signal (near-clean) so the model can read them."""
+    def _noise_to_ctx(self, z: torch.Tensor, fake_noise: bool = False) -> torch.Tensor:
+        """Hold clean latents at signal level context_signal (near-clean) so the model can read them.
+        fake_noise: label the frame as context_signal via tau_idx WITHOUT actually corrupting it —
+        an inference-only probe of whether the model needs real corruption or just reads the tau
+        embedding as a hint."""
+        if fake_noise:
+            return z
         t = self.config.context_signal
         return (1 - t) * torch.randn_like(z) + t * z
 
@@ -518,7 +523,7 @@ class DynamicsModel(nn.Module):
 
     @torch.no_grad()
     def rollout_init(self, context: torch.Tensor, ctx_action_idx: torch.Tensor = None,
-                     K: int = None, max_ctx: int = None) -> dict:
+                     K: int = None, max_ctx: int = None, fake_noise: bool = False) -> dict:
         """Prefill the carrying KV cache from observed context latents and return a rollout state.
 
         context:        (B, T_ctx, n_latents, bottleneck_dim) clean latents from the tokenizer.
@@ -526,6 +531,8 @@ class DynamicsModel(nn.Module):
         max_ctx:        committed time-columns kept in the sliding window (default
                         ``max_temporal_length-1``). Pass a smaller value to FORCE a shorter window than
                         the model trained with (e.g. probe memory at window 8 instead of 16).
+        fake_noise:     commit frames labeled at context_signal WITHOUT actually adding noise (see
+                        ``_noise_to_ctx``); carried for every frame committed by this rollout state.
         The context is committed at near-clean (signal=context_signal) with its WRITTEN memory tokens
         (the relay seed), at absolute positions 0..T_ctx-1, then evicted to the last max_ctx frames.
 
@@ -544,7 +551,7 @@ class DynamicsModel(nn.Module):
         T0 = min(T_ctx, self.config.max_temporal_length)  # first (windowed) chunk
 
         act = self.action_features(ctx_action_idx[:, :T0] if ctx_action_idx is not None else None)
-        ctx_noised = self._noise_to_ctx(context[:, :T0])
+        ctx_noised = self._noise_to_ctx(context[:, :T0], fake_noise)
         positions = torch.arange(T0, device=device)
         tau_col = torch.full((B, T0), tau_ctx_idx, device=device, dtype=torch.long)
         d_col = torch.full((B, T0), d_idx_val, device=device, dtype=torch.long)
@@ -559,7 +566,8 @@ class DynamicsModel(nn.Module):
              positions=positions, cache=cache, commit=True)
         self._evict(cache, max_ctx)
         state = {"cache": cache, "next_pos": int(T0), "K": K, "max_ctx": max_ctx,
-                 "d_idx_val": d_idx_val, "tau_ctx_idx": tau_ctx_idx, "B": B, "device": device}
+                 "d_idx_val": d_idx_val, "tau_ctx_idx": tau_ctx_idx, "B": B, "device": device,
+                 "fake_noise": fake_noise}
         for t in range(T0, T_ctx):  # teacher-forced prefill of the beyond-window context
             a = ctx_action_idx[:, t:t + 1] if ctx_action_idx is not None else None
             self._commit_context_frame(state, context[:, t:t + 1], a)
@@ -579,7 +587,7 @@ class DynamicsModel(nn.Module):
         positions = torch.tensor([pos], device=device)
         d_col = torch.full((B, 1), state["d_idx_val"], device=device, dtype=torch.long)
         tau_col = torch.full((B, 1), state["tau_ctx_idx"], device=device, dtype=torch.long)
-        zc = self._noise_to_ctx(z)
+        zc = self._noise_to_ctx(z, state["fake_noise"])
         written_mem = None
         if self.n_memory > 0:
             # A near-clean read of the frame against the carried cache WRITES this frame's memory.
@@ -593,7 +601,7 @@ class DynamicsModel(nn.Module):
 
     @torch.no_grad()
     def rollout_step(self, state: dict, action_idx: torch.Tensor = None,
-                     commit: bool = True) -> torch.Tensor:
+                     commit: bool = True, blind_commit: bool = False) -> torch.Tensor:
         """Generate one frame from the carried state via K shortcut steps reading the cache.
 
         action_idx: optional (B,) or (B,1) long action id for the new frame.
@@ -602,6 +610,13 @@ class DynamicsModel(nn.Module):
         commit=False -> READ-ONLY branch: return the predicted latent WITHOUT mutating the carried
                         cache/memory (used by the recall eval's reveal branch). The frame is
                         predicted at the SAME absolute position the next committed frame would take.
+        blind_commit -> inference-only memory probe: the commit pass presents the latent slots as
+                        PURE NOISE at tau=0 instead of the generated frame near-clean; the written
+                        memory token is committed unchanged. Future frames can read this frame's
+                        state ONLY through its memory slot (the FF9 training condition, at rollout).
+                        No effect when commit=False. Meaningless for n_memory=0 (nothing carries).
+                        Takes precedence over ``state["fake_noise"]`` (set by ``rollout_init``): when
+                        both apply, the commit pass is real noise at tau=0, not the fake-noise label.
         returns: (B, 1, n_latents, bottleneck_dim) predicted clean latent.
         """
         cache, pos, K = state["cache"], state["next_pos"], state["K"]
@@ -636,8 +651,10 @@ class DynamicsModel(nn.Module):
 
         if commit:
             # 5th pass: re-present the frame at near-clean with its written memory; commit its K/V.
-            tau_col[:, -1] = tau_ctx_idx
-            self(self._noise_to_ctx(z), tau_col, d_col, act, memory_in=written_mem,
+            # blind_commit: present pure noise at tau=0 instead — memory is the only scene carrier.
+            zc = torch.randn_like(z) if blind_commit else self._noise_to_ctx(z, state["fake_noise"])
+            tau_col[:, -1] = 0 if blind_commit else tau_ctx_idx
+            self(zc, tau_col, d_col, act, memory_in=written_mem,
                  positions=positions, cache=cache, commit=True)
             self._evict(cache, max_ctx)
             state["next_pos"] = pos + 1

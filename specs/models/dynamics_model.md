@@ -143,10 +143,27 @@ DreamerV4 h-state analogue, aimed at the long-horizon-memory limitation.
 - `forward(z_tilde, tau_idx, d_idx, actions=None, memory_in=None, return_memory=False) -> ẑ_1[, mem]`.
 - `loss(z1, action_idx=None) -> scalar` — shortcut forcing (+ FF9 sufficiency when `n_memory>0`).
 - `generate(context, n_generate, K=None, action_idx=None, max_ctx=None) -> latents` — carrying
-  autoregressive rollout. `rollout_init(context, ctx_action_idx=None, K=None, max_ctx=None)` /
-  `rollout_step(state, action_idx=None, commit=True)` are the underlying primitives. `max_ctx` (committed
-  time-columns kept; default `max_temporal_length-1`) FORCES a shorter sliding window than the model
-  trained with — used by the recall/sheets evals' optional `--window` knob.
+  autoregressive rollout. `rollout_init(context, ctx_action_idx=None, K=None, max_ctx=None,
+  fake_noise=False)` / `rollout_step(state, action_idx=None, commit=True, blind_commit=False)` are
+  the underlying primitives. `max_ctx` (committed time-columns kept; default `max_temporal_length-1`)
+  FORCES a shorter sliding window than the model trained with — used by the recall/sheets evals'
+  optional `--window` knob.
+- **Blind commit (memory-only probe, inference-only):** `rollout_step(..., blind_commit=True)`
+  runs the K denoise steps unchanged but the 5th (commit) pass presents the latent slots as PURE
+  NOISE at `τ=0` instead of the generated frame near-clean; the written memory token is committed
+  unchanged. Future frames can read that frame's state ONLY through its memory slot — exactly the
+  FF9 path-frame condition (§5) reproduced at rollout, so an FF9-trained model is in-distribution
+  for it. Default `False` leaves every existing path byte-identical. No effect when `commit=False`;
+  meaningless for `n_memory=0` (nothing carries). Used by `play_memmaze.py --memory-only-after`.
+- **Fake-noise commit (corruption-vs-label probe, inference-only):** `rollout_init(...,
+  fake_noise=True)` commits every frame in that rollout (context AND generated) labeled at
+  `tau_idx=context_signal` via `_noise_to_ctx`, but WITHOUT mixing in the corresponding Gaussian
+  noise — the model reads the same `context_signal` conditioning as the default path, over latents
+  that are actually clean (`τ=1`). Probes whether the model needs real corruption at commit time or
+  only reads `tau_idx` as a hint. Carried in `state["fake_noise"]` for every subsequent
+  `rollout_step`/`_commit_context_frame` commit; `blind_commit=True` on a given step overrides it
+  (real noise at `τ=0` wins). Default `False` leaves every existing path byte-identical. Used by
+  `play_memmaze.py --fake-noise`.
 - **Long-context prefill:** `rollout_init` (and therefore `generate`) accepts
   `T_ctx > max_temporal_length`. The first `max_temporal_length` frames are committed in one forward
   (identical to the short-context path — behavior for `T_ctx <= max_temporal_length` is unchanged);
