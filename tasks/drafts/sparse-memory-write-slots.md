@@ -1,3 +1,8 @@
+> **SUPERSEDED (2026-07-12):** This design has been replaced by
+> [`hierarchical-archive-memory.md`](../done/hierarchical-archive-memory.md), which keeps dense fast memory for
+> the local window and adds an independently compressed, long-lived sparse segment archive. Do not
+> implement this write-slots design as the current proposal.
+
 # DESIGN v3: sparse WRITE-SLOTS — memory attends only to every-nth memory set
 
 Proposed by Merlin 2026-07-04 (supersedes the READ mechanisms of both
@@ -97,3 +102,8 @@ activation footprint) — this is what OOM'd memmaze mem2mem at bs6.
   fetch must combine a far-back write with the SUBSEQUENT ACTION STREAM — scratch slots must
   integrate actions since the last write, which is exactly the hard case v2's scrutiny said the
   design underplays.
+
+> **SUPERSEDED (2026-07-12):** The active successor is
+> [`hierarchical-archive-memory.md`](../done/hierarchical-archive-memory.md). It preserves per-frame fast memory,
+> compresses each completed segment with a dedicated mini-transformer, and gives only fast-memory slots
+> a separate grouped long-horizon archive reader and cache.
