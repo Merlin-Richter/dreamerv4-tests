@@ -78,7 +78,46 @@ won't kill it. `--poll 60` is gentle on the scheduler; the default is 30s.
 ## Vast.ai (rented GPU box, no scheduler — added 2026-07-10)
 
 A third backend for when ferranti/galvani are down or queued: a single rented box (e.g. RTX 5090),
-not a shared SLURM cluster. Same `scripts/` wrapper discipline, different verb family — see
+not a shared SLURM cluster. **The ferranti/galvani security restriction does not apply to Vast.ai:**
+direct ssh/scp/rsync access is allowed, including for setup, inspection, and running jobs. There is no
+requirement to route Vast access through the repository wrappers or GitHub-only code transport.
+
+### Qualify a new rental before setup
+
+As soon as Vast provides the SSH host/IP and port, run the Windows-native probe **before** cloning the
+repository or moving datasets/checkpoints. It uses Windows OpenSSH directly; it does not read
+`cluster.env`, require WSL, use a ControlMaster, or need a Vast API key:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/qualify_vast_instance.ps1 `
+  -SshHost 154.64.230.67 -Port 23445
+```
+
+`-User` defaults to `root`; pass `-IdentityFile C:\path\to\key` if Windows SSH does not select the
+right key. The bounded fast probe uses a 16 MiB cryptographically random file and reports remote internet
+download/upload, bidirectional SCP rates, SHA-256 integrity, and projected time to pull a 200 MiB
+checkpoint. Add `-Confirm200MiB` only after the fast test passes to perform the real 200 MiB round trip.
+Threshold overrides are available, but the shared defaults are 100 Mbps remote download, 20 Mbps remote
+upload, and at most five minutes to pull 200 MiB. Exit code 0 means PASS/WARN, 2 means bad local config,
+and 3 means the rental failed qualification.
+
+Prefer the **direct IP endpoint** shown in Vast's connection panel. Vast documents its `sshN.vast.ai`
+proxy as universal but slower for file transfer; the probe labels a proxy result and returns WARN even
+when its measurements pass. A direct-path result says nothing about the proxy path, or vice versa.
+
+Windows and WSL are also separate transports: distinct keys, SSH config, known-host state, and socket
+namespaces. Windows success is enough for direct `ssh`/`scp`, but it does not prove the repository's WSL
+wrappers will authenticate. For a wrapper handoff, add `-CheckWsl` and optionally
+`-WslIdentityFile ~/.ssh/id_ed25519_vast`; that separately tests WSL direct SSH and labels its result.
+The probe prints the `VAST_SSH_HOST`, `VAST_SSH_PORT`, and `VAST_SSH_USER` values needed for the later
+`cluster.env` setup.
+
+References: [Vast SSH and direct-vs-proxy guidance](https://docs.vast.ai/guides/instances/connect/ssh),
+[Vast data movement](https://docs.vast.ai/guides/instances/storage/data-movement), and
+[Microsoft OpenSSH for Windows](https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh-overview).
+
+The `scripts/` wrappers are still the recommended convenience for repeatable repository jobs and
+monitoring, but are optional on Vast. They use a different verb family — see
 `scripts/README.md` for the full split (`vast_run.sh`/`vast_status.sh`/`vast_wait.sh`/
 `vast_cancel.sh` instead of `submit_job.sh`/etc.) and the two vast-specific WSL gotchas (no
 `rsync` in plain Git Bash; the dedicated SSH key must live in WSL's own native `~/.ssh/`, not
@@ -93,6 +132,7 @@ Always `stop`, never `destroy`, between sessions.
 
 **No 2FA** (plain SSH key) — unlike ferranti/galvani, the agent may open/re-open the vast master
 socket itself (`open_master.sh --cluster vast`) and self-heal an `AUTH_DEAD` without escalating.
+The agent may also open an ordinary direct SSH session when that is simpler.
 
 **Known quirk, not a bug:** this box's ssh mux layer reliably fails to open a *session* channel
 over an established ControlMaster (`mux_client_request_session: read from master failed:

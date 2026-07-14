@@ -1,10 +1,20 @@
 # scripts/ — cluster interface wrappers (T-003 / D-035)
 
-The **only** sanctioned way to touch the cluster (protocol §6). No raw ssh/scp/rsync/sbatch
-anywhere else. Three backends, **no default**: `ferranti` (H100s, SLURM), `galvani` (A100s, SLURM),
-`vast` (a rented GPU box, e.g. RTX 5090 — **no scheduler**) — every verb needs
+These wrappers are the **only** sanctioned way to touch the academic clusters `ferranti` and `galvani`
+(protocol §6): no raw ssh/scp/rsync/sbatch for those two backends. Vast.ai is explicitly exempt from
+that security rule: direct ssh/scp/rsync is allowed, and these wrappers are an optional convenience there.
+
+Three backends, **no default**: `ferranti` (H100s, SLURM), `galvani` (A100s, SLURM), `vast` (a rented
+GPU box, e.g. RTX 5090 — **no scheduler**) — every wrapper verb needs
 `--cluster {ferranti|galvani|vast}`. ferranti/galvani: pick per live fairshare + queue (see
 `cluster_health.sh`). vast: there's only one box, so it's just "is it up".
+
+**New Vast rental, before wrapper setup:** run `qualify_vast_instance.ps1` from Windows PowerShell with
+the SSH host/IP and port. This is deliberately a Windows-native bootstrap probe, not a wrapper: it needs
+no WSL key, `cluster.env`, repository clone on the rental, or master socket. It measures remote internet
+and real bidirectional SCP throughput with integrity checks, and projects a 200 MiB checkpoint pull.
+See the Vast section of `HOWTO/cluster.md` for the command, thresholds, direct-vs-proxy distinction, and
+optional independent WSL handoff check.
 
 **Two verb families** — pick by backend:
 - **SLURM verbs** (`submit_job.sh`, `job_status.sh`, `fetch_logs.sh`, `wait_for_jobs.sh`,
@@ -18,8 +28,9 @@ anywhere else. Three backends, **no default**: `ferranti` (H100s, SLURM), `galva
 - **Scheduler-agnostic verbs** (`sync_code.sh`, `pull_results.sh`, `pull_file.sh`,
   `cluster_health.sh`) — pure git/rsync, work unmodified for all three backends.
 
-## RUN THESE IN WSL — including vast (D-036)
-All three backends' wrappers run in **WSL** — both the master socket and every verb. WSL, Git
+## RUN THESE WRAPPERS IN WSL — including vast (D-036)
+All three backends' wrapper scripts run in **WSL** — both the master socket and every verb. This does not
+prohibit ordinary direct SSH access to Vast.ai outside the wrappers. WSL, Git
 Bash, and PowerShell are separate ssh stacks with separate socket namespaces (own known_hosts,
 own ControlMaster sockets) — a socket (or a trusted host key) established in one is invisible to
 the others. So the human/orchestrator opening a master and the orchestrator running the verbs must
@@ -64,6 +75,7 @@ self-heal an `AUTH_DEAD` without escalating to Merlin, unlike ferranti/galvani.
 ## Verbs
 | verb | backend | purpose |
 |---|---|---|
+| `qualify_vast_instance.ps1 -SshHost H -Port P` | vast | Windows-native preflight before setup: auth, internet, bidirectional SCP, integrity, checkpoint projection; optional `-Confirm200MiB` / `-CheckWsl` |
 | `cluster_health.sh [--cluster both]` | all | fairshare + queue depth + your jobs + disk/quota (BOTH by default) — run before every submit |
 | `sync_code.sh --cluster X <branch> [sha]` | all | remote git fetch+checkout; echoes `SHA:` (record it) |
 | `submit_job.sh --cluster X --name R [--gpus N --hours H] -- <cmd>` | ferranti/galvani | render+sbatch; echoes `JOB_ID:` |

@@ -228,17 +228,19 @@ W&B is optional on every trainer via `wlog` flags (`--wandb --wandb-project … 
 
 ### Cluster / remote runs
 Big training/eval runs go to a GPU backend: ferranti (H100s, SLURM), galvani (A100s, SLURM), or vast
-(a rented box, e.g. RTX 5090 — **no scheduler**; added 2026-07-10). **All** cluster access goes through the
-`scripts/` wrappers — never raw ssh/scp/rsync/sbatch (protocol §6). Asymmetric transport: **code goes up
-only via GitHub** (`sync_code.sh` does a remote `git fetch`+`checkout`, so commit+push first), while
-**results/checkpoints come straight back to local** via `pull_results.sh` (rsync; `*.pt` only with
-`--what checkpoints|all`). ferranti/galvani use `submit_job.sh`/`job_status.sh`/`wait_for_jobs.sh`/
+(a rented box, e.g. RTX 5090 — **no scheduler**; added 2026-07-10). The academic clusters
+**ferranti/galvani** must be accessed only through the `scripts/` wrappers — never raw
+ssh/scp/rsync/sbatch (protocol §6). Their asymmetric transport rule is: **code goes up only via GitHub**
+(`sync_code.sh` does a remote `git fetch`+`checkout`, so commit+push first), while results/checkpoints come
+straight back through the pull wrappers. ferranti/galvani use `submit_job.sh`/`job_status.sh`/`wait_for_jobs.sh`/
 `fetch_logs.sh`/`cancel_job.sh` (SLURM); vast has no scheduler, so it uses `vast_run.sh`/`vast_status.sh`/
 `vast_wait.sh`/`vast_cancel.sh` instead (detached setsid+nohup process, self-registered PID, one job at a
-time). The wrappers **must run in WSL** for all three backends (the ssh ControlMaster socket — and, for
-vast, the private key's Unix permissions — are WSL-namespaced) and need a master socket opened first:
+time). **Vast.ai is exempt from the academic-cluster security protocol:** direct ssh/scp/rsync is allowed;
+the wrappers are optional conveniences rather than the only sanctioned interface. When wrappers are used,
+they run in WSL (the ssh ControlMaster socket — and, for vast, the private key's Unix permissions — are
+WSL-namespaced) and need a master socket opened first:
 Merlin does this interactively for ferranti/galvani (2FA); vast has no 2FA, so the agent may open/re-open
-its master itself. Local 4070 training stays in Windows/Git-Bash; only cluster orchestration is WSL.
+its master itself. Local 4070 training stays in Windows/Git-Bash.
 **Read more:** `scripts/README.md` (verbs + error contract + the vast-specific gotchas) and `HOWTO/cluster.md`.
 
 ## Config Dataclasses

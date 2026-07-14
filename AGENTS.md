@@ -217,13 +217,16 @@ W&B is optional on every trainer via `wlog` flags (`--wandb --wandb-project … 
 … --wandb-tags …`), or `$WANDB_ENTITY`/`$WANDB_PROJECT` env defaults. Checkpoints stay local.
 
 ### Cluster / remote runs
-Big training/eval runs go to the GPU cluster (ferranti H100s / galvani A100s). **All** cluster access goes
-through the `scripts/` wrappers (`sync_code.sh`, `submit_job.sh`, `pull_results.sh`, …) — never raw
-ssh/scp/rsync/sbatch (protocol §6). Asymmetric transport: **code goes up only via GitHub** (`sync_code.sh`
-does a remote `git fetch`+`checkout`, so commit+push first), while **results/checkpoints come straight back
-to local** via `pull_results.sh` (rsync; `*.pt` only with `--what checkpoints|all`). The wrappers **must run
-in WSL** (the ssh ControlMaster socket is WSL-namespaced) and need a master socket Merlin opens
-interactively first. Local 4070 training stays in Windows/Git-Bash; only cluster orchestration is WSL.
+Big training/eval runs go to ferranti (H100s), galvani (A100s), or a rented Vast.ai box. For the
+**academic clusters ferranti and galvani**, all access goes through the `scripts/` wrappers
+(`sync_code.sh`, `submit_job.sh`, `pull_results.sh`, …) — never raw ssh/scp/rsync/sbatch (protocol §6).
+Their asymmetric transport rule is: **code goes up only via GitHub** (`sync_code.sh` does a remote
+`git fetch`+`checkout`, so commit+push first), while results/checkpoints come straight back via the pull
+wrappers. Those wrappers run in WSL and require a master socket Merlin opens interactively first.
+
+**Vast.ai is not subject to the academic-cluster security protocol:** direct ssh/scp/rsync access is
+allowed. The Vast-compatible wrappers remain available for convenient, repeatable jobs, but they are not
+mandatory and direct access does not violate project policy. Local 4070 training stays in Windows/Git-Bash.
 **Read more:** `scripts/README.md` (verbs + error contract) and `HOWTO/cluster.md`.
 
 ## Config Dataclasses
