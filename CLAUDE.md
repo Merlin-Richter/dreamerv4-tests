@@ -206,6 +206,16 @@ python -u src/datagen/generate_gridworldv2.py --n_episodes 5000       # -> data/
 python -u src/evals/gridworldv2/recall.py --max-k 32 [--window 8] \
   --checkpoint checkpoints/gridworldv2/dynamics.pt --tokenizer checkpoints/gridworld/tokenizer.pt
 
+# Memory Maze quantitative rollout-error: decoded pixel MSE vs GT over a 32-frame autoregressive
+# rollout after a 128-frame STREAMED prefill (through the model's normal sliding window, not a 128-
+# frame context). Eval each checkpoint once -> JSON (outputs/rollout_error/), then overlay any set of
+# runs (comparability enforced: mismatched protocol/tokenizer/samples are flagged, not silently drawn).
+python -u src/evals/memmaze/rollout_error.py --n-samples 24 --batch-size 12 \
+  --checkpoint checkpoints/memmaze/dynamics_vanilla.pt --tokenizer checkpoints/memmaze/tokenizer.pt
+python -u src/evals/memmaze/plot_rollout_error.py \
+  --series "vanilla|outputs/rollout_error/rollout_error_dynamics_vanilla.json|tab:red" \
+  --series "mem2mem|outputs/rollout_error/rollout_error_dynamics_mem2mem.json|tab:green"
+
 # Gate tests (CPU OK)
 python -u src/tests/test_gridworld.py          # env geometry / physics / curtain schedule
 python -u src/tests/test_gridworldv2.py        # v2 semantics / readout compat / recall instrument
@@ -260,6 +270,8 @@ soft-cap fields.
 | `src/evals/gridworld/{readout,recall}.py` | Closed-form frame readout + the memory recall scorer |
 | `src/evals/gridworld/sheets.py` | Qualitative rollout-sheet PNGs (occlusion belief / free-run), cv2-only |
 | `src/evals/gridworld/plot_recall.py` | Overlay recall-curve JSONs into one 2×2 compare figure (matplotlib) |
+| `src/evals/memmaze/sheets.py` | Qualitative memmaze rollout filmstrips (GT vs action-conditioned rollout), cv2-only |
+| `src/evals/memmaze/{rollout_error,plot_rollout_error}.py` | Quantitative memmaze rollout-error: per-horizon pixel MSE to JSON + comparison figure |
 | `src/wlog.py` | W&B logger (no-op unless `--wandb`) |
 | `specs/**` | Authoritative one-spec-per-source-file map (Merlin owns these) |
 | `experiments/**` | The lab — speculative, NOT spec-backed; try ideas here without touching `src/` (see `experiments/README.md`) |
