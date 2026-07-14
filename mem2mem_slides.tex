@@ -1,0 +1,178 @@
+\documentclass[10pt,aspectratio=169]{beamer}
+\usetheme{default}
+\usecolortheme{seagull}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+\setbeamertemplate{itemize items}{\textbullet}
+\usepackage{amsmath,amssymb}
+\usepackage{tikz}
+\usetikzlibrary{positioning,fit,arrows.meta}
+\setbeamerfont{frametitle}{series=\bfseries,size=\large}
+\setbeamercolor{frametitle}{fg=black}
+\newcommand{\sg}{\operatorname{sg}}
+\newcommand{\mem}{m}
+
+\title{Memory tokens + mem$\to$mem rollout training\\{\large for a Dreamer-4-style latent dynamics model}}
+\author{Merlin Richter}
+\date{July 2026}
+
+\begin{document}
+
+% ------------------------------------------------------------------
+\begin{frame}
+  \titlepage
+  \begin{center}\small
+  Problem: the dynamics model is causal over a window of $n_{\text{ctx}}$ frames --- once an informative frame is
+  evicted, its (possibly off-screen) state is gone. Goal: a bounded per-timestep \textbf{memory token}
+  channel that carries hidden state indefinitely, trained so the model actually uses it.
+  \end{center}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Setup: token layout and attention}
+\textbf{Two separate transformers (Dreamer-4 style):}
+\begin{itemize}
+  \item \textbf{Tokenizer} --- video autoencoder, trained separately and then \emph{frozen}; compresses each
+        frame to latents $z_t \in \mathbb{R}^{n_z \times d_z}$. No denoising; not discussed further.
+  \item \textbf{Dynamics model} $f_\theta$ --- block-causal space/time transformer over the latents; the model
+        of interest here. Predicts next-frame latents by denoising, trained with shortcut forcing.
+\end{itemize}
+Per frame $t$ the dynamics transformer sees one token block:
+\[
+[\; a_t \;|\; z_t \;(n_z) \;|\; \text{registers} \;|\; \underbrace{\mem_t \;(n_m)}_{\text{ours}} \;|\; \text{shortcut}(\tau_t, d_t) \;]
+\]
+\begin{itemize}
+  \item \textbf{Spatial layers:} full unmasked attention \emph{within} a frame --- memory $\leftrightarrow$ latents mix here.
+  \item \textbf{Temporal layers} (every 3rd): causal in time, \textbf{per token slot} (RoPE on time). Each memory
+        slot is its own causal channel: $\mem_t$'s slot attends to $\mem_{<t}$, not to other slots at other times.
+  \item \textbf{Memory tokens} $\mem_t$: final-layer activations, no ground-truth label. ``Carrying'' $=$ repeatedly
+        \emph{read} old memory, \emph{write} new memory --- not threading a frozen activation forward.
+\end{itemize}
+\medskip
+Consequence: information can only cross time through the per-slot temporal channels; memory is the
+designated carrier for state that must outlive the window.
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Base training: shortcut forcing (Dreamer-4, recap)}
+Per-frame signal level $\tau_t \in [0,1]$ and step size $d_t = 1/K$; clean latent $z$, Gaussian noise
+$\varepsilon$ (nothing to do with the latents --- pure noise):
+\[
+\tilde z = (1-\tau)\, \varepsilon + \tau\, z, \qquad \hat z = f_\theta(\tilde z, \tau, d, a)
+\]
+\textbf{x-prediction} (predict the clean $\hat z$, not velocity) --- keeps long rollouts stable. Bootstrap
+distills two half-steps:
+\[
+b' = \frac{f_\theta(\tilde z, \tau, \tfrac{d}{2}, a) - \tilde z}{1-\tau}, \quad
+z' = \tilde z + \tfrac{d}{2}\, b', \quad
+b'' = \frac{f_\theta(z', \tau{+}\tfrac{d}{2}, \tfrac{d}{2}, a) - z'}{1-(\tau{+}\frac{d}{2})}
+\]
+\[
+\mathcal{L}_{\text{sf}} = w(\tau) \cdot
+\begin{cases}
+\left\lVert \hat z - z \right\rVert^2 & d = d_{\min}\\[4pt]
+(1-\tau)^2 \left\lVert \dfrac{\hat z - \tilde z}{1-\tau} - \sg\!\left(\dfrac{b' + b''}{2}\right) \right\rVert^2 & \text{otherwise}
+\end{cases}
+\]
+with ramp $w(\tau) = (1-w_{\min})\tau + w_{\min}$. Inference denoises each frame in $K{=}4$ shortcut steps.
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Memory tokens: what they are for}
+The window evicts: any state not re-observable from the last $n_{\text{ctx}}$ frames is lost. The $n_m$
+memory tokens per timestep are a \textbf{bounded carrier} for that state --- the target is an approximate
+\textbf{Markov state}, carried by \emph{half a window} of memory:
+\[
+p\big(z_{>t} \mid z_{\le t},\, a\big) \;=\; p\big(z_{>t} \mid \mem_{t-n_{\text{ctx}}/2\,:\,t},\, a_{>t}\big)
+\]
+in words: for predicting future frames, the last $n_{\text{ctx}}/2$ memory tokens should be just as
+informative as the whole episode. (A \emph{single} $\mem_t$ is not meant to suffice --- half a context
+window's worth of memory is.)
+\medskip
+\begin{itemize}
+  \item $\mem_t$ is an \textbf{activation} (final-layer hidden state), no ground-truth label --- it can only be
+        supervised \emph{implicitly}, by making prediction depend on it.
+  \item \textbf{Why plain windowed training gives no such signal:} every frame is predictable from the
+        in-window latents, and the in-context memory tokens are always the learned blank init. Nothing forces
+        the model to write useful memory --- let alone to build $\mem_t$ by reading $\mem_{<t}$
+        (\textbf{mem$\to$mem}), which is exactly what carried inference requires.
+\end{itemize}
+\medskip
+Both signals come from one place: the rollout training on the next slide, whose \emph{latent-hiding mode}
+makes memory the only path to the target.
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{mem$\to$mem rollout training (ours)}
+Train on long clips with a sliding window instead of i.i.d.\ slices, so \emph{real computed} memory sits in context:
+\begin{enumerate}
+  \item Fixed window size $n_{\text{ctx}}$ (currently $32$); init window: near-clean GT latents, blank
+        memory $\Rightarrow$ one forward pass writes real memory $\mem_{1..n_{\text{ctx}}}$.
+  \item Slide by $n_{\text{ctx}}/2$. \textbf{Old half:} carried (graph-attached) memory $+$ latents drawn
+        per batch element from one of two modes,
+  \[
+  z^{\text{old}} \sim \tfrac12\,\delta(\text{near-clean GT}) + \tfrac12\,\delta(\underbrace{\text{pure noise, } \tau{=}0}_{\text{latent-hiding mode}})
+  \]
+  In latent-hiding mode the scene is gone from the latents --- the new half is predictable \emph{only}
+  through the memory chain: the forcer that makes $\mem$ encode the full state.
+  \textbf{New half:} blank memory, noised latents.
+  \item Forward pass; \textbf{loss on the new half only}: the shortcut-forcing loss $\mathcal{L}_{\text{sf}}$
+        on the new frames. Old half is context, no loss.
+  \item Carry the new half's memory forward as the next old half; repeat until clip end.
+\end{enumerate}
+Temporal attention is causal per slot, so new memory is \emph{built by attending to old memory} ---
+backprop relays $\text{new-}\mem \to \text{old-}\mem$ \textbf{construction} (TBPTT, detach at
+$2\,n_{\text{ctx}}$; no KV cache, full recompute). Verified: an evicted grounding latent gets nonzero grad through the relay,
+exactly $0$ when detached.
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Inference: carrying rollout}
+Autoregressive over a sliding window of $n_{\text{ctx}}$ frames; context held near-clean at $\tau_{\text{ctx}} \approx 0.9$.
+Per new frame $t$:
+\begin{enumerate}
+  \item \textbf{Denoise} from pure noise in $K{=}4$ shortcut steps ($d = 1/K$):
+  \[
+  z^{(i+1)} = z^{(i)} + d \cdot \frac{f_\theta\big(z^{(i)}, \tau_i, d\big) - z^{(i)}}{1-\tau_i},
+  \qquad \tau_i = i/K
+  \]
+  These steps only \emph{read} the KV cache of committed past frames; $\mem_t$ is taken from the last step.
+  \item \textbf{Commit} (5th pass): re-present frame $t$ as it will be seen as context --- latents at
+        $\tau_{\text{ctx}}$ with the written $\mem_t$ injected at the input --- and store its K/V.
+        (Fusable with the next frame's first denoise step.)
+\end{enumerate}
+\medskip
+\begin{itemize}
+  \item \textbf{Memory relay:} each step reads the old memory tokens' cached K/V and writes a new $\mem_t$ ---
+        state survives window eviction through repeated read$\to$write, unboundedly.
+  \item \textbf{RoPE at absolute rollout index} (never re-rotated; valid since RoPE is relative), so window
+        eviction is a pure cache slice and rollouts exceed the trained window length.
+  \item $n_m = 0$ recovers the vanilla Dreamer-4-style rollout.
+\end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Why the mem$\to$mem signal matters (GridWorld probe)}
+6$\times$6 GridWorld, square moving behind a full-frame curtain; recall $=$ read out the square's position
+from a revealed prediction after $k$ fully occluded rollout steps (chance $= 1/36$). Sliding window forced
+to $8$ frames, $k$ up to $64$ --- everything past $k \approx 8$ must live in memory. Position accuracy:
+\medskip
+\begin{center}
+\begin{tabular}{lccc}
+\hline
+ & $k = 4$ (in-window) & tail $k \geq 14$ & $k = 64$\\
+\hline
+vanilla (no memory)                     & 1.00 & 0.02 & 0.03\\
+\textbf{+ mem$\to$mem rollout training} & \textbf{0.98} & \textbf{0.99} & \textbf{0.98}\\
+\hline
+\end{tabular}
+\end{center}
+\medskip
+Vanilla is perfect while the last revealed frame is still in the window, then collapses to chance once it
+evicts; the mem$\to$mem-trained model stays flat $\approx 1.0$ to $k = 64$ --- hidden state is carried
+indefinitely past the latent window. (64 env seeds per $k$; the result is stable across several
+independently trained mem$\to$mem runs, all $\ge 0.97$ on the tail.)
+\end{frame}
+
+\end{document}
+                                                                              
