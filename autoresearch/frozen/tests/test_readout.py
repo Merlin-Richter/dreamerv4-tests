@@ -8,10 +8,10 @@ import numpy as np
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 
 from autoresearch.frozen.env import (  # noqa: E402
-    CELL_PX, DELTAS, LATTICE, N_CELLS, OUT_IDX, PALETTE, STAY,
+    CELL_PX, DELTAS, LATTICE, N_CELLS, OUT_IDX, PALETTE, PITCH_PX, STAY,
     apply_action, build_world, render, sample_map, valid_actions)
 from autoresearch.frozen.readout import (  # noqa: E402
-    estimate_shift, label_pixels, nearest_palette, read_cells)
+    LABEL_COLORS, estimate_shift, label_pixels, nearest_palette, read_cells)
 
 
 def gt_color(m, ci, cj):
@@ -33,8 +33,9 @@ def test_read_cells_exact_on_real_frames():
     for pos in positions:
         frame = render(world, pos)
         for (ci, cj), r in read_cells(frame, pos).items():
-            assert r.color == gt_color(m, ci, cj), (pos, ci, cj, r)
-            n_out_seen += r.color == OUT_IDX
+            if r.on_screen:
+                assert r.color == gt_color(m, ci, cj), (pos, ci, cj, r)
+                n_out_seen += r.color == OUT_IDX
     assert n_out_seen > 0  # corner positions must include OUT tiles
 
 
@@ -46,7 +47,7 @@ def test_label_pixels_exact():
     labels = label_pixels(frame)
     for y in range(0, 64, 7):
         for x in range(0, 64, 7):
-            assert np.array_equal(PALETTE[labels[y, x]], frame[y, x])
+            assert np.array_equal(LABEL_COLORS[labels[y, x]], frame[y, x])
 
 
 def test_estimate_shift_matches_actions():
@@ -58,7 +59,8 @@ def test_estimate_shift_matches_actions():
         a = int(rng.choice(valid_actions(pos)))
         npos = apply_action(pos, a)
         dy, dx, mse = estimate_shift(render(world, pos), render(world, npos))
-        assert (dy, dx) == (2 * DELTAS[a][0], 2 * DELTAS[a][1]), (pos, a, dy, dx)
+        assert (dy, dx) == (PITCH_PX * DELTAS[a][0],
+                            PITCH_PX * DELTAS[a][1]), (pos, a, dy, dx)
         assert mse == 0.0
         pos = npos
 

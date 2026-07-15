@@ -8,8 +8,9 @@ import numpy as np
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 
 from autoresearch.frozen.env import (  # noqa: E402
-    CELL_PX, ColorFieldEnv, DELTAS, DOWN, LATTICE, LEFT, N_CELLS, OUT_IDX,
-    PALETTE, PITCH_PX, RIGHT, STAY, TL_OFFSET, UP, VIEW_PX, WORLD_PX,
+    CELL_EDGE_PX, CELL_PX, GRID_COLOR, ColorFieldEnv, DELTAS, DOWN, LATTICE,
+    LEFT, N_CELLS, OUT_IDX, PALETTE, PITCH_PX, RIGHT, STAY, TL_OFFSET, UP,
+    VIEW_PX, WORLD_PX,
     apply_action, build_world, render, render_episode, sample_map,
     valid_actions)
 from autoresearch.frozen.readout import border_bands, read_cells, view_tl  # noqa: E402
@@ -23,15 +24,22 @@ def reference_render(map_arr, pos):
         for x in range(VIEW_PX):
             wy, wx = tly + y, tlx + x
             if 0 <= wy < WORLD_PX and 0 <= wx < WORLD_PX:
-                frame[y, x] = PALETTE[map_arr[wy // CELL_PX, wx // CELL_PX]]
+                edge_y = wy % CELL_PX
+                edge_x = wx % CELL_PX
+                if (edge_y < CELL_EDGE_PX or edge_y >= CELL_PX - CELL_EDGE_PX or
+                        edge_x < CELL_EDGE_PX or edge_x >= CELL_PX - CELL_EDGE_PX):
+                    frame[y, x] = GRID_COLOR
+                else:
+                    frame[y, x] = PALETTE[map_arr[wy // CELL_PX, wx // CELL_PX]]
             else:
                 frame[y, x] = PALETTE[OUT_IDX]
     return frame
 
 
 def test_geometry_constants():
-    assert WORLD_PX == 180 and LATTICE == 90 and VIEW_PX == 64
-    assert N_CELLS == 15 and CELL_PX == 12 and TL_OFFSET == -31
+    assert WORLD_PX == 360 and LATTICE == 90 and VIEW_PX == 64
+    assert N_CELLS == 15 and CELL_PX == 24 and CELL_EDGE_PX == 1
+    assert PITCH_PX == 4 and TL_OFFSET == -31
 
 
 def test_render_matches_reference():
@@ -51,10 +59,11 @@ def test_band_widths_exact_on_real_frames():
     for _ in range(25):
         pos = tuple(int(v) for v in rng.integers(0, LATTICE, 2))
         b = border_bands(render(world, pos))
-        assert b["up"] == max(0, 31 - 2 * pos[0]), (pos, b)
-        assert b["left"] == max(0, 31 - 2 * pos[1]), (pos, b)
-        assert b["down"] == max(0, (2 * pos[0] + 64 - 31) - 180), (pos, b)
-        assert b["right"] == max(0, (2 * pos[1] + 64 - 31) - 180), (pos, b)
+        tly, tlx = view_tl(pos)
+        assert b["up"] == max(0, -tly), (pos, b)
+        assert b["left"] == max(0, -tlx), (pos, b)
+        assert b["down"] == max(0, tly + VIEW_PX - WORLD_PX), (pos, b)
+        assert b["right"] == max(0, tlx + VIEW_PX - WORLD_PX), (pos, b)
 
 
 def test_invalid_action_semantics():
@@ -85,8 +94,8 @@ def test_on_screen_iff_center_in_view():
         tly, tlx = view_tl(pos)
         reads = read_cells(render(world, pos), pos)
         for (ci, cj), r in reads.items():
-            center_in = (0 < ci * CELL_PX + 6 - tly < VIEW_PX) and \
-                        (0 < cj * CELL_PX + 6 - tlx < VIEW_PX)
+            center_in = (0 < ci * CELL_PX + CELL_PX // 2 - tly < VIEW_PX) and \
+                        (0 < cj * CELL_PX + CELL_PX // 2 - tlx < VIEW_PX)
             assert r.on_screen == center_in, (pos, ci, cj, r)
 
 

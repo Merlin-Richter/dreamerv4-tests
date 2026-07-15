@@ -8,8 +8,8 @@ an imagined-early border would feed the model an out-of-distribution input
 BORDER BANDS of the last (real or imagined) frame plus their own action history,
 and NEVER push in a direction whose band >= BAND_BLOCK.
 
-On real frames the band at the true lattice edge is exactly 31px, and 29px one
-step in — BAND_BLOCK = 30 therefore blocks outward pushes exactly at the edge and
+On real frames edge bands are 29-31px, and one step inward is at most 27px.
+BAND_BLOCK = 29 therefore blocks outward pushes exactly at the edge and
 nowhere else. On imagined frames it blocks wherever the model painted a border.
 
 Each policy: reset(rng) then act(bands, rng) -> action with bands from
@@ -22,7 +22,7 @@ import numpy as np
 from .env import DOWN, LEFT, OPPOSITE, RIGHT, STAY, UP
 from .readout import VIEW_PX  # noqa: F401  (documentation import)
 
-BAND_BLOCK = 30  # px; band >= BAND_BLOCK on a side => that direction is forbidden
+BAND_BLOCK = 29  # edge bands are 29-31px; one step inward is at most 27px
 MOVES = (UP, DOWN, LEFT, RIGHT)
 _BAND_KEY = {UP: "up", DOWN: "down", LEFT: "left", RIGHT: "right"}
 

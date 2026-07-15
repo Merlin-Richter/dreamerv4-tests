@@ -116,9 +116,20 @@ def main():
     ap.add_argument("--adam-beta2", type=float, default=0.95)
     ap.add_argument("--grad-spike-mult", type=float, default=5.0)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--budget-s", type=float, default=None,
+                    help="Total wall-clock budget. Training stops early enough to run final "
+                         "validation, checkpointing, and the readout acceptance gate.")
     ap.add_argument("--verify-only", action="store_true",
                     help="Load --checkpoint and run the readout-exactness gate only.")
     args = ap.parse_args()
+
+    run_start = time.monotonic()
+    deadline = None if args.budget_s is None else run_start + args.budget_s
+    # Leave bounded headroom for the partial epoch's validation/checkpoint and
+    # the 512-frame acceptance gate. Tiny smoke budgets reserve only 10%.
+    finalize_reserve = (0.0 if args.budget_s is None else
+                        min(300.0, max(0.0, 0.1 * args.budget_s)))
+    train_deadline = None if deadline is None else deadline - finalize_reserve
 
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -199,6 +210,7 @@ def main():
     best_val = float("inf")
     gn_ema = None
     global_step = 0
+    budget_stop = False
 
     for epoch in range(args.epochs):
         train_ds.resample()
@@ -206,6 +218,9 @@ def main():
         tl, nb, skipped = 0.0, 0, 0
         t0 = time.time()
         for x, _ in train_loader:
+            if train_deadline is not None and time.monotonic() >= train_deadline:
+                budget_stop = True
+                break
             x = x.to(device)
             with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
                 loss = loss_fn(model(x), x)
@@ -243,11 +258,18 @@ def main():
 
         payload = {"model_state_dict": model.state_dict(),
                    "config": {k: getattr(cfg, k) for k in cfg.__dataclass_fields__ if k != "dtype"},
-                   "epoch": epoch, "val_mse": vl}
+                   "epoch": epoch, "val_mse": vl, "global_step": global_step,
+                   "budget_stop": budget_stop,
+                   "wall_time_s": time.monotonic() - run_start}
         torch.save(payload, last_ckpt)
         if vl < best_val:
             best_val = vl
             torch.save(payload, args.checkpoint)
+        if budget_stop:
+            print(f"[budget] stopped after {time.monotonic() - run_start:.0f}s at "
+                  f"epoch {epoch + 1}, step {global_step}; finalizing best checkpoint",
+                  flush=True)
+            break
 
     # acceptance gate
     payload = torch.load(args.checkpoint, map_location=device, weights_only=False)

@@ -67,7 +67,7 @@ def test_eval_policies_never_push_banded_sides():
 
 
 def test_eval_policies_valid_on_real_env():
-    """On REAL frames, band >= 30 <=> at the true lattice edge, so a closed-loop
+    """On REAL frames, band >= BAND_BLOCK <=> at the true lattice edge, so a closed-loop
     policy driven by real bands must never emit an invalid action."""
     for name, factory in EVAL_SUITE:
         env = ColorFieldEnv()
@@ -83,7 +83,7 @@ def test_eval_policies_valid_on_real_env():
 
 
 def test_allowed_moves_helper():
-    bands = {"up": 31, "down": 0, "left": 29, "right": 30}
+    bands = {"up": 31, "down": 0, "left": 28, "right": 29}
     from autoresearch.frozen.env import DOWN, LEFT
     assert set(allowed_moves(bands)) == {DOWN, LEFT}
 

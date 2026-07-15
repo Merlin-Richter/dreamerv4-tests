@@ -33,8 +33,8 @@ TIERS = {
     "pixel": {
         "dirs": [os.path.join("autoresearch", "frozen")],
         "manifest": os.path.join("autoresearch", "frozen", "MANIFEST.json"),
-        "version": "colorfield-frozen-v2.1",
-        "signed_off": "Merlin 2026-07-06 (border exclusion, multiplicative composite, max-gap age)",
+        "version": "colorfield-pixel-v3-pending",
+        "signed_off": "PENDING: 2x zoom + shared 2px gridlines; tokenizer retrain required",
         "dataset_seeds": {"train": 0, "val": 777, "regen": "python -m autoresearch.frozen.datagen"},
         "artifacts": [
             # (repo-relative path, required) — datasets are regenerable from (code, seed);

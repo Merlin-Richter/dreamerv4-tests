@@ -1,17 +1,17 @@
 """ColorField environment — the frozen memory env of the autoresearch harness.
 
-FROZEN LAYER: once MANIFEST.json records this file's hash, do not edit — the driver
-scores any run against a tampered frozen layer as chance.
+UNSEALED PIXEL LAYER: the previous manifest and models were invalidated by the
+2026-07-15 geometry change. Re-freeze only after a replacement tokenizer exists.
 
 Design (Merlin, 2026-07-06; spec: tasks/*/colorfield-env-and-eval.md):
-- 15x15 cell map, cell = 12px -> 180x180 px world. Cell colors iid uniform over a
-  5-color palette; everything outside the map is a fixed 6th color (OUT).
+- 15x15 cell map, cell = 24px -> 360x360 px world. Cells have shared 2px black gridlines.
+  Cell interiors use a 5-color palette; outside the map is a fixed 6th color (OUT).
 - Egocentric 64x64 RGB uint8 view. The view position p = (pr, pc) lives on a 90x90
-  sub-cell lattice (2px pitch = 1/6 cell): pr, pc in [0, 89].
-  View top-left in world coords = 2*p - 31, so an OUT band of width 31 - 2*p px is
-  visible on a side whenever p <= 15 on that axis — the only absolute-position
-  landmark. Band widths on real frames are always odd: {1, 3, ..., 31}.
-- Actions: 0=up 1=down 2=left 3=right (one lattice step = 2px), 4=stay.
+  sub-cell lattice (4px pitch = 1/6 cell): pr, pc in [0, 89].
+  View top-left in world coords = 4*p - 31, so an OUT band of width 31 - 4*p px is
+  visible on the leading side whenever p <= 7 on that axis — the only absolute-
+  position landmark. Edge bands are 31px leading / 29px trailing.
+- Actions: 0=up 1=down 2=left 3=right (one lattice step = 4px), 4=stay.
   INVALID-ACTION SEMANTICS (Merlin): an outward move at the lattice edge is NOT a
   valid action — it cannot even be tried; step() raises. It therefore NEVER occurs
   in any dataset (policies must sample from valid_actions()).
@@ -25,10 +25,11 @@ import numpy as np
 
 # --- Geometry ---------------------------------------------------------------
 N_CELLS = 15                       # map is N_CELLS x N_CELLS cells
-CELL_PX = 12                       # square cell side in px
-WORLD_PX = N_CELLS * CELL_PX       # 180
+CELL_PX = 24                       # square cell side in px (2x zoom)
+CELL_EDGE_PX = 1                   # each cell contributes 1px to a shared 2px line
+WORLD_PX = N_CELLS * CELL_PX       # 360
 VIEW_PX = 64                       # egocentric view side in px
-PITCH_PX = 2                       # lattice pitch = 1/6 cell
+PITCH_PX = 4                       # lattice pitch = 1/6 cell; one action = 4px
 LATTICE = N_CELLS * CELL_PX // PITCH_PX   # 90 positions per axis, p in [0, LATTICE-1]
 TL_OFFSET = -31                    # view top-left (world px) = PITCH_PX * p + TL_OFFSET
 PAD_PX = -TL_OFFSET                # 31px OUT padding on every side of the world image
@@ -45,6 +46,7 @@ PALETTE = np.array([
     [160,  60, 220],   # 4 purple
     [ 45,  45,  45],   # 5 OUT (outside the map)
 ], dtype=np.uint8)
+GRID_COLOR = np.array([0, 0, 0], dtype=np.uint8)
 
 # --- Actions ------------------------------------------------------------------
 UP, DOWN, LEFT, RIGHT, STAY = 0, 1, 2, 3, 4
@@ -60,18 +62,24 @@ def sample_map(rng: np.random.Generator) -> np.ndarray:
 
 
 def build_world(map_arr: np.ndarray) -> np.ndarray:
-    """Padded world image, shape (242, 242, 3) uint8 RGB.
+    """Padded world image, shape (422, 422, 3) uint8 RGB.
 
     The map occupies [PAD_PX : PAD_PX + WORLD_PX) on both axes; everything else is
     the OUT color. The view at position p is the pure slice
-    world[2*pr : 2*pr + 64, 2*pc : 2*pc + 64].
+    world[4*pr : 4*pr + 64, 4*pc : 4*pc + 64].
     """
     assert map_arr.shape == (N_CELLS, N_CELLS)
-    size = WORLD_PX + 2 * PAD_PX  # 242
+    size = WORLD_PX + 2 * PAD_PX  # 422
     world = np.empty((size, size, 3), dtype=np.uint8)
     world[:] = PALETTE[OUT_IDX]
     tiles = PALETTE[map_arr]                                  # (15, 15, 3)
     tiles = np.repeat(np.repeat(tiles, CELL_PX, axis=0), CELL_PX, axis=1)
+    # Each cell owns one black pixel on every side; adjacent cells therefore
+    # form a shared 2px gridline without shrinking the 24px cell pitch.
+    phase = np.arange(WORLD_PX) % CELL_PX
+    edge = (phase < CELL_EDGE_PX) | (phase >= CELL_PX - CELL_EDGE_PX)
+    tiles[edge, :, :] = GRID_COLOR
+    tiles[:, edge, :] = GRID_COLOR
     world[PAD_PX:PAD_PX + WORLD_PX, PAD_PX:PAD_PX + WORLD_PX] = tiles
     return world
 

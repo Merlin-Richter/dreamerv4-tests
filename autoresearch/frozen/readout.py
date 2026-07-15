@@ -1,26 +1,29 @@
 """Closed-form frame readout for ColorField — pure numpy, identical on true and
-predicted frames. FROZEN LAYER (see env.py header).
+predicted frames. The pixel layer is currently unsealed (see env.py header).
 
 Provides:
 - read_cells(frame, pos): per-cell color read for every cell overlapping the view
   at lattice position pos (extended cell indices — out-of-map tiles included).
-- on-screen definition (Merlin): overlap >= 6px in x AND y <=> cell center inside
+- on-screen definition (Merlin): overlap >= 12px in x AND y <=> cell center inside
   the view (exact equivalence on this geometry: view top-left is odd, cell centers
   even, so center-offsets are odd and the boundary cases 0/64 never occur).
 - border_bands(frame): width of the contiguous OUT-color band at each view edge —
   the closed-loop eval policies' only input besides their own action history.
 - estimate_shift(prev, cur): integer content shift between consecutive frames, for
   the action-fidelity gate. cur[y, x] == prev[y + dy, x + dx] for a view that moved
-  (dy, dx) world-px; a commanded action a implies (dy, dx) = 2 * DELTAS[a].
+  (dy, dx) world-px; a commanded action a implies (dy, dx) = 4 * DELTAS[a].
 """
 
 from dataclasses import dataclass
 
 import numpy as np
 
-from .env import (CELL_PX, OUT_IDX, PALETTE, PITCH_PX, TL_OFFSET, VIEW_PX)
+from .env import (CELL_EDGE_PX, CELL_PX, GRID_COLOR, OUT_IDX, PALETTE,
+                  PITCH_PX, TL_OFFSET, VIEW_PX)
 
-ON_SCREEN_MIN_OVERLAP = 6  # px, per axis
+ON_SCREEN_MIN_OVERLAP = CELL_PX // 2
+GRID_IDX = len(PALETTE)
+LABEL_COLORS = np.concatenate([PALETTE, GRID_COLOR[None]], axis=0)
 
 
 def view_tl(pos):
@@ -35,9 +38,9 @@ def nearest_palette(rgb) -> int:
 
 
 def label_pixels(frame) -> np.ndarray:
-    """(64, 64) int array of nearest-palette indices per pixel."""
+    """(64, 64) nearest label: five cell colors, OUT, or black gridline."""
     f = frame.astype(np.int64)
-    d = ((f[:, :, None, :] - PALETTE[None, None, :, :].astype(np.int64)) ** 2).sum(axis=-1)
+    d = ((f[:, :, None, :] - LABEL_COLORS[None, None, :, :].astype(np.int64)) ** 2).sum(axis=-1)
     return np.argmin(d, axis=-1)
 
 
@@ -46,7 +49,7 @@ class CellRead:
     color: int          # nearest-palette index of the cell's visible-mean color
     ov_y: int           # visible extent in px along y (rows)
     ov_x: int           # visible extent in px along x (cols)
-    on_screen: bool     # ov_y >= 6 and ov_x >= 6  (<=> center in view)
+    on_screen: bool     # overlap >= half a cell on both axes (<=> center in view)
     mean_rgb: tuple     # mean RGB over the visible rectangle
 
 
@@ -73,8 +76,20 @@ def cells_in_view(pos):
 def read_cells(frame, pos):
     """{(ci, cj): CellRead} for every cell with >= 1px overlap at pos."""
     out = {}
+    tly, tlx = view_tl(pos)
     for ci, cj, y0, x0, ov_y, ov_x in cells_in_view(pos):
-        region = frame[y0:y0 + ov_y, x0:x0 + ov_x].reshape(-1, 3)
+        # Exclude the known black cell edges whenever interior pixels are visible.
+        # A sliver consisting only of a gridline is never an on-screen read.
+        cell_y = ci * CELL_PX - tly
+        cell_x = cj * CELL_PX - tlx
+        iy0 = max(y0, cell_y + CELL_EDGE_PX)
+        iy1 = min(y0 + ov_y, cell_y + CELL_PX - CELL_EDGE_PX)
+        ix0 = max(x0, cell_x + CELL_EDGE_PX)
+        ix1 = min(x0 + ov_x, cell_x + CELL_PX - CELL_EDGE_PX)
+        if iy1 > iy0 and ix1 > ix0:
+            region = frame[iy0:iy1, ix0:ix1].reshape(-1, 3)
+        else:
+            region = frame[y0:y0 + ov_y, x0:x0 + ov_x].reshape(-1, 3)
         mean = region.mean(axis=0)
         out[(ci, cj)] = CellRead(
             color=nearest_palette(mean),
@@ -89,7 +104,8 @@ def border_bands(frame, out_frac: float = 0.9) -> dict:
     """Width in px of the contiguous near-OUT band at each view edge.
 
     A row/column belongs to the band if >= out_frac of its pixels label as OUT.
-    On real frames the band width on a side is exactly max(0, 31 - 2p) for that
+    Black gridlines have a distinct label. On real frames the OUT band width on
+    a side is exactly max(0, 31 - 4p) for that
     axis's lattice coordinate p. On imagined frames it is whatever the model
     painted — which is exactly what the closed-loop policies must respect.
     Returns {"up": w, "down": w, "left": w, "right": w} (up = top edge)."""
@@ -115,7 +131,7 @@ def border_bands(frame, out_frac: float = 0.9) -> dict:
     }
 
 
-def estimate_shift(prev, cur, max_shift: int = 3):
+def estimate_shift(prev, cur, max_shift: int = PITCH_PX + 1):
     """Best integer (dy, dx) with cur[y, x] ~= prev[y + dy, x + dx], by min MSE
     over the overlap. Returns (dy, dx, mse). Ties resolve to the scan-order first
     candidate — near-uniform frames therefore read as an arbitrary shift and count

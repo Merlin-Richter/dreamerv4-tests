@@ -18,7 +18,7 @@ bins, so shifts in the age distribution (e.g. early imagined borders making
 recalled information younger) move bin populations, not the score.
 
 Hard gates (score := 0.0 + flags on failure) — the Goodhart guards:
-  1. action fidelity: imagined frame-to-frame shift must match the commanded 2px
+  1. action fidelity: imagined frame-to-frame shift must match the commanded 4px
      move (catches 'actions do nothing' models),
   2. color-marginal entropy: imagination-born first-seen colors ~ uniform over the
      5 in-map palette colors (catches collapse-to-one-color; pure self-consistency
@@ -52,8 +52,8 @@ from collections import Counter
 import numpy as np
 
 from .adapters import make_adapter  # noqa: F401  (re-export convenience)
-from .env import (ColorFieldEnv, DELTAS, LATTICE, N_CELLS, OUT_IDX, STAY,
-                  apply_action)
+from .env import (ColorFieldEnv, DELTAS, LATTICE, N_CELLS, OUT_IDX, PITCH_PX,
+                  STAY, TL_OFFSET, VIEW_PX, WORLD_PX, apply_action)
 from .eval_policies import EVAL_SUITE
 from .readout import border_bands, estimate_shift, read_cells
 
@@ -225,7 +225,7 @@ def run_episode(adapter_factory, policy, map_seed, ep_seed,
         nxt = adapter.step(a)
         pos = apply_action(pos, a, check=False)   # may leave the true lattice: allowed
         dy, dx, _ = estimate_shift(cur, nxt)
-        cdy, cdx = 2 * DELTAS[a][0], 2 * DELTAS[a][1]
+        cdy, cdx = PITCH_PX * DELTAS[a][0], PITCH_PX * DELTAS[a][1]
         fidelity.append((dy, dx) == (cdy, cdx))
         band_err.append(_band_abs_err(nxt, pos))
         tracker.observe(t, nxt, pos, is_real=False)
@@ -239,11 +239,13 @@ def _band_abs_err(frame, pos):
     """Diagnostic: |imagined band - band the TRUE lattice would show at the
     path-integral position| averaged over sides (border-drift measure)."""
     b = border_bands(frame)
+    tly = PITCH_PX * pos[0] + TL_OFFSET
+    tlx = PITCH_PX * pos[1] + TL_OFFSET
     exp = {
-        "up": max(0, -(2 * pos[0] - 31)),
-        "left": max(0, -(2 * pos[1] - 31)),
-        "down": max(0, (2 * pos[0] + 64 - 31) - 180),
-        "right": max(0, (2 * pos[1] + 64 - 31) - 180),
+        "up": max(0, -tly),
+        "left": max(0, -tlx),
+        "down": max(0, tly + VIEW_PX - WORLD_PX),
+        "right": max(0, tlx + VIEW_PX - WORLD_PX),
     }
     return float(np.mean([abs(b[k] - min(exp[k], 64)) for k in b]))
 

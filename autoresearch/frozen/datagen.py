@@ -1,8 +1,8 @@
-"""ColorField dataset generation — PROCEDURAL storage. FROZEN LAYER.
+"""ColorField dataset generation — PROCEDURAL storage. Pixel layer currently unsealed.
 
 Frames are NOT materialized (5000 x 1024 raw frames would be ~60 GB): an episode
 is fully determined by (map, start, actions), so we store only those sidecars and
-render frames on demand (env.render_episode — a crop of the 180x180 world image).
+render frames on demand (env.render_episode — a crop of the 360x360 world image).
 
 Layout under <out_dir>/:
     maps.npy        (N, 15, 15) uint8     iid cell colors
@@ -19,11 +19,12 @@ import os
 
 import numpy as np
 
-from .env import (CELL_PX, ColorFieldEnv, LATTICE, N_CELLS, N_COLORS, PALETTE,
-                  STAY, VIEW_PX, render_episode)
+from .env import (CELL_EDGE_PX, CELL_PX, GRID_COLOR, PITCH_PX, ColorFieldEnv,
+                  LATTICE, N_CELLS, N_COLORS, PALETTE, STAY, VIEW_PX,
+                  render_episode)
 from .policies import POLICY_REGISTRY, rollout_policy
 
-VERSION = "colorfield-v1"
+VERSION = "colorfield-v2"
 
 
 def generate(out_dir, n_episodes, T=1024, seed=0, verbose=True):
@@ -59,8 +60,10 @@ def generate(out_dir, n_episodes, T=1024, seed=0, verbose=True):
     meta = {
         "version": VERSION, "n_episodes": n_episodes, "T": T, "seed": seed,
         "geometry": {"n_cells": N_CELLS, "cell_px": CELL_PX, "view_px": VIEW_PX,
+                     "pitch_px": PITCH_PX, "cell_edge_px": CELL_EDGE_PX,
                      "lattice": LATTICE, "n_colors": N_COLORS},
         "palette_rgb": PALETTE.tolist(),
+        "grid_rgb": GRID_COLOR.tolist(),
         "policies": [name for name, _ in POLICY_REGISTRY],
         "actions_convention": "actions[:,0]==STAY; frame[t] results from actions[t]",
         "storage": "procedural — render frames via env.render_episode(map, start, actions)",

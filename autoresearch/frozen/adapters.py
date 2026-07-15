@@ -25,8 +25,9 @@ read the ground truth. The frozen baselines here define the reference points:
 
 import numpy as np
 
-from .env import (PALETTE, STAY, apply_action, build_world, render)
-from .readout import cells_in_view, VIEW_PX
+from .env import (CELL_EDGE_PX, CELL_PX, GRID_COLOR, PALETTE, STAY,
+                  apply_action, build_world, render)
+from .readout import cells_in_view, view_tl, VIEW_PX
 
 
 class OracleAdapter:
@@ -56,6 +57,13 @@ class _CellPainter:
         frame = np.empty((VIEW_PX, VIEW_PX, 3), dtype=np.uint8)
         for ci, cj, y0, x0, ov_y, ov_x in cells_in_view(pos):
             frame[y0:y0 + ov_y, x0:x0 + ov_x] = PALETTE[color_fn((ci, cj))]
+        tly, tlx = view_tl(pos)
+        ys = (tly + np.arange(VIEW_PX)) % CELL_PX
+        xs = (tlx + np.arange(VIEW_PX)) % CELL_PX
+        y_edge = (ys < CELL_EDGE_PX) | (ys >= CELL_PX - CELL_EDGE_PX)
+        x_edge = (xs < CELL_EDGE_PX) | (xs >= CELL_PX - CELL_EDGE_PX)
+        frame[y_edge, :, :] = GRID_COLOR
+        frame[:, x_edge, :] = GRID_COLOR
         return frame
 
 
@@ -63,7 +71,7 @@ class PerfectImaginaryAdapter:
     """Consistent liar: a persistent, borderless, iid random world of its own —
     ignores the real prefix's CONTENT entirely. Perfect memory of the WRONG world.
 
-    It starts from env.pos (privileged) so its 12px grid is phase-aligned with the
+    It starts from env.pos (privileged) so its 24px grid is phase-aligned with the
     tracker's registration grid. A real model gets this alignment for free from
     the prefix frames it conditions on; this baseline ignores them, hence the peek."""
 
