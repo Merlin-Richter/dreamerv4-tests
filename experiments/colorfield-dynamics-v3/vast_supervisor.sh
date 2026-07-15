@@ -4,6 +4,7 @@ set -uo pipefail
 utils=/opt/supervisor-scripts/utils
 . "${utils}/logging.sh"
 . "${utils}/environment.sh"
+source /venv/main/bin/activate
 
 cd /workspace/dreamerv4-tests
 echo "COLORFIELD_DYNAMICS_V3_START commit=$(git rev-parse HEAD) utc=$(date -u +%FT%TZ)"
