@@ -1,6 +1,7 @@
 """Cheap invariants for the ColorField pixel-v3 three-arm training recipe."""
 from __future__ import annotations
 
+import copy
 import sys
 from pathlib import Path
 
@@ -52,6 +53,35 @@ def test_fixed_rollout_context():
     print("rollout context is exactly W=16: PASS")
 
 
+def test_blockwise_backward_matches_full():
+    torch.manual_seed(3)
+    full = DynamicsModel(cfg()).train()
+    blocked = copy.deepcopy(full).train()
+    z = torch.randn(1, 80, 2, 8)
+    a = torch.randint(0, 5, (1, 80))
+
+    torch.manual_seed(9)
+    g1 = torch.Generator().manual_seed(11)
+    loss, _ = mem2mem_rollout_loss(
+        full, z, a, n_ctx=16, device="cpu", gen=g1, bootstrap=False,
+        n_d_unlocked=1, use_ff9=False, max_frames=80, tbptt_frames=32)
+    loss.backward()
+
+    torch.manual_seed(9)
+    g2 = torch.Generator().manual_seed(11)
+    detached_loss, parts = mem2mem_rollout_loss(
+        blocked, z, a, n_ctx=16, device="cpu", gen=g2, bootstrap=False,
+        n_d_unlocked=1, use_ff9=False, max_frames=80, tbptt_frames=32,
+        blockwise_backward=True)
+    assert not detached_loss.requires_grad and parts["blockwise_backward"] == 1.0
+    worst = 0.0
+    for p, q in zip(full.parameters(), blocked.parameters()):
+        if p.grad is not None:
+            worst = max(worst, float((p.grad - q.grad).abs().max()))
+    assert worst < 2e-6, worst
+    print(f"blockwise TBPTT gradient matches full accumulation (max {worst:.2g}): PASS")
+
+
 def test_archive_warm_start_w16():
     base = DynamicsModel(cfg())
     acfg = ArchiveDynamicsConfig(**{
@@ -72,5 +102,6 @@ def test_archive_warm_start_w16():
 if __name__ == "__main__":
     test_tau0_train_only()
     test_fixed_rollout_context()
+    test_blockwise_backward_matches_full()
     test_archive_warm_start_w16()
     print("ALL COLORFIELD DYNAMICS V3 SMOKES PASSED")

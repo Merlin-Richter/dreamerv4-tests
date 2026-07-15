@@ -10,7 +10,9 @@ Three final checkpoints on the accepted `colorfield-pixel-v3` tokenizer:
 
 - Model/eval window is pinned at `W=16`.
 - Every mem2mem training slide uses `n_ctx=16`; sampling `{4,8,16}` is disabled.
-- Archive training also uses the complete 16-frame window and advances by eight frames.
+- Both memory arms use 256-frame clips, the complete 16-frame window, eight-frame advances, and
+  blockwise backward at TBPTT 32. Dense activation memory is bounded; compute still scales with all
+  30 slides in the clip. The archive compressor uses `R=1` token per memory slot.
 - The memory arms use a matched fork: a shared 20k-step rollout-only base, then a fresh optimizer
   on both a 20k plain continuation and a 20k archive continuation. Thus both final memory models
   receive 40k optimizer steps from the identical initialization/data recipe.

@@ -143,6 +143,7 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
                          tbptt_frames=None, max_frames=None, gen=None, force_mode=None,
                          bootstrap=True, n_d_unlocked=None, use_ff9=True, ff9_norm_flow=False,
                          relay_grad_clip=None, tau0_anchor=0.0,
+                         blockwise_backward=False,
                          probe_head=None, probe_board=None, probe_mask=None, probe_age=None,
                          probe_weight=1.0, probe_bins=(16, 32, 48)):
     """One mem->mem rollout over a long clip. Returns (total_loss, parts_dict).
@@ -153,6 +154,10 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
                  batch (GPU-parallel requirement). The window slides by W/2.
     tbptt_frames: detach the carried memory once the relay graph is deeper than this many frames
                  (truncated BPTT; default 2*max_temporal_length). Bounds memory footprint.
+    blockwise_backward: backward and free each TBPTT block inside this function, accumulating
+                 parameter gradients while keeping weights fixed until the caller's optimizer step.
+                 This is required for long clips: detaching the relay alone does NOT free the
+                 independent slide-loss graphs when the caller backprops only once at clip end.
     max_frames:  stop after this many frames from t=0 (default min(5*N, 10*W)).
     force_mode:  None -> per-element 50/50 clean/noise; "noise"/"clean" -> force (for tests).
     bootstrap:   include the shortcut bootstrap distillation (coarser d/2 steps) in the new-half
@@ -210,6 +215,11 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
     tbptt_frames = 2 * N if tbptt_frames is None else tbptt_frames  # 0 is valid (detach every slide)
     max_frames = min(5 * N, 10 * W) if max_frames is None else max_frames
     end = min(T, max_frames)
+    expected_terms = len(range(half, end - W + 1, half))
+    assert expected_terms > 0, f"clip length {end} must contain W={W} plus one half-window"
+    if blockwise_backward:
+        assert tbptt_frames >= half and tbptt_frames % half == 0, (
+            f"blockwise TBPTT must be a positive multiple of stride {half}, got {tbptt_frames}")
 
     # Per-hop relay gradient normalizer (OFF by default => no hook => byte-identical). Scales each
     # carried memory tensor's gradient DOWN per batch element to ||grad_b|| <= C, taming the backward
@@ -230,12 +240,18 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
             t.register_hook(_relay_hook)
 
     K_max, tau_ctx_idx, d_idx_val = _tau_d_consts(model)
-    af_all = model.action_features(actions_idx)  # (B,T,n_act,E) or None
-    blank_half = model.memory_tokens.expand(B, half, -1, -1)
+    # A parameter-derived action tensor cannot be reused across separate backward calls: its
+    # projection graph is freed with the first TBPTT block. Rebuild per slice in blockwise mode.
+    af_all = None if blockwise_backward else model.action_features(actions_idx)
+    blank_half_static = None if blockwise_backward else model.memory_tokens.expand(B, half, -1, -1)
     d_col_W = torch.full((B, W), d_idx_val, device=device, dtype=torch.long)
 
     def af(a, b):
-        return af_all[:, a:b] if af_all is not None else None
+        if actions_idx is None:
+            return None
+        if blockwise_backward:
+            return model.action_features(actions_idx[:, a:b])
+        return af_all[:, a:b]
 
     # ---- init window [0, W): near-clean latents, learned-blank memory -> construct initial memory ----
     zc = model._noise_to_ctx(z1[:, :W])
@@ -249,6 +265,8 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
     relay_depth = half                   # frames of graph currently in the relay
 
     total = z1.new_zeros(())
+    total_value = 0.0
+    block_terms = 0
     n_terms = 0
     sum_flow = sum_ff9 = sum_flow_norm = 0.0
     sum_probe = 0.0
@@ -264,7 +282,7 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
         m = modes.view(B, 1, 1, 1).float()
 
         # truncated BPTT: detach the carried memory once the relay is deeper than tbptt_frames
-        if relay_depth > tbptt_frames:
+        if not blockwise_backward and relay_depth > tbptt_frames:
             old_mem = old_mem.detach()
             relay_depth = 0
 
@@ -289,6 +307,8 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
         tau_new = model._tau_value(tau_new_idx)[..., None, None]
         new_part = (1 - tau_new) * z0[:, half:] + tau_new * z1_win[:, half:]
 
+        blank_half = (model.memory_tokens.expand(B, half, -1, -1)
+                      if blockwise_backward else blank_half_static)
         memory_in = torch.cat([old_mem, blank_half], dim=1)   # old=real(graph), new=blank
 
         # ---- shortcut-forcing diffusion loss on the NEW half only (flow + bootstrap) ----
@@ -341,6 +361,8 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
                         probe_hit[i] += int((correct & in_bin).sum())
 
         total = total + slide_loss
+        total_value += float(slide_loss.detach())
+        block_terms += 1
         sum_flow += float(flow.detach())
         sum_flow_norm += float(flow_norm.detach())
         n_terms += 1
@@ -352,6 +374,15 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
         relay_depth += half
         s += half
 
+        # Backward/finalize a bounded dense block. Dividing every block by the known total
+        # slide count is exactly the gradient of the full mean loss, but frees graphs now.
+        if blockwise_backward and (block_terms * half >= tbptt_frames or s + W > end):
+            (total / expected_terms).backward()
+            total = z1.new_zeros(())
+            block_terms = 0
+            old_mem = old_mem.detach()
+            relay_depth = 0
+
     n_terms = max(1, n_terms)
     parts = {"flow": sum_flow / n_terms, "flow_norm": sum_flow_norm / n_terms,
              "ff9": sum_ff9 / n_terms, "n_slides": float(n_terms), "n_ctx": float(W)}
@@ -359,4 +390,7 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
         parts["probe_ce"] = sum_probe / max(1, n_probe)
         parts["probe_hit"] = probe_hit    # per-bin ints; trainer accumulates across batches
         parts["probe_tot"] = probe_tot
+    if blockwise_backward:
+        parts["blockwise_backward"] = 1.0
+        return z1.new_tensor(total_value / n_terms), parts
     return total / n_terms, parts

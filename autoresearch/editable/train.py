@@ -214,6 +214,9 @@ def main():
                         "prediction, which the sampled grid under-weights ~1/K_max). 0 = off.")
     p.add_argument("--tbptt-frames", type=int, default=None,
                    help="Detach the memory relay past this many frames (default 2*W).")
+    p.add_argument("--blockwise-rollout-backward", action="store_true",
+                   help="Backward/free each TBPTT block inside long mem2mem clips. Bounds dense "
+                        "activation memory; compute still scales with the number of slides.")
     p.add_argument("--max-frames", type=int, default=None, help="Cap rollout length per clip.")
     p.add_argument("--snapshot-at", type=lambda s: {int(x) for x in s.split(",")},
                    default=None,
@@ -334,6 +337,8 @@ def main():
                                              args.curr_warmup, args.curr_add_every)
             last_unlocked = n_unlocked if n_unlocked is not None else model.n_d
             use_m2m = torch.rand(1, generator=gen, device=device).item() < mem2mem_frac
+            opt.zero_grad()
+            internal_backward = False
             with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
                 if use_m2m:
                     if args.fixed_n_ctx:
@@ -346,7 +351,9 @@ def main():
                         tbptt_frames=args.tbptt_frames, max_frames=args.max_frames,
                         bootstrap=args.bootstrap, n_d_unlocked=n_unlocked,
                         use_ff9=use_ff9, ff9_norm_flow=args.ff9_norm_flow,
-                        relay_grad_clip=args.relay_grad_clip, tau0_anchor=args.tau0_anchor)
+                        relay_grad_clip=args.relay_grad_clip, tau0_anchor=args.tau0_anchor,
+                        blockwise_backward=args.blockwise_rollout_backward)
+                    internal_backward = args.blockwise_rollout_backward
                     if args.fixed_n_ctx:
                         assert parts["n_ctx"] == 16.0, parts
                     agg["mem2mem"] += float(loss.detach()); agg["n_m"] += 1
@@ -356,8 +363,8 @@ def main():
                                             generator=gen, device=device))
                     loss = model.loss(z1[:, off:off + W_PIN], acts[:, off:off + W_PIN])
                     agg["normal"] += float(loss.detach()); agg["n_n"] += 1
-            opt.zero_grad()
-            loss.backward()
+            if not internal_backward:
+                loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             opt.step(); sched.step(); gstep += 1
             if args.snapshot_at and gstep in args.snapshot_at:
