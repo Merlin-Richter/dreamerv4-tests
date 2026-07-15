@@ -2,7 +2,7 @@
 # Exact ColorField pixel-v3 dynamics arms. All memory rollouts are fixed at W=16.
 set -euo pipefail
 
-ARM="${1:?usage: run.sh {vanilla|memory-base|memory-control|archive}}"
+ARM="${1:?usage: run.sh vanilla-or-memory-base-or-memory-control-or-archive}"
 MAX_STEPS="${MAX_STEPS:-20000}"
 BUDGET_S="${BUDGET_S:-14400}"
 BATCH_SIZE="${BATCH_SIZE:-128}"
