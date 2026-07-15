@@ -1,0 +1,40 @@
+{
+ "artifacts": {
+  "checkpoints/colorfield/tokenizer.pt": "ded81ba357321909695765ef4cc89258288391b57009f6769a756a6f23999b9d",
+  "data/colorfield/actions.npy": "842a9a69db1ae08188f236fa6a4a808386a1c9ea62eae646762120346bf06a8f",
+  "data/colorfield/ep_seeds.npy": "5ac3f8fab189bd7371a089a5673e74afc07ea43afed2bdacae266713aac536af",
+  "data/colorfield/maps.npy": "34e7ef16c7892aed54cfe6a57022bdd5d00d4101877d76be824a689fd26f16fd",
+  "data/colorfield/policy_ids.npy": "eb98cbb1743231225997155aa516c2aa9b9a590b895b00f795f10a5a652caef9",
+  "data/colorfield/starts.npy": "9c5dff0a7878666909b037f04d99dbb1067cdb8671f7474c66f25ad1734269e0",
+  "data/colorfield_val/actions.npy": "62b9ad1179cfbe7a8a85a1fe1327972ab84f21a65b114ccefc5e1532fc16f3dc",
+  "data/colorfield_val/ep_seeds.npy": "4cc40031491b3983b00a00b5abec3de661fdc717fbc12428535fefa423b5d93c",
+  "data/colorfield_val/maps.npy": "e54337168d29b683378dc5d6b352d9319e64542b7403279a1436542bb4e58935",
+  "data/colorfield_val/policy_ids.npy": "a23392ebfe1fafd5f4c3ffea6f8d73ea421f25912262e119a474c314fcb62b30",
+  "data/colorfield_val/starts.npy": "428ecd76a51591b8d4598c654d7178e957d02c5d35d8a4d1c5b658fd9492aeee"
+ },
+ "dataset_seeds": {
+  "regen": "python -m autoresearch.frozen.datagen",
+  "train": 0,
+  "val": 777
+ },
+ "files": {
+  "autoresearch/frozen/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "autoresearch/frozen/adapters.py": "7718f4b31d8791b6114075d60141b738677178ee058bc5c99877631c8c35538f",
+  "autoresearch/frozen/datagen.py": "85c0ff4bfc4de64bad3653993fce3f397896fc4b0696af135e33731c15bd9dc0",
+  "autoresearch/frozen/env.py": "92d29c7bc224d7529552cee6b9b0311d4497e015a4f828944df842d060f71672",
+  "autoresearch/frozen/eval_comeback.py": "7affe41c83a85e1318eb7eb732c315717111c58eb0172562f13990cdd0c5766e",
+  "autoresearch/frozen/eval_policies.py": "83be960251e36b6de160a6bd7e91efea6791eaa0e765653398670cba63799844",
+  "autoresearch/frozen/policies.py": "69080d31a48a42adcddbff1caa33b678c7046bf8bbefe1787b12341fbd6b9c90",
+  "autoresearch/frozen/readout.py": "47fc82595de80db67887cc3637ce922ba0251d26d85b5fb33d605e398a116b49",
+  "autoresearch/frozen/tests/test_datagen.py": "be34bc26e28217063dfaa25654fcb7533cb04cae1ece53dd6ea418017c5f7d52",
+  "autoresearch/frozen/tests/test_env.py": "fa9e068df244e21e230b5640ab55f0ab4c0bf72eba7a1032ff8d828cd1e77786",
+  "autoresearch/frozen/tests/test_eval.py": "64f5cc3c4587a6a823a1e34bfc4e14a18297eb42bd1dc16c0d16408e65ccee9f",
+  "autoresearch/frozen/tests/test_policies.py": "7417c31a11fe1e0f202a1a304f65ada0e591c346b2e187567f03874976a56fc5",
+  "autoresearch/frozen/tests/test_readout.py": "5067eb5a471bdf8c7eeeb6376f6907db5bec25b629ac212f00e6ed41bd2c8f94",
+  "autoresearch/frozen/tok_job.sh": "a91e3bda4304a6b26fb21858e98f29415f2821fae032742d51a8f98c0e493eb2",
+  "autoresearch/frozen/tokenizer_model.py": "48201b5820994a9ce5c131967d02765a22f77cc6212bef1d1e1f33a4df118641",
+  "autoresearch/frozen/train_tokenizer.py": "c843a539686d59137d38db3453760f06ee58d7f0c3e8dfedf0b843bef2cf3e3f"
+ },
+ "signed_off": "2026-07-15: 2x zoom + shared 2px gridlines; tokenizer accepted at val MSE 0.000033, cell readout 0.999017, frame-exact 0.9863",
+ "version": "colorfield-pixel-v3"
+}

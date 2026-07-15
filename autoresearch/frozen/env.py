@@ -1,7 +1,7 @@
 """ColorField environment — the frozen memory env of the autoresearch harness.
 
-UNSEALED PIXEL LAYER: the previous manifest and models were invalidated by the
-2026-07-15 geometry change. Re-freeze only after a replacement tokenizer exists.
+FROZEN PIXEL LAYER: geometry and tokenizer were re-sealed on 2026-07-15 after
+the 2x zoom and shared-gridline change.
 
 Design (Merlin, 2026-07-06; spec: tasks/*/colorfield-env-and-eval.md):
 - 15x15 cell map, cell = 24px -> 360x360 px world. Cells have shared 2px black gridlines.

@@ -33,8 +33,9 @@ TIERS = {
     "pixel": {
         "dirs": [os.path.join("autoresearch", "frozen")],
         "manifest": os.path.join("autoresearch", "frozen", "MANIFEST.json"),
-        "version": "colorfield-pixel-v3-pending",
-        "signed_off": "PENDING: 2x zoom + shared 2px gridlines; tokenizer retrain required",
+        "version": "colorfield-pixel-v3",
+        "signed_off": "2026-07-15: 2x zoom + shared 2px gridlines; tokenizer accepted "
+                      "at val MSE 0.000033, cell readout 0.999017, frame-exact 0.9863",
         "dataset_seeds": {"train": 0, "val": 777, "regen": "python -m autoresearch.frozen.datagen"},
         "artifacts": [
             # (repo-relative path, required) — datasets are regenerable from (code, seed);
