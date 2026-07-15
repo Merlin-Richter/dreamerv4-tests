@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -uo pipefail
+set -o pipefail
 
 utils=/opt/supervisor-scripts/utils
 . "${utils}/logging.sh"
