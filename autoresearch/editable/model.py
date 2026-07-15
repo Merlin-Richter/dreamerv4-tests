@@ -73,6 +73,11 @@ class DynamicsModelConfig:
                                     # near-clean lets the model read it (EXP-008 / D-010).
     ramp_min: float = 0.1           # w(tau) = (1 - ramp_min) * tau + ramp_min.
 
+    # Training-only sustained point mass used by the honest vanilla baseline.  In train mode,
+    # each frame has this probability of sampling (tau=0, d=d_min), so the ordinary windowed
+    # loss must learn next-frame dynamics rather than mostly denoising.  Eval sampling is unchanged.
+    tau0_anchor: float = 0.0
+
 
 class Attention(nn.Module):
     """Block-causal attention. Space layers attend fully within a frame; temporal layers
@@ -324,6 +329,12 @@ class DynamicsModel(nn.Module):
         step = (torch.rand((B, T), device=device) * K).long()
         step = torch.minimum(step, K - 1)
         tau_idx = step * torch.pow(2, self.n_d - 1 - d_idx)  # snap to the d_min grid
+        p = float(self.config.tau0_anchor)
+        assert 0.0 <= p <= 1.0, f"tau0_anchor must be in [0,1], got {p}"
+        if self.training and p > 0.0:
+            anchor = torch.rand((B, T), device=device) < p
+            tau_idx = torch.where(anchor, torch.zeros_like(tau_idx), tau_idx)
+            d_idx = torch.where(anchor, torch.full_like(d_idx, self.n_d - 1), d_idx)
         return tau_idx, d_idx
 
     def action_features(self, action_idx: torch.Tensor) -> torch.Tensor:

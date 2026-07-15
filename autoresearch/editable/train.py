@@ -172,8 +172,13 @@ def main():
     p.add_argument("--tokenizer", type=Path, default=Path("checkpoints/colorfield/tokenizer.pt"),
                    help="Used ONLY to locate the latent cache by content hash (never loaded).")
     p.add_argument("--checkpoint", type=Path, required=True)
+    p.add_argument("--resume", type=Path, default=None,
+                   help="Warm-start model weights from a compatible checkpoint; optimizer and "
+                        "schedule restart, which is used identically by both matched fork arms.")
     p.add_argument("--budget-s", type=float, required=True,
                    help="Wall-clock budget in seconds (from process start; checked per step).")
+    p.add_argument("--max-steps", type=int, default=None,
+                   help="Exact optimizer-step cap for matched-compute runs; budget remains a safety cap.")
     p.add_argument("--epochs", type=int, default=50, help="Secondary cap; also the LR-schedule "
                    "horizon unless --sched-steps is given (size it to the budget).")
     p.add_argument("--seed", type=int, default=0)
@@ -242,9 +247,24 @@ def main():
         max_temporal_length=W_PIN, n_actions=N_ACTIONS,
         embedding_dim=args.embedding_dim, depth=args.depth, n_heads=args.n_heads,
         gqa_groups=args.gqa_groups, n_registers=args.n_registers,
-        n_memory=args.n_memory, ff9_k=args.ff9)
+        n_memory=args.n_memory, ff9_k=args.ff9, tau0_anchor=args.tau0_anchor)
     assert cfg.max_temporal_length == W_PIN, "the window pin is not negotiable"
     model = DynamicsModel(cfg).to(device)
+    if args.resume is not None:
+        payload = torch.load(args.resume, map_location="cpu", weights_only=False)
+        saved = payload["config"]
+        architecture_keys = (
+            "bottleneck_dim", "n_latents", "max_temporal_length", "n_actions",
+            "embedding_dim", "depth", "n_heads", "gqa_groups", "n_registers",
+            "n_memory", "ff9_k",
+        )
+        mismatches = [(k, saved.get(k, 1 if k == "gqa_groups" else None), getattr(cfg, k))
+                      for k in architecture_keys
+                      if saved.get(k, 1 if k == "gqa_groups" else None) != getattr(cfg, k)]
+        if mismatches:
+            raise ValueError(f"resume architecture mismatch: {mismatches}")
+        model.load_state_dict(payload["model_state_dict"], strict=True)
+        print(f"[train] warm-started weights from {args.resume}", flush=True)
 
     mem2mem_frac = args.mem2mem_frac
     if cfg.n_memory == 0 and mem2mem_frac > 0:
@@ -261,7 +281,9 @@ def main():
     assert len(train_loader) > 0, "no training batches (dataset smaller than batch size?)"
 
     nparams = sum(q.numel() for q in model.parameters())
-    ncts = valid_n_ctx(W_PIN, clip_len)
+    ncts = [W_PIN] if args.fixed_n_ctx else valid_n_ctx(W_PIN, clip_len)
+    if mem2mem_frac > 0 and args.fixed_n_ctx:
+        assert ncts == [16] and W_PIN == 16, f"fixed rollout context drifted: {ncts}, W={W_PIN}"
     print(f"device={device} params={nparams / 1e6:.2f}M W={W_PIN} (PINNED) n_actions={N_ACTIONS} "
           f"cache={cache.name} train_eps={lat.shape[0]} val_eps={val_lat.shape[0]} "
           f"clip_len={clip_len} n_ctx choices={ncts} mem2mem_frac={mem2mem_frac} "
@@ -269,7 +291,7 @@ def main():
           f"n_memory={cfg.n_memory} budget_s={args.budget_s}", flush=True)
 
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
-    total_steps = args.sched_steps or max(1, len(train_loader) * args.epochs)
+    total_steps = args.sched_steps or args.max_steps or max(1, len(train_loader) * args.epochs)
     if args.sched_steps:
         # Budget-sized run: the recipe's 200-step warmup floor would eat a short
         # budget whole (an ~85-step run never leaves warmup) — 10% capped at 200.
@@ -296,6 +318,7 @@ def main():
 
     gstep = 0
     budget_hit = False
+    steps_hit = False
     last_unlocked = 1
     for epoch in range(args.epochs):
         model.train()
@@ -324,6 +347,8 @@ def main():
                         bootstrap=args.bootstrap, n_d_unlocked=n_unlocked,
                         use_ff9=use_ff9, ff9_norm_flow=args.ff9_norm_flow,
                         relay_grad_clip=args.relay_grad_clip, tau0_anchor=args.tau0_anchor)
+                    if args.fixed_n_ctx:
+                        assert parts["n_ctx"] == 16.0, parts
                     agg["mem2mem"] += float(loss.detach()); agg["n_m"] += 1
                     agg["flow"] += parts["flow"]; agg["ff9"] += parts["ff9"]
                 else:
@@ -344,10 +369,13 @@ def main():
             if time.perf_counter() - t0 >= args.budget_s:   # THE budget check (per step)
                 budget_hit = True
                 break
+            if args.max_steps is not None and gstep >= args.max_steps:
+                steps_hit = True
+                break
 
         # --- light val: normal shortcut-forcing loss on a fixed window (skip if expired) ---
         vloss = float("nan")
-        if not budget_hit:
+        if not budget_hit and not steps_hit:
             model.eval()
             vsum, nb = 0.0, 0
             with torch.no_grad():
@@ -367,13 +395,15 @@ def main():
               f"| train normal {agg['normal'] / nn:.5f} | d_unlocked {last_unlocked}/{model.n_d} "
               f"| lr {opt.param_groups[0]['lr']:.2e}", flush=True)
         save()
-        if budget_hit:
+        if budget_hit or steps_hit:
             break
 
     elapsed = time.perf_counter() - t0
     save()
     if budget_hit:
         print(f"BUDGET_STOP step={gstep} elapsed={elapsed:.1f}", flush=True)
+    elif steps_hit:
+        print(f"MAX_STEPS_DONE step={gstep} elapsed={elapsed:.1f}", flush=True)
     else:
         print(f"EPOCHS_DONE step={gstep} elapsed={elapsed:.1f}", flush=True)
     print(f"saved -> {args.checkpoint}", flush=True)
