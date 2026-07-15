@@ -24,7 +24,7 @@ case "$ARM" in
       --sched-steps "$MAX_STEPS"
     ;;
   memory-base)
-    CHECKPOINT="${CHECKPOINT:-checkpoints/colorfield/dynamics_memory_shared20k.pt}"
+    CHECKPOINT="${CHECKPOINT:-checkpoints/colorfield/dynamics_memory_shared5k.pt}"
     python -u autoresearch/editable/train.py "${COMMON[@]}" \
       --checkpoint "$CHECKPOINT" \
       --batch-size "$BATCH_SIZE" --clip-len 256 --max-frames 256 \
@@ -33,7 +33,7 @@ case "$ARM" in
       --sched-steps "${BASE_SCHED_STEPS:-100000}"
     ;;
   memory-control)
-    RESUME="${RESUME:-checkpoints/colorfield/dynamics_memory_shared20k.pt}"
+    RESUME="${RESUME:-checkpoints/colorfield/dynamics_memory_shared5k.pt}"
     CHECKPOINT="${CHECKPOINT:-checkpoints/colorfield/dynamics_memory_rollout_noff9.pt}"
     python -u autoresearch/editable/train.py "${COMMON[@]}" \
       --resume "$RESUME" \
@@ -44,7 +44,7 @@ case "$ARM" in
       --sched-steps "$MAX_STEPS"
     ;;
   archive)
-    RESUME="${RESUME:-checkpoints/colorfield/dynamics_memory_shared20k.pt}"
+    RESUME="${RESUME:-checkpoints/colorfield/dynamics_memory_shared5k.pt}"
     CHECKPOINT="${CHECKPOINT:-checkpoints/colorfield/dynamics_memory_archive_noff9.pt}"
     python -u experiments/colorfield-dynamics-v3/train_archive.py \
       --data data/colorfield --val data/colorfield_val \
