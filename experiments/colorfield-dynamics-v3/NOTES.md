@@ -13,17 +13,16 @@ Three final checkpoints on the accepted `colorfield-pixel-v3` tokenizer:
 - Both memory arms use 256-frame clips, the complete 16-frame window, eight-frame advances, and
   blockwise backward at TBPTT 32. Dense activation memory is bounded; compute still scales with all
   30 slides in the clip. The archive compressor uses `R=1` token per memory slot.
-- The memory arms use a matched fork: a shared 5k-step rollout-only base, then a fresh optimizer
-  on both a 5k plain continuation and a 5k archive continuation. Thus both final memory models
-  receive 10k optimizer steps from the identical initialization/data recipe. A 256-frame step has
-  30 rollout slides versus six at clip 64, so this is 50k clip-64 slide-loss equivalents.
-- The 10k memory / 40k vanilla targets are a cost-controlled first gate. Extend both fork arms equally only if frozen eval
-  shows the new zoomed environment has not converged.
+- Each final model gets three hours of parameter training. Vanilla trains for three hours directly.
+  The memory arms use a matched fork: a shared 90-minute rollout-only base, then a fresh optimizer
+  on both a 90-minute plain continuation and a 90-minute archive continuation. The archive
+  compressor is active during its 90-minute continuation. Total sequential wall time is 7h30.
 
 Measured on the qualified Vast RTX 5090 at batch 128: vanilla is about 45 steps/s, rollout-only
 is about 2.36 steps/s, and archive is about 1.88 steps/s. Neither 256-frame arm OOMed (peak device
 memory was approximately 9.1 GiB rollout-only and 9.7 GiB archive). `run_sequence.sh` therefore
-budgets 20, 45, 45, and 60 minutes respectively, while expected wall time is about 2h10 total.
+budgets 180, 90, 90, and 90 minutes respectively. The schedule horizons are calibrated from those
+measured throughputs; independent high step caps prevent premature stopping if throughput changes.
 
 All dynamics models use the small pixel-curve backbone (`E=128`, depth 6, heads 8, four memory
 tokens where applicable), pure finest-step flow for rollout training, and `ff9_k=0`.

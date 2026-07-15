@@ -21,10 +21,10 @@ case "$ARM" in
       --checkpoint "$CHECKPOINT" \
       --batch-size "${VANILLA_BATCH_SIZE:-128}" --clip-len 64 \
       --n-memory 0 --mem2mem-frac 0 --tau0-anchor 0.5 \
-      --sched-steps "$MAX_STEPS"
+      --sched-steps "${VANILLA_SCHED_STEPS:-$MAX_STEPS}"
     ;;
   memory-base)
-    CHECKPOINT="${CHECKPOINT:-checkpoints/colorfield/dynamics_memory_shared5k.pt}"
+    CHECKPOINT="${CHECKPOINT:-checkpoints/colorfield/dynamics_memory_shared90m.pt}"
     python -u autoresearch/editable/train.py "${COMMON[@]}" \
       --checkpoint "$CHECKPOINT" \
       --batch-size "$BATCH_SIZE" --clip-len 256 --max-frames 256 \
@@ -33,7 +33,7 @@ case "$ARM" in
       --sched-steps "${BASE_SCHED_STEPS:-100000}"
     ;;
   memory-control)
-    RESUME="${RESUME:-checkpoints/colorfield/dynamics_memory_shared5k.pt}"
+    RESUME="${RESUME:-checkpoints/colorfield/dynamics_memory_shared90m.pt}"
     CHECKPOINT="${CHECKPOINT:-checkpoints/colorfield/dynamics_memory_rollout_noff9.pt}"
     python -u autoresearch/editable/train.py "${COMMON[@]}" \
       --resume "$RESUME" \
@@ -41,16 +41,17 @@ case "$ARM" in
       --batch-size "$BATCH_SIZE" --clip-len 256 --max-frames 256 \
       --tbptt-frames 32 --blockwise-rollout-backward \
       --n-memory 4 --mem2mem-frac 1 --ff9 0 --tau0-anchor 0 \
-      --sched-steps "$MAX_STEPS"
+      --sched-steps "${CONTROL_SCHED_STEPS:-$MAX_STEPS}"
     ;;
   archive)
-    RESUME="${RESUME:-checkpoints/colorfield/dynamics_memory_shared5k.pt}"
+    RESUME="${RESUME:-checkpoints/colorfield/dynamics_memory_shared90m.pt}"
     CHECKPOINT="${CHECKPOINT:-checkpoints/colorfield/dynamics_memory_archive_noff9.pt}"
     python -u experiments/colorfield-dynamics-v3/train_archive.py \
       --data data/colorfield --val data/colorfield_val \
       --tokenizer checkpoints/colorfield/tokenizer.pt \
       --resume "$RESUME" --checkpoint "$CHECKPOINT" \
       --budget-s "$BUDGET_S" --max-steps "$MAX_STEPS" \
+      --sched-steps "${ARCHIVE_SCHED_STEPS:-$MAX_STEPS}" \
       --batch-size "${ARCHIVE_BATCH_SIZE:-32}" --clip-len 256 \
       --archive-interval 16 --archive-per-memory 1 \
       --dense-tbptt-frames 32 --fast-memory-hide-frac 0.25 \

@@ -309,7 +309,7 @@ def main():
             return (s + 1) / warmup
         if s < decay_start:
             return 1.0
-        q = (s - decay_start) / max(1, total_steps - decay_start)
+        q = min(1.0, (s - decay_start) / max(1, total_steps - decay_start))
         return emr + (1 - emr) * 0.5 * (1 + np.cos(np.pi * q))
 
     sched = LambdaLR(opt, lr_lambda)

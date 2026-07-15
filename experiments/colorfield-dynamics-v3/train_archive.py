@@ -78,6 +78,8 @@ def main() -> None:
     p.add_argument("--checkpoint", type=Path, required=True)
     p.add_argument("--budget-s", type=float, required=True)
     p.add_argument("--max-steps", type=int, required=True)
+    p.add_argument("--sched-steps", type=int, default=None,
+                   help="LR-schedule horizon; max-steps remains an independent safety cap.")
     p.add_argument("--batch-size", type=int, default=32)
     p.add_argument("--clip-len", type=int, default=64)
     p.add_argument("--lr", type=float, default=3e-4)
@@ -131,8 +133,9 @@ def main() -> None:
         f"max_steps={args.max_steps} budget_s={args.budget_s}", flush=True)
 
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
-    warmup = max(10, min(200, int(0.1 * args.max_steps)))
-    decay_start = int(0.8 * args.max_steps)
+    sched_steps = args.sched_steps or args.max_steps
+    warmup = max(10, min(200, int(0.1 * sched_steps)))
+    decay_start = int(0.8 * sched_steps)
     eta_min_ratio = 1e-6 / args.lr
 
     def lr_lambda(step: int) -> float:
@@ -140,7 +143,7 @@ def main() -> None:
             return (step + 1) / warmup
         if step < decay_start:
             return 1.0
-        q = (step - decay_start) / max(1, args.max_steps - decay_start)
+        q = min(1.0, (step - decay_start) / max(1, sched_steps - decay_start))
         return eta_min_ratio + (1 - eta_min_ratio) * 0.5 * (1 + np.cos(np.pi * q))
 
     sched = LambdaLR(opt, lr_lambda)
