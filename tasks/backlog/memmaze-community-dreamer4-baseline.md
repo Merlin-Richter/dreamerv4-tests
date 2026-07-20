@@ -110,3 +110,11 @@ to tell where the multi-step task currently stands without reconstructing state 
   tiny action-independent dynamics control reports shuffle ratio exactly 1.0. NEXT: push/sync `beef6a6`,
   submit `memmaze-d4-phase1-smoke`, record the ferranti job id, then inspect throughput/checkpoints and
   smoke reconstruction before starting the 24-hour tokenizer.
+- **2026-07-20 — Phase 1 submitted.** Branch `codex/memmaze-community-d4-baseline` pushed and ferranti
+  synced to exact project commit `945170b8dbf4d0b8cdd198bccc183fb0149f823e`; upstream remains pinned
+  at `b8abafbf4da72c59b6aa09f8499ccde0d6a37fd6`. Ferranti job **418360**
+  (`memmaze-d4-phase1-smoke`, 1x H100, 16 CPUs, 8-hour allocation) submitted at 17:09 Europe/Berlin.
+  Active training time: 0 h so far (queued/submitted). Remote artifacts will land under
+  `runs/memmaze-d4-phase1-smoke/`; stable converted data under `data/d4_memmaze_community/`.
+  NEXT: monitor 418360 through the wrappers; on success pull logs/metrics/checkpoints, inspect the smoke
+  reconstruction and action-shuffle/throughput evidence, then configure the 24-hour tokenizer run.
