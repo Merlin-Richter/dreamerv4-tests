@@ -96,4 +96,17 @@ the current phase, what completed, active or completed ferranti job identifiers,
 locations, measured training time, and the next gate or blocker. This section must always make it possible
 to tell where the multi-step task currently stands without reconstructing state from logs.
 
-- Not started.
+- **2026-07-20 — Phase 0 local integration complete; ferranti ready.** Ferranti health checked through
+  the wrappers (H100 partition healthy, no active user jobs, 81 TB free) and project prep SHA
+  `b6b07774b82794a458e406938dcbd235cca5d16c` synced. Upstream remains pinned to
+  `b8abafbf4da72c59b6aa09f8499ccde0d6a37fd6`. Integration commit `beef6a6` adds a reproducible
+  external-checkout patch/bootstrap, isolated pinned environment, real conversion manifests plus
+  train/eval content-disjointness validation, H100 batch calibration, tokenizer/dynamics smoke driver,
+  held-out reconstruction sheets, GPU telemetry, and checkpoint summaries. The upstream architecture
+  and objectives are unchanged; compatibility/control fixes are native 64px dynamics loading,
+  resumable elapsed-time stop/cosine LR, W&B mode, guaranteed final checkpoints, and a matched-noise
+  action-shuffle diagnostic. Local gates passed: converter + real upstream datasets + 64px model forward;
+  clean patch apply/reverse; Python/Bash syntax; elapsed stop/final save; resume consumes no extra steps;
+  tiny action-independent dynamics control reports shuffle ratio exactly 1.0. NEXT: push/sync `beef6a6`,
+  submit `memmaze-d4-phase1-smoke`, record the ferranti job id, then inspect throughput/checkpoints and
+  smoke reconstruction before starting the 24-hour tokenizer.
