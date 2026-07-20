@@ -1,21 +1,36 @@
-# dreamer4-community-baseline — prep artifacts
+# dreamer4-community-baseline
 
-Integration glue for training the **independent community Dreamer 4**
-([nicklashansen/dreamer4](https://github.com/nicklashansen/dreamer4)) on **Memory Maze**, as an
-independent vanilla baseline (see `tasks/in-progress/memmaze-community-dreamer4-baseline.md` — the
-authoritative runbook). This dir is experimental integration code: it does NOT follow `src/`'s
-one-spec-per-file discipline. The community repo itself is NOT vendored here — it is cloned fresh on
-the cluster (pinned commit in the task file).
+Integration glue for training the independent community Dreamer 4
+([nicklashansen/dreamer4](https://github.com/nicklashansen/dreamer4)) on Memory Maze as an independent
+vanilla baseline. The task is `tasks/backlog/memmaze-community-dreamer4-baseline.md`. This directory is
+experimental integration code and does not follow `src/`'s one-spec-per-file discipline. The community
+repo is not vendored here: `setup_upstream.sh` clones the pinned commit into a gitignored run directory,
+applies the committed patch, and records the exact upstream diff and environment.
 
-- **`memmaze_to_dreamer4.py`** — converts raw Memory-Maze `.npz` trajectories into the community repo's
-  two paired trees: frame shards (`shards/<task>/<task>_shard*.pt` = `{"frames": (S,3,H,W) uint8}`) and a
-  per-frame demo file (`demos/<task>.pt` = `{episode, action(one-hot→16-dim), reward}`). Discrete 6-action
-  Memory Maze → one-hot in the first 6 of the repo's hardcoded 16 action dims. No time-shift (raw MM
-  `action[t]` already = "action that produced frame t", which is exactly the repo's convention).
-- **`validate_integration.py`** — cluster-free regression test: synthesizes MM-format `.npz`, runs the
-  converter, then loads the output with the REAL community `ShardedFrameDataset` + `WMDataset` and runs a
-  64×64 `Encoder/Decoder/Dynamics` forward. Run: `python validate_integration.py --dreamer4 /path/to/dreamer4`.
-  Confirmed PASSING locally on 2026-07-14 against upstream commit `b8abafbf`.
+- `memmaze_to_dreamer4.py` converts raw Memory Maze `.npz` trajectories into the community repo's paired
+  frame-shard and demo trees. The native six-way one-hot action occupies the first six of the upstream
+  stack's 16 action dimensions. No time shift is applied: raw `action[t]` produced raw `image[t]`.
+- `validate_integration.py` synthesizes Memory Maze data, runs the converter, loads it through the real
+  upstream `ShardedFrameDataset` and `WMDataset`, then exercises 64x64 tokenizer and dynamics forwards.
+- `upstream-memmaze.patch` is the narrow adaptation against upstream `b8abafbf`: it selects `memmaze`,
+  accepts native 64px dynamics shards, adds resumable elapsed-time stop/cosine LR, selectable W&B mode,
+  guaranteed final checkpoints, and a matched-noise action-shuffle diagnostic. It does not change the
+  model architecture or training loss.
+- `setup_upstream.sh` and `requirements-community.txt` reproducibly create the external checkout and
+  isolated pinned environment, then rerun the integration regression.
+- `validate_converted.py` checks all converted shard/demo tensors and uses trajectory content fingerprints
+  to prove train/eval disjointness.
+- `phase1_smoke.sh` is the ferranti Phase 0/1 driver: setup, resumable public-data download, full train
+  part 0 plus eval conversion, H100 batch calibration, tokenizer smoke, held-out reconstruction sheet,
+  action-conditioned dynamics smoke, checkpoints, and GPU telemetry.
+- `make_recon_sheet.py` and `summarize_checkpoint.py` provide held-out visual acceptance and stable
+  checkpoint throughput/provenance summaries.
 
-Everything here was built and validated WITHOUT the cluster. The cluster work that remains (download,
-convert, train, eval) is spelled out step-by-step in the task file.
+The cluster-free integration test passed locally against upstream `b8abafbf` on 2026-07-20.
+
+Submit the smoke only through the academic-cluster wrapper:
+
+```bash
+bash scripts/submit_job.sh --cluster ferranti --name memmaze-d4-phase1-smoke --hours 8 -- \
+  bash experiments/dreamer4-community-baseline/phase1_smoke.sh
+```

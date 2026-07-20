@@ -36,6 +36,8 @@ Run with -u. Example (on the cluster, after download_memmaze.py --unzip):
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import sys
 import time
 from pathlib import Path
@@ -47,12 +49,23 @@ import torch.nn.functional as F
 ACTION_DIM = 16   # the community repo hardcodes ActionEncoder(action_dim=16); one-hot lives in [:n_act]
 
 
+def _atomic_torch_save(obj, path: Path):
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    torch.save(obj, tmp)
+    tmp.replace(path)
+
+
 def _load_traj(npz_path: Path, target_size: int | None):
-    """Return (frames_u8 (T,3,H,W) uint8 RGB, action_onehot (T,ACTION_DIM) f32, reward (T,) f32, n_act)."""
+    """Return converted tensors, source action count, and a content fingerprint."""
     with np.load(npz_path) as z:
         img = np.asarray(z["image"])                      # (T,64,64,3) uint8 RGB
         act = np.asarray(z["action"])                     # (T,6) one-hot OR (T,) int
         rew = np.asarray(z["reward"]).astype(np.float32) if "reward" in z else None
+    content_hash = hashlib.sha256()
+    content_hash.update(img.tobytes())
+    content_hash.update(act.tobytes())
+    if rew is not None:
+        content_hash.update(rew.tobytes())
     T = img.shape[0]
     frames = torch.from_numpy(img).permute(0, 3, 1, 2).contiguous()  # (T,3,H,W) uint8
     if target_size is not None and frames.shape[-1] != target_size:
@@ -69,7 +82,8 @@ def _load_traj(npz_path: Path, target_size: int | None):
     onehot = np.zeros((T, ACTION_DIM), dtype=np.float32)
     onehot[np.arange(T), idx] = 1.0
     reward = rew if rew is not None else np.zeros((T,), dtype=np.float32)
-    return frames, torch.from_numpy(onehot), torch.from_numpy(reward.astype(np.float32)), n_act
+    return (frames, torch.from_numpy(onehot), torch.from_numpy(reward.astype(np.float32)),
+            n_act, content_hash.hexdigest())
 
 
 def main():
@@ -94,6 +108,13 @@ def main():
 
     shards_dir = args.out_dir / "shards" / args.task
     demos_dir = args.out_dir / "demos"
+    manifest_path = args.out_dir / "conversion_manifest.json"
+    existing = list(shards_dir.glob("*.pt")) if shards_dir.is_dir() else []
+    if existing or (demos_dir / f"{args.task}.pt").exists() or manifest_path.exists():
+        sys.exit(
+            f"Refusing to mix with an existing conversion under {args.out_dir}. "
+            "Use a fresh --out-dir (or deliberately remove the incomplete conversion first)."
+        )
     shards_dir.mkdir(parents=True, exist_ok=True)
     demos_dir.mkdir(parents=True, exist_ok=True)
 
@@ -102,6 +123,7 @@ def main():
     shard_idx = 0
     ep_all, act_all, rew_all = [], [], []
     n_act_seen = set()
+    content_hashes = []
     t0 = time.time()
 
     def flush_full_shards():
@@ -110,14 +132,15 @@ def main():
             concat = torch.cat(buf, dim=0)
             to_save, remainder = concat[: args.shard_size], concat[args.shard_size:]
             out = shards_dir / f"{args.task}_shard{shard_idx:04d}.pt"
-            torch.save({"frames": to_save.contiguous()}, out)
+            _atomic_torch_save({"frames": to_save.contiguous()}, out)
             buf = [remainder] if remainder.shape[0] > 0 else []
             buf_n = remainder.shape[0]
             shard_idx += 1
 
     for i, f in enumerate(files):
-        frames, onehot, reward, n_act = _load_traj(f, args.target_size)
+        frames, onehot, reward, n_act, content_hash = _load_traj(f, args.target_size)
         n_act_seen.add(n_act)
+        content_hashes.append(content_hash)
         T = frames.shape[0]
         if args.action_shift != 0:                        # optional A/B only; default keeps raw alignment
             onehot = torch.roll(onehot, shifts=args.action_shift, dims=0)
@@ -134,7 +157,7 @@ def main():
 
     if buf_n > 0:                                         # trailing partial shard
         out = shards_dir / f"{args.task}_shard{shard_idx:04d}.pt"
-        torch.save({"frames": torch.cat(buf, dim=0).contiguous()}, out)
+        _atomic_torch_save({"frames": torch.cat(buf, dim=0).contiguous()}, out)
         shard_idx += 1
 
     episode = torch.cat(ep_all)
@@ -142,8 +165,34 @@ def main():
     reward = torch.cat(rew_all)
     N = episode.shape[0]
     total_shard_frames = (shard_idx - 1) * args.shard_size if shard_idx else 0
-    torch.save({"episode": episode, "action": action, "reward": reward},
-               demos_dir / f"{args.task}.pt")
+    _atomic_torch_save(
+        {"episode": episode, "action": action, "reward": reward},
+        demos_dir / f"{args.task}.pt",
+    )
+
+    rel_names = [str(f.relative_to(args.raw)).replace("\\", "/") for f in files]
+    names_sha256 = hashlib.sha256("\n".join(rel_names).encode("utf-8")).hexdigest()
+    manifest = {
+        "format": "dreamer4-community-memmaze-v1",
+        "task": args.task,
+        "raw_root": str(args.raw.resolve()),
+        "trajectory_count": n,
+        "frame_count": N,
+        "trajectory_names_sha256": names_sha256,
+        "trajectory_names": rel_names,
+        "trajectory_content_sha256": content_hashes,
+        "shard_count": shard_idx,
+        "shard_size": args.shard_size,
+        "target_size": args.target_size,
+        "action_shift": args.action_shift,
+        "action_dim_source": sorted(n_act_seen),
+        "action_dim_stored": ACTION_DIM,
+        "action_convention": "raw action[t] produced raw image[t]; no shift by default",
+        "channel_order": "RGB",
+    }
+    manifest_tmp = manifest_path.with_suffix(".json.tmp")
+    manifest_tmp.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    manifest_tmp.replace(manifest_path)
 
     if len(n_act_seen) != 1:
         print(f"  WARNING: inconsistent n_actions across trajectories: {sorted(n_act_seen)}", flush=True)
