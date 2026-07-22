@@ -55,35 +55,39 @@ def _atomic_torch_save(obj, path: Path):
     tmp.replace(path)
 
 
-def _load_traj(npz_path: Path, target_size: int | None):
-    """Return converted tensors, source action count, and a content fingerprint."""
+def _hash_array(hasher, array: np.ndarray) -> None:
+    """Hash an array without materializing a second full-size ``bytes`` object."""
+    if not array.flags.c_contiguous:
+        array = np.ascontiguousarray(array)
+    hasher.update(memoryview(array).cast("B"))
+
+
+def _load_traj(npz_path: Path):
+    """Return raw arrays and a content fingerprint without duplicating the frames."""
     with np.load(npz_path) as z:
         img = np.asarray(z["image"])                      # (T,64,64,3) uint8 RGB
         act = np.asarray(z["action"])                     # (T,6) one-hot OR (T,) int
         rew = np.asarray(z["reward"]).astype(np.float32) if "reward" in z else None
     content_hash = hashlib.sha256()
-    content_hash.update(img.tobytes())
-    content_hash.update(act.tobytes())
+    _hash_array(content_hash, img)
+    _hash_array(content_hash, act)
     if rew is not None:
-        content_hash.update(rew.tobytes())
-    T = img.shape[0]
-    frames = torch.from_numpy(img).permute(0, 3, 1, 2).contiguous()  # (T,3,H,W) uint8
-    if target_size is not None and frames.shape[-1] != target_size:
-        f = frames.float() / 255.0
-        f = F.interpolate(f, size=(target_size, target_size), mode="bilinear", align_corners=False)
-        frames = (f.clamp(0, 1) * 255.0).to(torch.uint8)
+        _hash_array(content_hash, rew)
+    return img, act, rew, content_hash.hexdigest()
 
-    if act.ndim == 2:                                     # one-hot (T, n_act)
-        n_act = act.shape[1]
-        idx = act.argmax(axis=1)
-    else:                                                 # int (T,)
-        n_act = int(act.max()) + 1
-        idx = act.astype(np.int64)
-    onehot = np.zeros((T, ACTION_DIM), dtype=np.float32)
-    onehot[np.arange(T), idx] = 1.0
-    reward = rew if rew is not None else np.zeros((T,), dtype=np.float32)
-    return (frames, torch.from_numpy(onehot), torch.from_numpy(reward.astype(np.float32)),
-            n_act, content_hash.hexdigest())
+
+def _trajectory_length(npz_path: Path) -> int:
+    """Read only the small action member during the allocation pre-pass."""
+    with np.load(npz_path) as z:
+        return int(z["action"].shape[0])
+
+
+def _peak_rss_gib() -> float | None:
+    """Return process peak RSS on the Linux cluster without adding a dependency."""
+    if not sys.platform.startswith("linux"):
+        return None
+    import resource
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (1024 ** 2)
 
 
 def main():
@@ -118,53 +122,98 @@ def main():
     shards_dir.mkdir(parents=True, exist_ok=True)
     demos_dir.mkdir(parents=True, exist_ok=True)
 
-    buf: list[torch.Tensor] = []          # rolling frame buffer (each (t,3,H,W))
-    buf_n = 0
+    # Preallocate the final demo arrays. The old converter kept thousands of tensors in lists and used
+    # repeated torch.cat calls for frames; allocator-retained temporaries made RSS grow by roughly one
+    # full trajectory per iteration. This pre-pass touches only the small action member in each archive.
+    lengths = [_trajectory_length(f) for f in files]
+    total_frames = sum(lengths)
+    episode = torch.empty((total_frames,), dtype=torch.int64)
+    action = torch.zeros((total_frames, ACTION_DIM), dtype=torch.float32)
+    reward = torch.empty((total_frames,), dtype=torch.float32)
+
+    shard_buf: torch.Tensor | None = None
+    shard_fill = 0
     shard_idx = 0
-    ep_all, act_all, rew_all = [], [], []
+    demo_pos = 0
     n_act_seen = set()
     content_hashes = []
     t0 = time.time()
 
-    def flush_full_shards():
-        nonlocal buf, buf_n, shard_idx
-        while buf_n >= args.shard_size:
-            concat = torch.cat(buf, dim=0)
-            to_save, remainder = concat[: args.shard_size], concat[args.shard_size:]
-            out = shards_dir / f"{args.task}_shard{shard_idx:04d}.pt"
-            _atomic_torch_save({"frames": to_save.contiguous()}, out)
-            buf = [remainder] if remainder.shape[0] > 0 else []
-            buf_n = remainder.shape[0]
-            shard_idx += 1
-
-    for i, f in enumerate(files):
-        frames, onehot, reward, n_act, content_hash = _load_traj(f, args.target_size)
-        n_act_seen.add(n_act)
-        content_hashes.append(content_hash)
-        T = frames.shape[0]
-        if args.action_shift != 0:                        # optional A/B only; default keeps raw alignment
-            onehot = torch.roll(onehot, shifts=args.action_shift, dims=0)
-            reward = torch.roll(reward, shifts=args.action_shift, dims=0)
-        buf.append(frames)
-        buf_n += T
-        ep_all.append(torch.full((T,), i, dtype=torch.int64))
-        act_all.append(onehot)
-        rew_all.append(reward)
-        flush_full_shards()
-        if (i + 1) % 200 == 0 or i + 1 == n:
-            print(f"  {i + 1}/{n} traj  ({(i + 1) / max(time.time() - t0, 1e-6):.1f}/s, "
-                  f"{shard_idx} shards)", flush=True)
-
-    if buf_n > 0:                                         # trailing partial shard
+    def flush_shard(frames: torch.Tensor) -> None:
+        nonlocal shard_idx
         out = shards_dir / f"{args.task}_shard{shard_idx:04d}.pt"
-        _atomic_torch_save({"frames": torch.cat(buf, dim=0).contiguous()}, out)
+        _atomic_torch_save({"frames": frames}, out)
         shard_idx += 1
 
-    episode = torch.cat(ep_all)
-    action = torch.cat(act_all)
-    reward = torch.cat(rew_all)
-    N = episode.shape[0]
-    total_shard_frames = (shard_idx - 1) * args.shard_size if shard_idx else 0
+    for i, f in enumerate(files):
+        img, act, rew, content_hash = _load_traj(f)
+        if img.dtype != np.uint8 or img.ndim != 4 or img.shape[-1] != 3:
+            raise ValueError(f"{f}: expected image (T,H,W,3) uint8, got {img.shape} {img.dtype}")
+        T = int(img.shape[0])
+        if T != lengths[i] or act.shape[0] != T or (rew is not None and rew.shape != (T,)):
+            raise ValueError(f"{f}: inconsistent time dimensions image={T}, action={act.shape}, reward="
+                             f"{None if rew is None else rew.shape}")
+
+        if act.ndim == 2:                                 # one-hot (T, n_act)
+            n_act = int(act.shape[1])
+            idx = act.argmax(axis=1).astype(np.int64, copy=False)
+        elif act.ndim == 1:                               # int (T,)
+            n_act = int(act.max()) + 1
+            idx = act.astype(np.int64, copy=False)
+        else:
+            raise ValueError(f"{f}: expected action (T,A) or (T,), got {act.shape}")
+        if n_act > ACTION_DIM or idx.min() < 0 or idx.max() >= ACTION_DIM:
+            raise ValueError(f"{f}: action indices do not fit stored dimension {ACTION_DIM}")
+
+        rew_values = rew if rew is not None else np.zeros((T,), dtype=np.float32)
+        if args.action_shift != 0:                        # optional A/B only; default keeps raw alignment
+            idx = np.roll(idx, args.action_shift)
+            rew_values = np.roll(rew_values, args.action_shift)
+
+        dst = slice(demo_pos, demo_pos + T)
+        episode[dst] = i
+        rows = torch.arange(demo_pos, demo_pos + T)
+        action[rows, torch.from_numpy(idx)] = 1.0
+        reward[dst] = torch.from_numpy(np.asarray(rew_values, dtype=np.float32))
+        demo_pos += T
+
+        n_act_seen.add(n_act)
+        content_hashes.append(content_hash)
+
+        out_h = args.target_size or int(img.shape[1])
+        out_w = args.target_size or int(img.shape[2])
+        if shard_buf is None:
+            shard_buf = torch.empty((args.shard_size, 3, out_h, out_w), dtype=torch.uint8)
+        elif tuple(shard_buf.shape[2:]) != (out_h, out_w):
+            raise ValueError(f"{f}: frame size changed to {(out_h, out_w)}")
+
+        src_pos = 0
+        while src_pos < T:
+            take = min(args.shard_size - shard_fill, T - src_pos)
+            src = torch.from_numpy(img[src_pos:src_pos + take]).permute(0, 3, 1, 2)
+            if tuple(src.shape[2:]) != (out_h, out_w):
+                resized = F.interpolate(src.float(), size=(out_h, out_w), mode="bilinear",
+                                        align_corners=False)
+                src = resized.clamp_(0, 255).to(torch.uint8)
+            shard_buf[shard_fill:shard_fill + take].copy_(src)
+            shard_fill += take
+            src_pos += take
+            if shard_fill == args.shard_size:
+                flush_shard(shard_buf)
+                shard_fill = 0
+
+        if (i + 1) % 200 == 0 or i + 1 == n:
+            peak_rss = _peak_rss_gib()
+            rss_text = "" if peak_rss is None else f", peak_rss={peak_rss:.2f} GiB"
+            print(f"  {i + 1}/{n} traj  ({(i + 1) / max(time.time() - t0, 1e-6):.1f}/s, "
+                  f"{shard_idx} shards{rss_text})", flush=True)
+
+    if shard_fill > 0:                                    # clone: do not serialize unused backing storage
+        assert shard_buf is not None
+        flush_shard(shard_buf[:shard_fill].clone())
+
+    assert demo_pos == total_frames
+    N = total_frames
     _atomic_torch_save(
         {"episode": episode, "action": action, "reward": reward},
         demos_dir / f"{args.task}.pt",
@@ -173,7 +222,7 @@ def main():
     rel_names = [str(f.relative_to(args.raw)).replace("\\", "/") for f in files]
     names_sha256 = hashlib.sha256("\n".join(rel_names).encode("utf-8")).hexdigest()
     manifest = {
-        "format": "dreamer4-community-memmaze-v1",
+        "format": "dreamer4-community-memmaze-v2-bounded-memory",
         "task": args.task,
         "raw_root": str(args.raw.resolve()),
         "trajectory_count": n,
@@ -200,7 +249,7 @@ def main():
           f"(shard_size={args.shard_size}), n_actions={sorted(n_act_seen)}", flush=True)
     print(f"  frames -> {shards_dir}", flush=True)
     print(f"  demo   -> {demos_dir / (args.task + '.pt')}  "
-          f"(episode/action(A={ACTION_DIM})/reward, N must be >= shard total {total_shard_frames})", flush=True)
+          f"(episode/action(A={ACTION_DIM})/reward, N={N})", flush=True)
 
 
 if __name__ == "__main__":

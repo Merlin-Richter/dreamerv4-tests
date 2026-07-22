@@ -118,3 +118,12 @@ to tell where the multi-step task currently stands without reconstructing state 
   `runs/memmaze-d4-phase1-smoke/`; stable converted data under `data/d4_memmaze_community/`.
   NEXT: monitor 418360 through the wrappers; on success pull logs/metrics/checkpoints, inspect the smoke
   reconstruction and action-shuffle/throughput evidence, then configure the 24-hour tokenizer run.
+- **2026-07-22 — Phase 1 conversion OOM diagnosed and fixed.** Ferranti job **418360** ended
+  `OUT_OF_MEMORY` after 27m30s with MaxRSS 32,656,728 KiB while converting trajectory 2,400/2,900 of
+  `train-part0`; no H100 training began and eval conversion had not begun. The old converter repeatedly
+  allocated full-trajectory/concatenation temporaries and its RSS grew approximately with raw frames
+  processed. The replacement uses one fixed frame-shard buffer, preallocated aligned demo tensors, and
+  buffer-protocol hashing (no full-frame `bytes` copy), and reports peak RSS every 200 trajectories.
+  Synthetic validation passed for 2,701 frames / 22 shards with exact frame-demo alignment. The rerun
+  writes fresh `train-part0-v2` / `eval-v2` outputs so job 418360's partial v1 output cannot be mixed in.
+  NEXT: push/sync the bounded-memory fix, resubmit Phase 1, and verify RSS remains bounded before training.
