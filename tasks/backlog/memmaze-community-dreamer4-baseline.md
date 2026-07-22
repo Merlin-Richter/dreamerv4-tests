@@ -127,3 +127,9 @@ to tell where the multi-step task currently stands without reconstructing state 
   Synthetic validation passed for 2,701 frames / 22 shards with exact frame-demo alignment. The rerun
   writes fresh `train-part0-v2` / `eval-v2` outputs so job 418360's partial v1 output cannot be mixed in.
   NEXT: push/sync the bounded-memory fix, resubmit Phase 1, and verify RSS remains bounded before training.
+- **2026-07-22 — Phase 1 resubmitted.** Bounded-memory conversion commit
+  `84ebb28fad34574fe637a74fbef35c216266c227` was pushed and synced exactly to ferranti. Replacement job
+  **419859** (`memmaze-d4-phase1-smoke-v2`, 1x H100, 16 CPUs, 8-hour allocation) was submitted and is
+  pending for priority. Active training time remains 0 h. Artifacts will land under
+  `runs/memmaze-d4-phase1-smoke-v2/`; converted data under `data/d4_memmaze_community/*-v2`.
+  NEXT: inspect the first conversion progress reports for bounded peak RSS, then follow smoke training.
