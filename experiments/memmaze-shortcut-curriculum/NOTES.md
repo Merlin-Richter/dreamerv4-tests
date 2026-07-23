@@ -43,4 +43,9 @@ The trainer checkpoints hourly, at each unlock boundary, and at epoch end. The S
 
 ## Provenance
 
-Pending submission.
+- Submitted 2026-07-23 22:10 CEST to ferranti: job **420969**, 1×H100, 8 CPUs, 13-hour
+  allocation, code SHA `de1f3bbf9c06a9888a5738d35e9f269d004d8022`.
+- Startup verified on `mlcbm005`: latent cache HIT, source checkpoint loaded, 41.04M params,
+  `mem2mem_frac=1.0`, `bootstrap=True`, `use_ff9=False`, `max_unlocked=6/6`, 12 active hours,
+  first coarse unlock at hour 1 and full unlock at hour 6.
+- W&B run `transformer-mem2mem/abj202m3`.
