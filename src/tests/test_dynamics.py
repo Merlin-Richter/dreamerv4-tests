@@ -38,6 +38,19 @@ def test_forward_shape():
     print("[ok] forward shape (B,T,n_latents,bottleneck_dim)")
 
 
+def test_shortcut_range_is_k4_or_finer():
+    m = DynamicsModel(DynamicsModelConfig(**BASE)).eval()
+    _, d_idx = m.sample_tau_d(64, 64, "cpu")
+    assert int(d_idx.min()) >= 2, "K=1 and K=2 step sizes must never be sampled"
+    try:
+        m.rollout_init(torch.randn(1, 2, 4, 16), torch.zeros(1, 2, dtype=torch.long), K=2)
+    except ValueError as exc:
+        assert "[4, 16]" in str(exc)
+    else:
+        raise AssertionError("K=2 inference must be rejected")
+    print("[ok] shortcut training/inference is restricted to K>=4 (d<=1/4)")
+
+
 def test_loss_vanilla_and_ff9_gradient():
     B, T, L, D = 2, 6, 4, 16
     mv = DynamicsModel(DynamicsModelConfig(**BASE))
@@ -110,6 +123,7 @@ def test_readonly_branch_preserves_state():
 
 if __name__ == "__main__":
     test_forward_shape()
+    test_shortcut_range_is_k4_or_finer()
     test_loss_vanilla_and_ff9_gradient()
     test_carrying_generate_and_eviction()
     test_long_context_prefill()

@@ -63,8 +63,9 @@ relay each channel forward in time.
 Combines **diffusion forcing** (a per-frame noise level) with **shortcut models** (conditioning on step
 size so you can take big sampling steps). Let `f_θ` be the model.
 
-**Setup.** Each frame `t` gets its own signal level `τ_t ∈ [0,1]` and step size `d_t = 1/K`. With `z_0`
-noise, `z_1` the clean target latent:
+**Setup.** Each frame `t` gets its own signal level `τ_t ∈ [0,1]` and step size `d_t = 1/K`.
+Training samples only `K ∈ {4, 8, ..., K_max}`: `d=1/2` and `d=1` are neither trained nor supported
+at inference. With `z_0` noise, `z_1` the clean target latent:
 
 ```
 z̃ = (1 − τ) z_0 + τ z_1            ẑ_1 = f_θ(z̃, τ, d, a)
@@ -139,7 +140,8 @@ DreamerV4 h-state analogue, aimed at the long-horizon-memory limitation.
 ## Interface
 - `DynamicsModelConfig`: `embedding_dim, depth, n_heads, gqa_groups (1 = plain multi-head),
   mlp_ratio, n_latents, bottleneck_dim, max_temporal_length`; `max_sampling_steps`(=K_max),
-  `inference_steps`(=K), `context_signal`, `ramp_min`; `n_actions, n_registers, n_memory, ff9_k`.
+  `min_sampling_steps`(=K_min, default 4), `inference_steps`(=K), `context_signal`, `ramp_min`;
+  `n_actions, n_registers, n_memory, ff9_k`.
 - `forward(z_tilde, tau_idx, d_idx, actions=None, memory_in=None, return_memory=False) -> ẑ_1[, mem]`.
 - `loss(z1, action_idx=None) -> scalar` — shortcut forcing (+ FF9 sufficiency when `n_memory>0`).
 - `generate(context, n_generate, K=None, action_idx=None, max_ctx=None) -> latents` — carrying

@@ -33,7 +33,7 @@ from models.dynamics_model import DynamicsModel, DynamicsModelConfig  # noqa: E4
 # Small, fp32, dropout off. depth=6 -> temporal at i%3==1 = {1,4} (2 temporal layers, enough to
 # exhibit the stacked-layer effect); depth=9 = production cadence (3 temporal layers).
 SMALL = dict(embedding_dim=32, n_heads=4, mlp_ratio=2.0, n_latents=2, bottleneck_dim=8,
-             n_registers=2, max_sampling_steps=4, inference_steps=2, drop_rate=0.0, att_drop_rate=0.0)
+             n_registers=2, max_sampling_steps=4, inference_steps=4, drop_rate=0.0, att_drop_rate=0.0)
 WITHIN_TOL = 1e-3   # fp headroom for within-window equivalence (observed ~5e-6).
 DIVERGE_MIN = 1e-2  # post-eviction divergence is orders above this (observed >0.1).
 

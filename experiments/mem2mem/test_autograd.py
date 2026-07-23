@@ -25,7 +25,7 @@ from models.dynamics_model import DynamicsModel, DynamicsModelConfig  # noqa: E4
 from rollout import mem2mem_rollout_loss                              # noqa: E402
 
 CFG = dict(embedding_dim=32, n_heads=4, mlp_ratio=2.0, depth=6, n_latents=2, bottleneck_dim=8,
-           n_registers=2, max_temporal_length=8, max_sampling_steps=4, inference_steps=2,
+           n_registers=2, max_temporal_length=8, max_sampling_steps=4, inference_steps=4,
            n_memory=2, ff9_k=1, n_actions=2, drop_rate=0.0, att_drop_rate=0.0)
 B, T, L, D = 2, 12, 2, 8
 W = 4  # window; init [0,4), first loss-bearing window [2,6) -> frame 0 evicted from all new halves

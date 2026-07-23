@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import random
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -40,6 +41,25 @@ def step_curriculum(p, n_d, warmup, add_every):
     if p < warmup:
         return 1
     return min(n_d, 2 + int((p - warmup) / add_every))
+
+
+def wallclock_curriculum(hours, *, warmup_hours, full_hours, max_unlocked):
+    """Finest-first unlock count for a wall-clock curriculum.
+
+    ``max_unlocked-1`` coarse targets are introduced evenly from ``warmup_hours`` (first unlock)
+    through ``full_hours`` (final unlock). For the Memory Maze K=4 continuation this produces
+    1/128 only for hour 0..1, then unlocks 1/64, 1/32, 1/16, 1/8, and finally 1/4 at hour 6.
+    """
+    if max_unlocked <= 1 or hours < warmup_hours:
+        return 1
+    if hours >= full_hours:
+        return max_unlocked
+    if max_unlocked == 2:
+        return 2
+    # There are max_unlocked-1 coarse targets, hence max_unlocked-2 intervals between the first
+    # coarse unlock at warmup_hours and the final coarse unlock at full_hours.
+    interval = (full_hours - warmup_hours) / (max_unlocked - 2)
+    return min(max_unlocked, 2 + int((hours - warmup_hours) / interval))
 
 
 def valid_n_ctx(N, clip_len):
@@ -101,19 +121,42 @@ def main():
                         "windows). Default None = OFF (byte-identical). Training-only; forward/inference "
                         "unchanged. Logs the per-epoch clip fraction.")
     p.add_argument("--no-curriculum", action="store_true",
-                   help="Disable the step-size curriculum (sample all d steps from step 0). "
+                   help="Disable the step-size curriculum (sample every supported K>=K_min step from "
+                        "step 0). "
                         "Default: ramp d finest-first (only d_min for --curr-warmup, then +1 step every "
                         "--curr-add-every of training).")
     p.add_argument("--curr-warmup", type=float, default=0.15,
                    help="Fraction of training with ONLY d_min (pure flow, no bootstrap) before unlocking.")
     p.add_argument("--curr-add-every", type=float, default=0.025,
                    help="After warmup, unlock the next coarser step every this fraction of training.")
+    p.add_argument("--wallclock-hours", type=float, default=0.0,
+                   help="Positive value enables a wall-clock-bounded continuation. Training stops after "
+                        "this many active optimizer-step hours; LR and the optional wall-clock shortcut "
+                        "curriculum use the same clock. Use a generous outer SLURM allocation.")
+    p.add_argument("--curr-warmup-hours", type=float, default=1.0,
+                   help="Wall-clock curriculum: active hours with d_min only; first coarse d unlocks here.")
+    p.add_argument("--curr-full-hours", type=float, default=6.0,
+                   help="Wall-clock curriculum: active hour at which --curr-max-unlocked is reached.")
+    p.add_argument("--curr-max-unlocked", type=int, default=None,
+                   help="Maximum number of finest supported d targets to unlock. Default: every supported "
+                        "target (K>=min_sampling_steps; six targets for K_max=128, K_min=4).")
+    p.add_argument("--checkpoint-every-hours", type=float, default=1.0,
+                   help="During wall-clock training, overwrite the continuation checkpoint at this active-"
+                        "hour cadence, in addition to epoch-end and unlock-boundary saves.")
     p.add_argument("--max-frames", type=int, default=None, help="Cap rollout length (memory/footprint).")
     p.add_argument("--val-fraction", type=float, default=0.05)
     p.add_argument("--max-episodes", type=int, default=None, help="Use only the first N episodes (smoke).")
     p.add_argument("--num-workers", type=int, default=4)
     wlog.add_args(p)
     args = p.parse_args()
+    if args.wallclock_hours < 0:
+        p.error("--wallclock-hours must be non-negative")
+    if args.wallclock_hours > 0:
+        if not (0 <= args.curr_warmup_hours < args.curr_full_hours <= args.wallclock_hours):
+            p.error("wall-clock curriculum requires 0 <= --curr-warmup-hours < "
+                    "--curr-full-hours <= --wallclock-hours")
+        if args.checkpoint_every_hours <= 0:
+            p.error("--checkpoint-every-hours must be positive")
 
     random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -153,11 +196,19 @@ def main():
         print(f"[resume] loaded weights from {args.resume}")
     nparams = sum(p.numel() for p in model.parameters())
     ncts = valid_n_ctx(N, clip_len)
+    max_supported = getattr(model, "n_train_d", model.n_d)
+    max_unlocked = max_supported if args.curr_max_unlocked is None else args.curr_max_unlocked
+    if not (1 <= max_unlocked <= max_supported):
+        p.error(f"--curr-max-unlocked must be in [1, {max_supported}], got {max_unlocked}")
     print(f"device={device} params={nparams/1e6:.2f}M n_actions={n_actions} clip_len={clip_len} "
           f"n_ctx choices={ncts} mem2mem_frac={args.mem2mem_frac} "
           f"bootstrap={not (args.no_bootstrap or args.boot_loss_off)} "
           f"(boot_loss_off={args.boot_loss_off}) ff9_norm_flow={args.ff9_norm_flow} "
           f"use_ff9={not args.no_ff9} relay_grad_clip={args.relay_grad_clip}")
+    if args.wallclock_hours > 0:
+        print(f"[wallclock] train={args.wallclock_hours:g}h d_min_only={args.curr_warmup_hours:g}h "
+              f"full_unlock={args.curr_full_hours:g}h max_unlocked={max_unlocked}/{max_supported} "
+              f"checkpoint_every={args.checkpoint_every_hours:g}h")
 
     train_ds = ChunkClipDataset(lat, train_idx, clip_len, actions=actions)
     val_ds = ChunkClipDataset(lat, val_idx, clip_len, actions=actions)
@@ -179,27 +230,75 @@ def main():
         q = (s - decay_start) / max(1, total_steps - decay_start)
         return emr + (1 - emr) * 0.5 * (1 + np.cos(np.pi * q))
 
-    sched = LambdaLR(opt, lr_lambda)
+    sched = None if args.wallclock_hours > 0 else LambdaLR(opt, lr_lambda)
     args.checkpoint.parent.mkdir(parents=True, exist_ok=True)
+
+    active_seconds = 0.0
+    next_checkpoint_hour = args.checkpoint_every_hours
+
+    def save_checkpoint(unlocked):
+        torch.save({
+            "model_state_dict": model.state_dict(),
+            "config": asdict(cfg),
+            "continuation_state": {
+                "active_hours": active_seconds / 3600.0,
+                "optimizer_steps": gstep,
+                "n_d_unlocked": unlocked,
+            },
+        }, args.checkpoint)
+
+    def set_wallclock_lr(hours):
+        # Rebuild fresh AdamW moments gently during the d_min-only hour, hold peak LR for the bulk,
+        # then cosine-cool over the final 20% of active training.
+        if hours < args.curr_warmup_hours:
+            q = hours / max(args.curr_warmup_hours, 1e-12)
+            scale = emr + (1 - emr) * q
+        else:
+            decay_hour = 0.8 * args.wallclock_hours
+            if hours < decay_hour:
+                scale = 1.0
+            else:
+                q = (hours - decay_hour) / max(args.wallclock_hours - decay_hour, 1e-12)
+                q = min(1.0, max(0.0, q))
+                scale = emr + (1 - emr) * 0.5 * (1 + np.cos(np.pi * q))
+        for group in opt.param_groups:
+            group["lr"] = args.lr * scale
 
     gstep = 0
     last_unlocked = 1
+    stop = False
     for epoch in range(args.epochs):
         model.train()
         agg = {"normal": 0.0, "mem2mem": 0.0, "flow": 0.0, "flow_norm": 0.0, "ff9": 0.0,
                "n_m": 0, "n_n": 0, "relay_clipped": 0.0, "relay_hooks": 0.0}
         for batch in train_loader:
+            step_started = time.monotonic()
+            active_hours = active_seconds / 3600.0
+            if args.wallclock_hours > 0:
+                if active_hours >= args.wallclock_hours:
+                    stop = True
+                    break
+                set_wallclock_lr(active_hours)
             z1, acts = _split_batch(batch, device)   # batch IS fp32 latents (from the cache)
             # step-size curriculum: only d_min while no_bootstrap (winner repro); ramp finest-first
             # otherwise. --boot-loss-off keeps the curriculum (coarse d sampled) but drops the boot term.
             if args.no_bootstrap:
                 n_unlocked = 1
+            elif args.wallclock_hours > 0:
+                n_unlocked = wallclock_curriculum(
+                    active_hours, warmup_hours=args.curr_warmup_hours,
+                    full_hours=args.curr_full_hours, max_unlocked=max_unlocked)
             elif args.no_curriculum:
                 n_unlocked = None
             else:
-                n_unlocked = step_curriculum(gstep / total_steps, model.n_d,
+                n_unlocked = step_curriculum(gstep / total_steps, max_supported,
                                              args.curr_warmup, args.curr_add_every)
-            last_unlocked = n_unlocked if n_unlocked is not None else model.n_d
+            current_unlocked = n_unlocked if n_unlocked is not None else max_supported
+            if current_unlocked != last_unlocked:
+                save_checkpoint(last_unlocked)
+                print(f"[curriculum] active={active_hours:.3f}h unlock "
+                      f"{last_unlocked}->{current_unlocked}/{max_supported}")
+            last_unlocked = current_unlocked
             use_boot = not (args.no_bootstrap or args.boot_loss_off)
             use_m2m = torch.rand(1, generator=gen, device=device).item() < args.mem2mem_frac
             with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=use_amp):
@@ -227,7 +326,21 @@ def main():
                 if st:
                     agg["relay_clipped"] += st["clipped"]; agg["relay_hooks"] += st["hooks"]
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            opt.step(); sched.step(); gstep += 1
+            opt.step()
+            if sched is not None:
+                sched.step()
+            gstep += 1
+            active_seconds += time.monotonic() - step_started
+            if args.wallclock_hours > 0:
+                active_hours = active_seconds / 3600.0
+                if active_hours >= next_checkpoint_hour:
+                    save_checkpoint(last_unlocked)
+                    print(f"[checkpoint] active={active_hours:.3f}h -> {args.checkpoint}")
+                    while next_checkpoint_hour <= active_hours:
+                        next_checkpoint_hour += args.checkpoint_every_hours
+                if active_hours >= args.wallclock_hours:
+                    stop = True
+                    break
 
         # --- light val: normal shortcut-forcing loss on a fixed window (monitor) ---
         model.eval()
@@ -245,14 +358,16 @@ def main():
         print(f"Epoch {epoch+1}/{args.epochs} | val(normal): {vloss:.5f} | "
               f"train mem2mem: {agg['mem2mem']/nm:.5f} (flow {agg['flow']/nm:.4f} "
               f"flow_norm {agg['flow_norm']/nm:.4f} ff9 {agg['ff9']/nm:.4f}) "
-              f"| train normal: {agg['normal']/nn:.5f} | d_unlocked {last_unlocked}/{model.n_d} "
+              f"| train normal: {agg['normal']/nn:.5f} | d_unlocked {last_unlocked}/{max_supported} "
               f"| lr {opt.param_groups[0]['lr']:.2e}{clip_str}")
         wlog.log({"val/loss_normal": vloss, "train/mem2mem": agg["mem2mem"]/nm,
                   "train/mem2mem_flow": agg["flow"]/nm, "train/mem2mem_flow_norm": agg["flow_norm"]/nm,
                   "train/mem2mem_ff9": agg["ff9"]/nm, "train/relay_clip_frac": relay_clip_frac,
                   "train/normal": agg["normal"]/nn, "train/d_unlocked": last_unlocked,
                   "lr": opt.param_groups[0]["lr"]}, step=epoch)
-        torch.save({"model_state_dict": model.state_dict(), "config": asdict(cfg)}, args.checkpoint)
+        save_checkpoint(last_unlocked)
+        if stop:
+            break
     print(f"saved -> {args.checkpoint}")
 
 

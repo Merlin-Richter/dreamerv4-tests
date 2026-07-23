@@ -309,9 +309,10 @@ def run_test_checkpoint(args: argparse.Namespace) -> None:
         raise ValueError(f"--context-frames must be in [1, {L - 1}] for clip length {L}.")
 
     K = cfg.inference_steps if args.inference_steps is None else args.inference_steps
-    if K < 1 or K > cfg.max_sampling_steps or (K & (K - 1)) != 0:
+    if K < cfg.min_sampling_steps or K > cfg.max_sampling_steps or (K & (K - 1)) != 0:
         raise ValueError(
-            f"--inference-steps must be a power of two in [1, {cfg.max_sampling_steps}], got {K}."
+            f"--inference-steps must be a power of two in "
+            f"[{cfg.min_sampling_steps}, {cfg.max_sampling_steps}], got {K}."
         )
 
     win = "Dynamics rollout: GT (top) | context+prediction (bottom)  (space=new, q/Esc=quit)"
@@ -401,7 +402,7 @@ def main():
                         help="Frames of ground-truth context before generation (test mode).")
     parser.add_argument("--inference-steps", type=int, default=None,
                         help="Shortcut steps K per generated frame in --test-checkpoint "
-                             "(power of 2; default: checkpoint config, typically 4). "
+                             "(power of 2, K>=4; default: checkpoint config, typically 4). "
                              "Use 128 for the finest K_max schedule.")
     parser.add_argument("--context-length", type=int, default=None,
                         help="Clip length in frames. Default: DynamicsModelConfig.max_temporal_length.")

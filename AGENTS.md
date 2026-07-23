@@ -239,7 +239,8 @@ soft-cap fields.
 - Must match the tokenizer: `bottleneck_dim`, `n_latents`.
 - Transformer: `embedding_dim, depth, n_heads, gqa_groups (1 = plain MHA; >1 = grouped-query
   attention, KV cache shrinks by this factor), mlp_ratio, max_temporal_length, n_registers`.
-- Shortcut forcing: `max_sampling_steps` (K_max, power of two), `inference_steps` (K, typically 4),
+- Shortcut forcing: `max_sampling_steps` (K_max, power of two), `min_sampling_steps` (K_min=4;
+  K∈{1,2} are unsupported), `inference_steps` (K, typically 4),
   `context_signal` (τ_ctx ≈ 0.9), `ramp_min`.
 - Conditioning / memory: `n_actions` (0 = unlabeled), `n_memory` (0 = vanilla), `ff9_k` (FF9 lookahead).
 

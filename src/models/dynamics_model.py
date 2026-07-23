@@ -63,6 +63,7 @@ class DynamicsModelConfig:
 
     # Shortcut forcing schedule.
     max_sampling_steps: int = 128   # K_max; finest step d_min = 1/K_max. Must be a power of two.
+    min_sampling_steps: int = 4     # K_min; coarsest supported step d_max = 1/K_min.
     inference_steps: int = 4        # K used per frame at generation time (d = 1/K).
     context_signal: float = 0.9     # tau_ctx = SIGNAL level of context frames during rollout
                                     # (1.0 = clean, 0.0 = pure noise). Keep high; holding context
@@ -269,7 +270,14 @@ class DynamicsModel(nn.Module):
 
         self.K_max = config.max_sampling_steps
         assert (self.K_max & (self.K_max - 1)) == 0, "max_sampling_steps must be a power of two"
+        self.K_min = config.min_sampling_steps
+        assert self.K_min >= 1 and (self.K_min & (self.K_min - 1)) == 0, \
+            "min_sampling_steps must be a positive power of two"
+        assert self.K_min <= self.K_max, \
+            "min_sampling_steps must not exceed max_sampling_steps"
         self.n_d = self.K_max.bit_length()  # number of distinct step sizes: K in {1,2,...,K_max}
+        self.min_d_idx = self.K_min.bit_length() - 1
+        self.n_train_d = self.n_d - self.min_d_idx
 
         # Latent <-> model-dim projections. Latents are read out for the x-prediction.
         self.in_proj = nn.Linear(config.bottleneck_dim, E)
@@ -309,8 +317,8 @@ class DynamicsModel(nn.Module):
         return tau_idx.float() / self.K_max  # tau grid points are multiples of d_min = 1/K_max.
 
     def sample_tau_d(self, B: int, T: int, device) -> tuple[torch.Tensor, torch.Tensor]:
-        """Sample per-frame (tau_idx, d_idx). d ~ 1/U({1,...,K_max}); tau ~ U on the grid implied by d."""
-        d_idx = torch.randint(0, self.n_d, (B, T), device=device)
+        """Sample per-frame (tau_idx, d_idx) over supported K in [K_min, K_max]."""
+        d_idx = torch.randint(self.min_d_idx, self.n_d, (B, T), device=device)
         K = torch.pow(2, d_idx)
         step = (torch.rand((B, T), device=device) * K).long()
         step = torch.minimum(step, K - 1)
@@ -543,6 +551,9 @@ class DynamicsModel(nn.Module):
         pre-window context into its memory tokens; a vanilla model just slides.
         """
         K = K or self.config.inference_steps
+        if K < self.K_min or K > self.K_max or (K & (K - 1)) != 0:
+            raise ValueError(
+                f"K must be a power of two in [{self.K_min}, {self.K_max}], got {K}.")
         B, T_ctx = context.shape[:2]
         device = context.device
         max_ctx = (self.config.max_temporal_length - 1) if max_ctx is None else max_ctx

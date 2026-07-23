@@ -42,10 +42,11 @@ def _sample_tau_d(model, B, T, device, gen, n_d_unlocked=None):
     Why finest-first: a coarse step's bootstrap target is two d/2 (one-finer) steps of the model. If we
     unlock steps finest-first, the finer step a coarse step distils from is ALWAYS already trained, so we
     never distil from an untrained step. n_d_unlocked=1 => only d_min => pure flow (no bootstrap).
-    None => all n_d steps (no curriculum). tau_idx=0 (step=0) is a valid grid point for every d, so
-    forcing tau=0 later stays on-distribution."""
+    None => all supported steps (K>=model.K_min; no curriculum). tau_idx=0 (step=0) is a valid grid
+    point for every d, so forcing tau=0 later stays on-distribution."""
     n_d = model.n_d
-    k = n_d if n_d_unlocked is None else max(1, min(n_d, int(n_d_unlocked)))
+    n_supported = getattr(model, "n_train_d", n_d)
+    k = n_supported if n_d_unlocked is None else max(1, min(n_supported, int(n_d_unlocked)))
     off = torch.randint(0, k, (B, T), device=device, generator=gen)  # 0..k-1
     d_idx = (n_d - 1) - off                                          # the k finest steps
     K = torch.pow(2, d_idx)
@@ -147,9 +148,10 @@ def mem2mem_rollout_loss(model, z1, actions_idx=None, *, n_ctx, device,
     bootstrap:   include the shortcut bootstrap distillation (coarser d/2 steps) in the new-half
                  denoising loss, exactly like the normal windowed model.loss. Applies to BOTH the
                  clean-context and the full-noise (memory-only) modes. False -> finest-step flow only.
-    n_d_unlocked: step-size CURRICULUM — sample d only from the ``n_d_unlocked`` FINEST steps (the
-                 trainer ramps this 1 -> n_d over training). 1 => d_min only => pure flow (the bootstrap
-                 forwards are skipped). None => all steps. See _sample_tau_d for the finest-first rationale.
+    n_d_unlocked: step-size CURRICULUM — sample d only from the ``n_d_unlocked`` FINEST supported
+                 steps (the trainer ramps this 1 -> n_train_d). 1 => d_min only => pure flow (the
+                 bootstrap forwards are skipped). None => all supported K>=K_min steps. See
+                 _sample_tau_d for the finest-first rationale.
     use_ff9:     include the explicit FF9 sufficiency term. False -> memory is trained ONLY by the rollout
                  flow loss (in the 50% full-noise mode the new half can only be reconstructed from carried
                  memory, so that flow term IS the memory signal). Ablation: is FF9 needed at all?
