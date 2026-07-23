@@ -50,7 +50,9 @@ cleanup() { kill "$MON_PID" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
 TOK_BS=""
-for bs in 256 128 64 32 16; do
+# Attempt 2 calibrated the identical H100/model at bs=64; 128 and 256 OOMed. Reconfirm the known-good
+# value rather than spending the final attempt repeating two guaranteed OOM probes.
+for bs in 64; do
   dir="$RUN_DIR/tok-bs-$bs"
   echo "=== tokenizer batch calibration bs=$bs ==="
   if "$D4_PYTHON" -u "$D4_ROOT/dreamer4/train_tokenizer.py" \

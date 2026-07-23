@@ -13,7 +13,9 @@ import torch
 
 
 def filmstrip(frames: np.ndarray) -> np.ndarray:
-    return np.concatenate(list(frames), axis=1)
+    # OpenCV drawing requires a C-contiguous writable image. Decoder output arrives through a
+    # permute, and NumPy concatenation can preserve an incompatible inner-stride layout.
+    return np.ascontiguousarray(np.concatenate(list(frames), axis=1))
 
 
 def main():

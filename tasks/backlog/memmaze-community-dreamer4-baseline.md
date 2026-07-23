@@ -133,3 +133,18 @@ to tell where the multi-step task currently stands without reconstructing state 
   pending for priority. Active training time remains 0 h. Artifacts will land under
   `runs/memmaze-d4-phase1-smoke-v2/`; converted data under `data/d4_memmaze_community/*-v2`.
   NEXT: inspect the first conversion progress reports for bounded peak RSS, then follow smoke training.
+- **2026-07-23 — Attempt 2 timed out; final-attempt gates hardened.** Job **419859** timed out after
+  8h00m16s. Conversion completed correctly and stayed bounded (train: 2,900 trajectories, peak RSS
+  0.75 GiB; eval: 1,000 trajectories, peak RSS 0.62 GiB), and split validation passed. Tokenizer batch
+  calibration established bs=64 as the largest tested fit (128/256 OOM), but upstream's nested training
+  loop failed to propagate the normal `max_steps` break and repeated `step=20` without forward passes;
+  GPU telemetry consequently showed 0% utilization while retaining 44.9 GiB. Both tokenizer and dynamics
+  now use one propagated stop flag for max-step and elapsed-time exits. Actual local GPU gates passed for
+  both trainers: max-step exits at exactly step 2 with final checkpoints, sub-second time budgets exit at
+  step 1, tokenizer resume advances exactly one step, and the patched upstream stack still passes its
+  data/model integration test. A subsequently exposed OpenCV stride bug in the held-out reconstruction
+  sheet was also fixed and the sheet was rendered and visually checked locally. The final Phase 1 attempt
+  will reuse the validated v2 conversion, reconfirm known-good tokenizer bs=64, and retain dynamics batch
+  calibration. Active useful training time remains limited to the 20 calibration steps from attempt 2.
+  NEXT: commit/push/sync these final-attempt fixes, submit attempt 3, and monitor through sustained
+  tokenizer and dynamics training rather than accepting scheduler RUNNING as evidence.
