@@ -167,3 +167,12 @@ to tell where the multi-step task currently stands without reconstructing state 
   periodic checkpoints, telemetry, final summary, and held-out reconstruction. NEXT: sync and submit the
   tokenizer-only production run; monitor advancing steps and GPU telemetry, then pull the final sheet for
   Merlin's hard review gate. Do not begin the 48-hour dynamics run without explicit approval.
+- **2026-07-23 — Phase 2 tokenizer production started.** Production driver commit
+  `041716e43acbe9f9f24c727c65c83f88f0dea395` was pushed and synced exactly. Ferranti job **420962**
+  (`memmaze-d4-tokenizer-24h`, 1x H100, 16 CPUs) started immediately on `mlcbm007`. The scheduler
+  allocation is 30 hours, while the trainer's authoritative active budget is exactly 24 hours; the margin
+  covers setup, validation, and final checkpoint/sheet I/O. Clean patched-upstream integration passed and
+  the real 2.9M-frame conversion validation is in progress/passing. Artifacts land under
+  `runs/memmaze-d4-tokenizer-24h/`. NEXT: verify advancing optimizer steps plus sustained utilization,
+  monitor checkpoints/health, then pull the final checkpoint, metrics, and held-out reconstruction for
+  the mandatory review gate.
