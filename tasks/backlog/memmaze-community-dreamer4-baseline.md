@@ -148,3 +148,10 @@ to tell where the multi-step task currently stands without reconstructing state 
   calibration. Active useful training time remains limited to the 20 calibration steps from attempt 2.
   NEXT: commit/push/sync these final-attempt fixes, submit attempt 3, and monitor through sustained
   tokenizer and dynamics training rather than accepting scheduler RUNNING as evidence.
+- **2026-07-23 — Final Phase 1 attempt submitted.** Commit
+  `829a58ff3f722232ca13bb2810b967eded254c81` was pushed and synced exactly to ferranti. Job **420912**
+  (`memmaze-d4-phase1-smoke-v3`, 1x H100, 16 CPUs, 8-hour allocation) started immediately on `mlcbm012`.
+  Its clean patched-upstream setup and synthetic end-to-end integration gate passed. Artifacts land under
+  `runs/memmaze-d4-phase1-smoke-v3/`; the completed bounded v2 conversion is reused.
+  NEXT: require advancing tokenizer and dynamics steps plus sustained nonzero GPU telemetry, then pull and
+  inspect all smoke artifacts before declaring Phase 1 successful.
