@@ -83,6 +83,9 @@ index 639ab62..e86f011 100644
 -                        f"| sigma={aux['sigma_mean'].item():.3f} | B_self={B_self}"
 +                        f"| sigma={aux['sigma_mean'].item():.3f} | B_self={B_self} "
 +                        f"| action_shuffle={action_shuffle_loss_ratio.item():.4f}"
+@@ -887 +915 @@ def train(args):
+-                if is_rank0() and args.save_every > 0 and (step % args.save_every == 0) and do_step:
++                if is_rank0() and step > 0 and args.save_every > 0 and (step % args.save_every == 0) and do_step:
 @@ -889 +917,4 @@ def train(args):
 -                    save_ckpt(ckpt_path, step=step, epoch=epoch, dyn_model=dyn, opt=opt, scaler=scaler, args=args)
 +                    save_ckpt(
@@ -176,6 +179,9 @@ index 7440784..e2be5a1 100644
 @@ -336 +359 @@ def train(args):
 -                            "time/hrs": (time.time() - t0) / 3600.0,
 +                            "time/hrs": (elapsed_before_s + time.time() - t0) / 3600.0,
+@@ -362 +385 @@ def train(args):
+-                if is_rank0() and args.save_every > 0 and (step % args.save_every == 0) and do_step:
++                if is_rank0() and step > 0 and args.save_every > 0 and (step % args.save_every == 0) and do_step:
 @@ -364 +387,4 @@ def train(args):
 -                    save_ckpt(ckpt_path, step=step, epoch=epoch, model=model, opt=opt, scaler=scaler, args=args)
 +                    save_ckpt(

@@ -155,3 +155,15 @@ to tell where the multi-step task currently stands without reconstructing state 
   `runs/memmaze-d4-phase1-smoke-v3/`; the completed bounded v2 conversion is reused.
   NEXT: require advancing tokenizer and dynamics steps plus sustained nonzero GPU telemetry, then pull and
   inspect all smoke artifacts before declaring Phase 1 successful.
+- **2026-07-23 — Phase 1 tokenizer path passed; move to tokenizer-only production.** Job **420912**
+  completed the useful Phase 1 gates: tokenizer calibration reconfirmed bs=64; the timed tokenizer smoke
+  trained 962 steps in 300.11 active seconds (3.205 steps/s), with sustained 98-100% H100 utilization,
+  wrote a valid final checkpoint, and rendered a held-out sheet (mean MSE 0.03618 / PSNR 14.41 dB).
+  Action-conditioned dynamics calibration trained and checkpointed 10 steps at bs=128. The subsequent
+  redundant timed dynamics smoke completed step 0 but then spent 22 minutes idle in its step-0 periodic
+  save, so job 420912 was deliberately cancelled at 28m59s rather than wasting the H100; no production
+  dynamics budget was started. Periodic checkpointing now explicitly skips step 0. A resumable
+  `phase2_tokenizer.sh` production driver was added for exactly 24 active H100 training hours, bs=64,
+  periodic checkpoints, telemetry, final summary, and held-out reconstruction. NEXT: sync and submit the
+  tokenizer-only production run; monitor advancing steps and GPU telemetry, then pull the final sheet for
+  Merlin's hard review gate. Do not begin the 48-hour dynamics run without explicit approval.

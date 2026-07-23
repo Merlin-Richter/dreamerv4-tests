@@ -23,6 +23,8 @@ applies the committed patch, and records the exact upstream diff and environment
 - `phase1_smoke.sh` is the ferranti Phase 0/1 driver: setup, resumable public-data download, full train
   part 0 plus eval conversion, H100 batch calibration, tokenizer smoke, held-out reconstruction sheet,
   action-conditioned dynamics smoke, checkpoints, and GPU telemetry.
+- `phase2_tokenizer.sh` runs the accepted tokenizer configuration for 24 active H100 hours, with periodic
+  resumable checkpoints, GPU telemetry, a final checkpoint summary, and held-out reconstruction sheet.
 - `make_recon_sheet.py` and `summarize_checkpoint.py` provide held-out visual acceptance and stable
   checkpoint throughput/provenance summaries.
 
