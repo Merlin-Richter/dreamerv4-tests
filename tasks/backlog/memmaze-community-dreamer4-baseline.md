@@ -176,3 +176,16 @@ to tell where the multi-step task currently stands without reconstructing state 
   `runs/memmaze-d4-tokenizer-24h/`. NEXT: verify advancing optimizer steps plus sustained utilization,
   monitor checkpoints/health, then pull the final checkpoint, metrics, and held-out reconstruction for
   the mandatory review gate.
+- **2026-07-24 — Phase 2 complete; stopped at Merlin's tokenizer review gate.** Ferranti job **420962**
+  completed successfully (exit 0) after 24:01:11 scheduler elapsed. The trainer stopped at its exact
+  24-hour active-time budget (`86400.27 s`) at step 281,559 / epoch 6, averaging 3.259 optimizer steps/s.
+  GPU telemetry recorded 8,640 active samples at 98.1% mean utilization and 44,915 MiB mean HBM use.
+  Held-out reconstruction across four content-disjoint sequences measured mean MSE **0.00138073** /
+  PSNR **28.60 dB**. Manual inspection found faithful maze geometry, colors, objects, and motion with
+  modest smoothing of fine wall texture and the largest error on close-up geometry; there is no
+  mean-image collapse, gross color drift, or missing-object failure. The pulled final checkpoint loads
+  successfully and has SHA-256
+  `347052fae0212ea2c6b943ae7c28a886298ce551d4155b882084d63a3ea48797`. Checkpoint, sheet, metrics,
+  logs, telemetry, and provenance are local under `runs/memmaze-d4-tokenizer-24h/`. **NEXT / BLOCKER:**
+  waiting for Merlin to approve or reject `tokenizer_recon.png`. No dynamics production job has been
+  submitted; Phase 3 remains forbidden until explicit approval.
