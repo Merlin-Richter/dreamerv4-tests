@@ -189,3 +189,15 @@ to tell where the multi-step task currently stands without reconstructing state 
   logs, telemetry, and provenance are local under `runs/memmaze-d4-tokenizer-24h/`. **NEXT / BLOCKER:**
   waiting for Merlin to approve or reject `tokenizer_recon.png`. No dynamics production job has been
   submitted; Phase 3 remains forbidden until explicit approval.
+- **2026-07-24 — Tokenizer approved; Phase 3 dynamics submitted.** Merlin explicitly accepted the
+  held-out tokenizer sheet as good enough. Production commit
+  `853262471cacf36ab2dde964077867b41d5af2ce` adds the resumable 48-active-hour dynamics driver, pins
+  the approved tokenizer by its full SHA-256, proves the raw action-to-frame convention through
+  conversion, `WMDataset`, and the trainer's action shift, and skips the wasteful untrained step-0
+  rollout eval. The exact commit was pushed and synced to ferranti. Job **421717**
+  (`memmaze-d4-dynamics-48h`, 1x H100, 8 CPUs, 54-hour scheduler allocation) was submitted at 23:03
+  Europe/Berlin. Authoritative training is 48 active hours, bs=128, sequence length 32, action
+  conditioning enabled, bootstrap from step 5,000, elapsed-time cosine LR, checkpoints every 5,000
+  steps, and action-shuffle diagnostics every 100 steps. Artifacts land under
+  `runs/memmaze-d4-dynamics-48h/`. NEXT: require advancing optimizer steps, finite/decreasing loss,
+  nontrivial action-shuffle evidence, and sustained H100 utilization before treating Phase 3 as healthy.
