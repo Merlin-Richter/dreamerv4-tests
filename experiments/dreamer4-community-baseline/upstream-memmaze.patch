@@ -64,6 +64,9 @@ index 639ab62..e86f011 100644
 +                        for group in opt.param_groups:
 +                            group["lr"] = lr
 +
+@@ -797 +820 @@ def train(args):
+-                if is_rank0() and args.eval_every > 0 and (step % args.eval_every == 0):
++                if is_rank0() and step > 0 and args.eval_every > 0 and (step % args.eval_every == 0):
 @@ -833,0 +856,3 @@ def train(args):
 +                            perm = torch.randperm(actions.shape[0], device=actions.device)
 +                            cpu_rng = torch.get_rng_state()

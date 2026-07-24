@@ -89,6 +89,21 @@ def main():
     assert a[..., 6:].abs().max() == 0, "nonzero beyond 6 action dims"
     print(f"[dynamics] WMDataset ok: obs={tuple(b['obs'].shape)} act={tuple(b['act'].shape)} (clean one-hot in first 6)")
 
+    # Prove the convention all the way through WMDataset and the train_dynamics shift:
+    # raw action[g] produced raw image[g]; WMDataset returns transitions at g+1, and the trainer
+    # shifts those right once so each modeled frame g is conditioned by raw action[g].
+    first = wm[0]
+    with np.load(raw / "traj_000.npz") as z:
+        raw_frames = torch.from_numpy(z["image"]).permute(0, 3, 1, 2)
+        raw_actions = torch.from_numpy(z["action"])
+    assert torch.equal(first["obs"], raw_frames[:17]), "WMDataset frames lost raw temporal alignment"
+    assert torch.equal(first["act"][:, :6], raw_actions[1:17]), "WMDataset transition actions misaligned"
+    train_actions = torch.zeros_like(first["act"])
+    train_actions[1:] = first["act"][:-1]
+    assert torch.equal(train_actions[1:, :6], raw_actions[1:16]), "train-time action shift misaligned"
+    assert train_actions[0].count_nonzero() == 0, "first context frame must have no preceding action"
+    print("[alignment] raw action[t] -> raw image[t] survives conversion, WMDataset, and train shift exactly")
+
     # architecture forward at 64x64
     from model import Encoder, Decoder, Tokenizer, Dynamics, temporal_patchify, pack_bottleneck_to_spatial
     H = W = 64; patch = 4; n_patches = (H // patch) ** 2; d_patch = patch * patch * 3

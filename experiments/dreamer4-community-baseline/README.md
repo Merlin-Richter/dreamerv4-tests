@@ -25,6 +25,9 @@ applies the committed patch, and records the exact upstream diff and environment
   action-conditioned dynamics smoke, checkpoints, and GPU telemetry.
 - `phase2_tokenizer.sh` runs the accepted tokenizer configuration for 24 active H100 hours, with periodic
   resumable checkpoints, GPU telemetry, a final checkpoint summary, and held-out reconstruction sheet.
+- `phase3_dynamics.sh` verifies the approved tokenizer by SHA-256, then trains the action-conditioned
+  dynamics model for 48 active H100 hours at the calibrated H100 batch size, with elapsed-time cosine
+  scheduling, resumable checkpoints, action-shuffle diagnostics, rollout evaluation, and GPU telemetry.
 - `make_recon_sheet.py` and `summarize_checkpoint.py` provide held-out visual acceptance and stable
   checkpoint throughput/provenance summaries.
 
@@ -35,4 +38,11 @@ Submit the smoke only through the academic-cluster wrapper:
 ```bash
 bash scripts/submit_job.sh --cluster ferranti --name memmaze-d4-phase1-smoke --hours 8 -- \
   bash experiments/dreamer4-community-baseline/phase1_smoke.sh
+```
+
+After explicit approval of the Phase 2 tokenizer sheet:
+
+```bash
+bash scripts/submit_job.sh --cluster ferranti --name memmaze-d4-dynamics-48h --hours 54 --cpus 8 -- \
+  bash experiments/dreamer4-community-baseline/phase3_dynamics.sh
 ```
