@@ -201,3 +201,42 @@ to tell where the multi-step task currently stands without reconstructing state 
   steps, and action-shuffle diagnostics every 100 steps. Artifacts land under
   `runs/memmaze-d4-dynamics-48h/`. NEXT: require advancing optimizer steps, finite/decreasing loss,
   nontrivial action-shuffle evidence, and sustained H100 utilization before treating Phase 3 as healthy.
+- **2026-07-24 — Phase 3 attempt 1 failed the startup health gate; diagnostic running.** Job **421717**
+  passed the exact tokenizer hash, conversion/disjointness, and model-load gates and sustained 93.8%
+  H100 utilization, but produced no step-0 optimizer result in 10 minutes. This contradicted the
+  otherwise identical Phase 1 calibration (10 steps in 11.5 seconds), so the job was cancelled before
+  consuming the production budget. Pulling the exact remote trainer confirmed the new step-0 rollout
+  guard was present. Commit `d17a29ceb58f3722b3b2037104e4c5fb44fca0d0` adds synchronized startup
+  stage markers and parameterized short-probe controls without changing the model or loss. Instrumented
+  job **421725** (`memmaze-d4-dynamics-probe-v2`, 1x H100, three steps) was submitted at 23:17
+  Europe/Berlin. NEXT: use its markers to locate/fix the stall, then submit production attempt 2 only
+  after the final-tokenizer path again demonstrates normal advancing steps.
+- **2026-07-24 — Startup stall localized to cold random Weka reads; staging probe submitted.**
+  Instrumented job **421725** reached `enter_training_loop` immediately but never reached
+  `first_batch_ready`, proving the delay was in data loading before tokenizer or dynamics compute.
+  The 1,418-shard training conversion was being sampled randomly from cold Weka storage; Phase 1's
+  fast calibration had run against a warm filesystem cache. The probe was cancelled after localization.
+  Commit `b92a3d08eebf79d43583bb38c2508a38fc91f32b` now copies the validated ~36 GB training conversion
+  sequentially to per-job node-local scratch before the trainer's active-time clock starts and records
+  the staging duration/runtime path. Three-step job **421726** (`memmaze-d4-dynamics-probe-v3`) is
+  testing that path. NEXT: require normal first-batch and optimizer timing, then launch production
+  attempt 2 from the same exact code.
+- **2026-07-24 — Data path fixed and production attempt 2 submitted.** Staged-data probe **421726**
+  copied the conversion locally but then failed explicitly: one DataLoader worker was OOM-killed because
+  upstream allocates a 2 GB shard cache per worker (16 GB across eight workers, plus dataset/prefetch,
+  reaching the job's ~24 GB CPU-memory limit). Commit
+  `07991f02b07d2ed02e99a55a5e6ec88eb9ea7ee3` exposes that cache size and sets 256 MB/worker.
+  Final probe **421729** completed exit 0 with MaxRSS 3.18 GB: node-local staging took 39s, first batch
+  3.97s, tokenizer encoding 5.63s, first optimizer step 6.47s, and three finite decreasing steps finished
+  in 9.53s. Production attempt 2 job **421731** (`memmaze-d4-dynamics-48h-v2`, 1x H100, 8 CPUs,
+  54-hour allocation) was submitted at 23:29 Europe/Berlin from that exact commit. The trainer still
+  owns the authoritative 48-active-hour budget. NEXT: verify step 0→100, finite/decreasing loss and
+  real utilization, then leave this attempt running and monitor bootstrap/action-shuffle behavior.
+- **2026-07-24 — Production attempt 2 passed the sustained startup gate.** Job **421731** staged the
+  training conversion locally, loaded the exact approved tokenizer, produced its first batch in 3.97s
+  and first optimizer update in 6.49s, then advanced from step 0 to step 100. Loss remained finite and
+  fell from 0.13223 to 0.04294. The matched-noise action-shuffle ratio moved from 1.0000 to 1.0003,
+  appropriately still near unity this early. Eleven job-owned telemetry samples averaged 99.2% H100
+  utilization, 39.5 GiB HBM, and 437 W. Phase 3 is now genuinely training rather than merely occupying
+  a GPU. NEXT: monitor through shortcut bootstrap at step 5,000, require continued finite loss and
+  increasing action sensitivity, and let the authoritative 48-active-hour timer complete.
