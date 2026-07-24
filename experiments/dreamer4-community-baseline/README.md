@@ -30,6 +30,8 @@ applies the committed patch, and records the exact upstream diff and environment
   scheduling, resumable checkpoints, action-shuffle diagnostics, rollout evaluation, and GPU telemetry.
   It stages the 2.9M-frame training conversion from Weka to per-job node-local scratch before the active
   timer starts; direct cold random reads across 1,418 Weka shards can block the first batch for minutes.
+  The community loader's shard cache is explicitly reduced from 2 GB to 256 MB per worker so eight
+  workers fit the job's CPU-memory allocation instead of being OOM-killed before that first batch.
 - `make_recon_sheet.py` and `summarize_checkpoint.py` provide held-out visual acceptance and stable
   checkpoint throughput/provenance summaries.
 
