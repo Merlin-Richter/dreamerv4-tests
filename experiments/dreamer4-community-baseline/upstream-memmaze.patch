@@ -45,10 +45,19 @@ index 639ab62..e86f011 100644
 @@ -713,0 +720,2 @@ def train(args):
 +    last_epoch = start_epoch
 +    stop_requested = False
-@@ -717,0 +726 @@ def train(args):
+@@ -715,0 +724,7 @@ def train(args):
++    def startup_marker(label: str):
++        if is_rank0() and step == 0:
++            if device.type == "cuda":
++                torch.cuda.synchronize(device)
++            print(f"[startup] {label} t={time.time() - t0:.3f}s", flush=True)
++
++    startup_marker("enter_training_loop")
+@@ -717,0 +733 @@ def train(args):
 +            last_epoch = epoch
-@@ -722 +731,7 @@ def train(args):
+@@ -722 +738,8 @@ def train(args):
 -                if step >= args.max_steps:
++                startup_marker("first_batch_ready")
 +                elapsed_train_s = elapsed_before_s + (time.time() - t0)
 +                if step >= args.max_steps or (
 +                    args.max_hours > 0 and elapsed_train_s >= args.max_hours * 3600.0
@@ -56,7 +65,9 @@ index 639ab62..e86f011 100644
 +                    if is_rank0():
 +                        print(f"[rank0] stopping at step={step} elapsed_train_h={elapsed_train_s / 3600.0:.6f}")
 +                    stop_requested = True
-@@ -794,0 +810,7 @@ def train(args):
+@@ -752,0 +776 @@ def train(args):
++                startup_marker("tokenizer_encode_complete")
+@@ -794,0 +819,8 @@ def train(args):
 +                    if args.max_hours > 0:
 +                        elapsed_train_s = elapsed_before_s + (time.time() - t0)
 +                        frac = min(1.0, elapsed_train_s / (args.max_hours * 3600.0))
@@ -64,44 +75,48 @@ index 639ab62..e86f011 100644
 +                        for group in opt.param_groups:
 +                            group["lr"] = lr
 +
-@@ -797 +820 @@ def train(args):
++                startup_marker("optimizer_step_complete")
+@@ -796 +828 @@ def train(args):
 -                if is_rank0() and args.eval_every > 0 and (step % args.eval_every == 0):
 +                if is_rank0() and step > 0 and args.eval_every > 0 and (step % args.eval_every == 0):
-@@ -833,0 +856,3 @@ def train(args):
+@@ -832,0 +865 @@ def train(args):
++                        startup_marker("action_shuffle_diagnostic_start")
+@@ -833,0 +867,3 @@ def train(args):
 +                            perm = torch.randperm(actions.shape[0], device=actions.device)
 +                            cpu_rng = torch.get_rng_state()
 +                            cuda_rng = torch.cuda.get_rng_state(device) if device.type == "cuda" else None
-@@ -845 +870,3 @@ def train(args):
+@@ -845 +881,3 @@ def train(args):
 -                            perm = torch.randperm(actions.shape[0], device=actions.device)
 +                            torch.set_rng_state(cpu_rng)
 +                            if cuda_rng is not None:
 +                                torch.cuda.set_rng_state(cuda_rng, device)
-@@ -857 +884 @@ def train(args):
+@@ -857 +895,2 @@ def train(args):
 -                        action_shuffle_loss_ratio = loss_shuffled / loss
++                        startup_marker("action_shuffle_diagnostic_complete")
 +                        action_shuffle_loss_ratio = loss_shuffled / loss_real.clamp_min(1e-12)
-@@ -873 +900 @@ def train(args):
+@@ -873 +912 @@ def train(args):
 -                            "time/hrs": (time.time() - t0) / 3600.0,
 +                            "time/hrs": (elapsed_before_s + time.time() - t0) / 3600.0,
-@@ -883 +910,2 @@ def train(args):
+@@ -883 +922,2 @@ def train(args):
 -                        f"| sigma={aux['sigma_mean'].item():.3f} | B_self={B_self}"
 +                        f"| sigma={aux['sigma_mean'].item():.3f} | B_self={B_self} "
 +                        f"| action_shuffle={action_shuffle_loss_ratio.item():.4f}"
-@@ -887 +915 @@ def train(args):
+@@ -887 +927 @@ def train(args):
 -                if is_rank0() and args.save_every > 0 and (step % args.save_every == 0) and do_step:
 +                if is_rank0() and step > 0 and args.save_every > 0 and (step % args.save_every == 0) and do_step:
-@@ -889 +917,4 @@ def train(args):
+@@ -889 +929,4 @@ def train(args):
 -                    save_ckpt(ckpt_path, step=step, epoch=epoch, dyn_model=dyn, opt=opt, scaler=scaler, args=args)
 +                    save_ckpt(
 +                        ckpt_path, step=step, epoch=epoch, dyn_model=dyn, opt=opt, scaler=scaler,
 +                        args=args, elapsed_train_s=elapsed_before_s + (time.time() - t0),
 +                    )
-@@ -891 +922,4 @@ def train(args):
+@@ -891 +934,4 @@ def train(args):
 -                    save_ckpt(latest, step=step, epoch=epoch, dyn_model=dyn, opt=opt, scaler=scaler, args=args)
 +                    save_ckpt(
 +                        latest, step=step, epoch=epoch, dyn_model=dyn, opt=opt, scaler=scaler,
 +                        args=args, elapsed_train_s=elapsed_before_s + (time.time() - t0),
 +                    )
-@@ -895,0 +930,17 @@ def train(args):
+@@ -895,0 +942,17 @@ def train(args):
 +            if stop_requested:
 +                break
 +
@@ -119,13 +134,13 @@ index 639ab62..e86f011 100644
 +            ckpt_dir / "latest.pt", step=final_step, epoch=last_epoch, dyn_model=dyn, opt=opt,
 +            scaler=scaler, args=args, elapsed_train_s=elapsed_train_s,
 +        )
-@@ -919,0 +971,2 @@ if __name__ == "__main__":
+@@ -919,0 +983,2 @@ if __name__ == "__main__":
 +    p.add_argument("--img_size", type=int, default=128,
 +                   help="Stored frame height/width expected by WMDataset.")
-@@ -956,0 +1010,2 @@ if __name__ == "__main__":
+@@ -956,0 +1022,2 @@ if __name__ == "__main__":
 +    p.add_argument("--max_hours", type=float, default=0.0,
 +                   help="Active training wall-clock budget; 0 disables time stopping/scheduling.")
-@@ -975,0 +1031,2 @@ if __name__ == "__main__":
+@@ -975,0 +1043,2 @@ if __name__ == "__main__":
 +    p.add_argument("--wandb_mode", type=str, default="online",
 +                   choices=["online", "offline", "disabled"])
 diff --git a/dreamer4/train_tokenizer.py b/dreamer4/train_tokenizer.py
