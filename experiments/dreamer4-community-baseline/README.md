@@ -28,6 +28,8 @@ applies the committed patch, and records the exact upstream diff and environment
 - `phase3_dynamics.sh` verifies the approved tokenizer by SHA-256, then trains the action-conditioned
   dynamics model for 48 active H100 hours at the calibrated H100 batch size, with elapsed-time cosine
   scheduling, resumable checkpoints, action-shuffle diagnostics, rollout evaluation, and GPU telemetry.
+  It stages the 2.9M-frame training conversion from Weka to per-job node-local scratch before the active
+  timer starts; direct cold random reads across 1,418 Weka shards can block the first batch for minutes.
 - `make_recon_sheet.py` and `summarize_checkpoint.py` provide held-out visual acceptance and stable
   checkpoint throughput/provenance summaries.
 

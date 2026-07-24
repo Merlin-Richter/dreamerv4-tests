@@ -39,11 +39,27 @@ fi
 "$D4_PYTHON" "$EXP/summarize_checkpoint.py" "$TOK_CKPT" \
   --out "$RUN_DIR/tokenizer_input_summary.json"
 
+SCRATCH_BASE="${SLURM_TMPDIR:-${TMPDIR:-}}"
+test -n "$SCRATCH_BASE" || { echo "No node-local SLURM_TMPDIR/TMPDIR available for dataset staging" >&2; exit 1; }
+test -d "$SCRATCH_BASE"
+TRAIN_RUNTIME="$SCRATCH_BASE/d4_memmaze_community_train"
+mkdir -p "$TRAIN_RUNTIME"
+STAGE_START_S="$(date +%s)"
+echo "Staging training shards from Weka to node-local scratch: $TRAIN_RUNTIME"
+cp -a "$TRAIN_OUT/shards" "$TRAIN_RUNTIME/"
+cp -a "$TRAIN_OUT/demos" "$TRAIN_RUNTIME/"
+STAGE_SECONDS="$(( $(date +%s) - STAGE_START_S ))"
+test -f "$TRAIN_RUNTIME/demos/memmaze.pt"
+test "$(find "$TRAIN_RUNTIME/shards/memmaze" -type f -name '*.pt' | wc -l)" -eq 1418
+echo "Node-local staging complete in ${STAGE_SECONDS}s"
+
 {
   echo "timestamp_utc=$(date -u +%FT%TZ)"
   echo "project_commit=$(git rev-parse HEAD)"
   echo "upstream_commit=$(git -C "$D4_ROOT" rev-parse HEAD)"
-  echo "train_data=$TRAIN_OUT"
+  echo "train_data_source=$TRAIN_OUT"
+  echo "train_data_runtime=$TRAIN_RUNTIME"
+  echo "train_data_stage_seconds=$STAGE_SECONDS"
   echo "heldout_data=$EVAL_OUT"
   echo "tokenizer_checkpoint=$TOK_CKPT"
   echo "tokenizer_sha256=$TOK_ACTUAL_SHA256"
@@ -73,7 +89,7 @@ fi
 
 if [ ! -f "$DYN_DIR/final.pt" ]; then
   "$D4_PYTHON" -u "$D4_ROOT/dreamer4/train_dynamics.py" --use_actions \
-    --frame_dirs "$TRAIN_OUT/shards" --data_dirs "$TRAIN_OUT/demos" \
+    --frame_dirs "$TRAIN_RUNTIME/shards" --data_dirs "$TRAIN_RUNTIME/demos" \
     --tokenizer_ckpt "$TOK_CKPT" --img_size 64 --seq_len 32 \
     --batch_size "$BATCH_SIZE" --num_workers 8 --max_steps "$MAX_STEPS" --max_hours "$ACTIVE_HOURS" \
     --bootstrap_start 5000 --eval_every "$EVAL_EVERY" --eval_batch_size 4 \
