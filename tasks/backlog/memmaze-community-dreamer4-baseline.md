@@ -252,3 +252,11 @@ to tell where the multi-step task currently stands without reconstructing state 
   approved tokenizer, bs=128 model configuration, objective, and time budget unchanged. NEXT: push and
   sync this exact correction, submit production attempt 3, then verify it passes step 1,200 and bootstrap
   step 5,000 with finite losses, rising action sensitivity, stable host RSS, and periodic checkpoints.
+- **2026-07-27 — Phase 3 production attempt 3 submitted.** Final-attempt commit
+  `b32006c90545a3971a619687f4f13a183a15db9a` was pushed and synced exactly to ferranti. Job **423141**
+  (`memmaze-d4-dynamics-48h-v3`, 1x H100, 16 CPUs, 54-hour scheduler allocation) was submitted with
+  bs=128, sequence length 32, four DataLoader workers, 128 MiB cache per worker, the approved tokenizer,
+  and the unchanged 48-active-hour trainer budget. There is no resume checkpoint from attempt 2, so this
+  run starts from step 0 and owes the full 48 hours. Artifacts land under
+  `runs/memmaze-d4-dynamics-48h-v3/`. NEXT: verify startup, H100 use, and host RSS; require survival past
+  step 1,200 and bootstrap at step 5,000 before considering the final attempt stable.
