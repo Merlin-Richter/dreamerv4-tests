@@ -15,7 +15,8 @@ DYN_DIR="$RUN_DIR/dynamics"
 ACTIVE_HOURS="${D4_ACTIVE_HOURS:-48}"
 MAX_STEPS="${D4_MAX_STEPS:-10000000}"
 BATCH_SIZE="${D4_BATCH_SIZE:-128}"
-CACHE_MB="${D4_CACHE_MB:-256}"
+NUM_WORKERS="${D4_NUM_WORKERS:-4}"
+CACHE_MB="${D4_CACHE_MB:-128}"
 LOG_EVERY="${D4_LOG_EVERY:-100}"
 EVAL_EVERY="${D4_EVAL_EVERY:-1000}"
 SAVE_EVERY="${D4_SAVE_EVERY:-5000}"
@@ -70,6 +71,7 @@ echo "Node-local staging complete in ${STAGE_SECONDS}s"
   echo "action_alignment=raw_action_t_produced_raw_image_t"
   echo "sequence_length=32"
   echo "batch_size=$BATCH_SIZE"
+  echo "num_workers=$NUM_WORKERS"
   echo "per_worker_cache_mb=$CACHE_MB"
   echo "bootstrap_start_step=5000"
   echo "log_every_steps=$LOG_EVERY"
@@ -93,7 +95,7 @@ if [ ! -f "$DYN_DIR/final.pt" ]; then
   "$D4_PYTHON" -u "$D4_ROOT/dreamer4/train_dynamics.py" --use_actions \
     --frame_dirs "$TRAIN_RUNTIME/shards" --data_dirs "$TRAIN_RUNTIME/demos" \
     --tokenizer_ckpt "$TOK_CKPT" --img_size 64 --seq_len 32 \
-    --batch_size "$BATCH_SIZE" --num_workers 8 --cache_mb "$CACHE_MB" \
+    --batch_size "$BATCH_SIZE" --num_workers "$NUM_WORKERS" --cache_mb "$CACHE_MB" \
     --max_steps "$MAX_STEPS" --max_hours "$ACTIVE_HOURS" \
     --bootstrap_start 5000 --eval_every "$EVAL_EVERY" --eval_batch_size 4 \
     --eval_ctx 8 --eval_horizon 16 --log_every "$LOG_EVERY" --save_every "$SAVE_EVERY" \

@@ -240,3 +240,15 @@ to tell where the multi-step task currently stands without reconstructing state 
   utilization, 39.5 GiB HBM, and 437 W. Phase 3 is now genuinely training rather than merely occupying
   a GPU. NEXT: monitor through shortcut bootstrap at step 5,000, require continued finite loss and
   increasing action sensitivity, and let the authoritative 48-active-hour timer complete.
+- **2026-07-27 — Phase 3 attempt 2 failed on host RAM; final-attempt configuration hardened.** Job
+  **421731** ended `OUT_OF_MEMORY` after 31m42s with MaxRSS 24,303,752 KiB, matching its eight-CPU
+  allocation's roughly 24 GiB host-memory ceiling. Training itself stayed healthy through step 1,200:
+  loss remained finite and fell from 0.13223 to 0.01272, action-shuffle rose from 1.0000 to 1.6041, and
+  H100 HBM stayed constant at 45,753 MiB with sustained high utilization. The failure was therefore a
+  DataLoader/prefetch/cache working-set limit, not CUDA OOM, divergence, or a model failure. No periodic
+  checkpoint existed before the step-5,000 save boundary, so the final attempt must restart its full
+  48-active-hour budget. Its loader is now bounded more conservatively at four workers and 128 MiB cache
+  per worker; submission will request 16 CPUs to double the Slurm host-RAM ceiling while leaving the
+  approved tokenizer, bs=128 model configuration, objective, and time budget unchanged. NEXT: push and
+  sync this exact correction, submit production attempt 3, then verify it passes step 1,200 and bootstrap
+  step 5,000 with finite losses, rising action sensitivity, stable host RSS, and periodic checkpoints.
