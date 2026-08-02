@@ -30,8 +30,13 @@ applies the committed patch, and records the exact upstream diff and environment
   scheduling, resumable checkpoints, action-shuffle diagnostics, rollout evaluation, and GPU telemetry.
   It stages the 2.9M-frame training conversion from Weka to per-job node-local scratch before the active
   timer starts; direct cold random reads across 1,418 Weka shards can block the first batch for minutes.
-  The community loader's shard cache is explicitly reduced from 2 GB to 256 MB per worker so eight
-  workers fit the job's CPU-memory allocation instead of being OOM-killed before that first batch.
+  The production loader uses four workers with 128 MB cache each, and the job requests 16 CPUs for a
+  wider host-memory allocation; this stayed below 13 GiB RSS for the completed 48-hour run.
+- `phase4_evaluate.sh` stages the content-disjoint held-out split and runs `evaluate_dynamics.py` to
+  produce a four-sequence rollout sheet and JSON metrics. Each sequence compares exact ground truth,
+  an autoregressive rollout with correct actions, a matched-noise rollout with cyclically wrong future
+  actions, and copy-last. This tests visible rollout quality and action specificity independently of the
+  training loss.
 - `make_recon_sheet.py` and `summarize_checkpoint.py` provide held-out visual acceptance and stable
   checkpoint throughput/provenance summaries.
 

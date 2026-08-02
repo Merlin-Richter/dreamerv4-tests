@@ -260,3 +260,16 @@ to tell where the multi-step task currently stands without reconstructing state 
   run starts from step 0 and owes the full 48 hours. Artifacts land under
   `runs/memmaze-d4-dynamics-48h-v3/`. NEXT: verify startup, H100 use, and host RSS; require survival past
   step 1,200 and bootstrap at step 5,000 before considering the final attempt stable.
+- **2026-07-29 — Phase 3 complete; final checkpoint verified and Phase 4 evaluation prepared.** Final
+  attempt job **423141** completed exit 0 after 2d00h01m34s scheduler elapsed. The trainer stopped at
+  step 298,164 after exactly **172,800.10 s (48.000028 h)** active training, averaging 1.7255 optimizer
+  steps/s. Final logged loss was 0.003543 with finite bootstrap MSE 0.003757; the matched-noise
+  action-shuffle ratio reached 7.9568, strong evidence that the learned predictor depends on actions.
+  Across 17,279 telemetry samples the H100 averaged 98.69% utilization, 36,550 MiB HBM, and 613 W.
+  Max host RSS was 13,585,356 KiB, safely below the 16-CPU allocation. The 511,847,923-byte final
+  checkpoint and logs/metrics were pulled to `C:/tmp/memmaze-d4-dynamics-48h-v3-final/`; checkpoint
+  SHA-256 is `7b077938fec776c74e62201ab79194a7a06e10e54856c69d47b65dda6367d674`, and the remote summary
+  loaded it successfully with the expected step/config. Phase 4 integration now adds a held-out
+  autoregressive sheet and metrics comparing correct actions, matched-noise wrong future actions, and
+  copy-last. NEXT: submit that content-disjoint held-out evaluation on ferranti, pull and inspect the
+  sheet, then present it to Merlin before finishing the playable interface.
