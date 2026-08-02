@@ -273,3 +273,11 @@ to tell where the multi-step task currently stands without reconstructing state 
   autoregressive sheet and metrics comparing correct actions, matched-noise wrong future actions, and
   copy-last. NEXT: submit that content-disjoint held-out evaluation on ferranti, pull and inspect the
   sheet, then present it to Merlin before finishing the playable interface.
+- **2026-08-02 — Phase 4 held-out rollout evaluation submitted.** Evaluation commit
+  `706afc152eb0c647b161cd5939ae25edab740a6c` was pushed and synced exactly to ferranti. Job **426615**
+  (`memmaze-d4-heldout-eval`, 1x H100, 4 CPUs, 2-hour allocation) will stage the content-disjoint eval
+  split and render four held-out 8-context + 16-rollout sequences. Each sequence compares exact ground
+  truth, the model with correct actions, a matched-noise model rollout with cyclically wrong future
+  actions, and copy-last; JSON reports aggregate and per-horizon errors. The job is pending in the H100
+  queue. NEXT: on completion, pull and visually inspect `heldout_rollout_sheet.png`, validate the metrics,
+  and present the sheet to Merlin for review before completing the interactive player.
