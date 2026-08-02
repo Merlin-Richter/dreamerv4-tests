@@ -281,3 +281,16 @@ to tell where the multi-step task currently stands without reconstructing state 
   actions, and copy-last; JSON reports aggregate and per-horizon errors. The job is pending in the H100
   queue. NEXT: on completion, pull and visually inspect `heldout_rollout_sheet.png`, validate the metrics,
   and present the sheet to Merlin for review before completing the interactive player.
+- **2026-08-02 — Phase 4 held-out rollout evaluation passed; sheet ready for review.** Job **426615**
+  completed exit 0 against the final step-298,164 dynamics checkpoint and the content-disjoint
+  969,000-frame eval split. Across four held-out sequences with 8 context + 16 autoregressive rollout
+  frames, correct-action MSE was **0.007988** (PSNR **20.98 dB**) versus **0.019668** for the
+  matched-noise wrong-future-action control and **0.019508** for copy-last. Thus the correct-action
+  rollout used only **40.6%** of wrong-action error and **40.9%** of copy-last error (about **59% lower**
+  than either control); correct and wrong predictions themselves differed by MSE 0.01802. The sheet
+  visually confirms action-dependent room/turn progression and materially better trajectory structure
+  under correct actions. Quality still degrades over the 16-frame horizon: geometry becomes soft,
+  fine wall/object detail is lost, and some frames develop texture/ghosting artifacts. Metrics, log,
+  checkpoint hash, and sheet were pulled and verified under
+  `C:/tmp/memmaze-d4-heldout-eval/`. **NEXT:** Merlin reviews `heldout_rollout_sheet.png`; if accepted,
+  finish and smoke-test the playable interface using the frozen completed checkpoint (no retraining).
