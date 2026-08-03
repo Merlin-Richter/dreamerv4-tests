@@ -37,6 +37,10 @@ applies the committed patch, and records the exact upstream diff and environment
   an autoregressive rollout with correct actions, a matched-noise rollout with cyclically wrong future
   actions, and copy-last. This tests visible rollout quality and action specificity independently of the
   training loss.
+- `play_dynamics.py` is the local pygame player for the completed community baseline. Reset encodes and
+  replays eight real held-out context frames (green border), then every frame is an action-conditioned
+  autoregressive model sample. It uses the same native six-action keymap as `src/interactive/play_memmaze.py`
+  and keeps both a rolling dynamics history and a trailing temporal-decoder history.
 - `make_recon_sheet.py` and `summarize_checkpoint.py` provide held-out visual acceptance and stable
   checkpoint throughput/provenance summaries.
 
@@ -55,3 +59,27 @@ After explicit approval of the Phase 2 tokenizer sheet:
 bash scripts/submit_job.sh --cluster ferranti --name memmaze-d4-dynamics-48h --hours 54 --cpus 8 -- \
   bash experiments/dreamer4-community-baseline/phase3_dynamics.sh
 ```
+
+## Local imagined-world player
+
+The player imports `model.py` from a separate checkout of the pinned upstream revision. If the local
+integration checkout does not already exist below `runs/dreamer4-community-baseline/upstream-*`, make a
+source-only checkout once:
+
+```powershell
+git clone https://github.com/nicklashansen/dreamer4.git runs/dreamer4-community-baseline/upstream-player-b8abafbf
+git -C runs/dreamer4-community-baseline/upstream-player-b8abafbf checkout --detach b8abafbf4da72c59b6aa09f8499ccde0d6a37fd6
+```
+
+Then launch through the repository CUDA environment:
+
+```powershell
+venv/Scripts/python.exe -u experiments/dreamer4-community-baseline/play_dynamics.py `
+  --checkpoint C:/tmp/memmaze-d4-dynamics-48h-v3-final/dynamics/final.pt `
+  --tokenizer C:/tmp/memmaze-d4-tokenizer-24h/tokenizer_final.pt
+```
+
+Controls: up = forward, left/right = turn, up+left/up+right = moving turns, space = pause,
+backspace = reset to a new held-out context, tab = remove frame pacing, escape = quit. The green-border
+frames after reset are the only recorded frames; once the border disappears, play is entirely inside
+the model. A deterministic headless gate is available with `--episode 0 --start 0 --selftest 33`.

@@ -294,3 +294,16 @@ to tell where the multi-step task currently stands without reconstructing state 
   checkpoint hash, and sheet were pulled and verified under
   `C:/tmp/memmaze-d4-heldout-eval/`. **NEXT:** Merlin reviews `heldout_rollout_sheet.png`; if accepted,
   finish and smoke-test the playable interface using the frozen completed checkpoint (no retraining).
+- **2026-08-03 — Phase 4 imagined-world player implemented and passed the real-checkpoint gate.**
+  `experiments/dreamer4-community-baseline/play_dynamics.py` now loads the independent upstream
+  architecture directly from its pinned external checkout, the approved tokenizer, and the final
+  step-298,164 dynamics checkpoint. Reset encodes and replays eight held-out RGB frames, preserves the
+  proven raw-action-to-produced-frame alignment, and then generates every future frame autoregressively
+  from the native six-way keyboard action. Dynamics history rolls at 31 past frames so target + history
+  never exceeds the trained sequence length 32; the temporal tokenizer decoder receives a trailing
+  eight-latent history instead of incorrectly decoding isolated latents. On the local RTX 4070, a
+  **33-generated-frame** scripted self-test crossed the rolling-window boundary with finite outputs and
+  exited `SELFTEST OK`; after warmup it averaged **62 ms/frame (16.16 FPS)** at the evaluation-matched
+  K=4 shortcut schedule. Controls and green-border context replay match the existing learned Memory
+  Maze player. **NEXT:** Merlin launches the pygame player for subjective control/quality review; no
+  retraining or checkpoint change is required.
