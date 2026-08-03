@@ -71,13 +71,17 @@ git clone https://github.com/nicklashansen/dreamer4.git runs/dreamer4-community-
 git -C runs/dreamer4-community-baseline/upstream-player-b8abafbf checkout --detach b8abafbf4da72c59b6aa09f8499ccde0d6a37fd6
 ```
 
-Then launch through the repository CUDA environment:
+This machine's durable installation lives in the sibling community checkout at
+`C:/Users/richt/OneDrive/Desktop/Code/dreamer4`. It contains the exact approved checkpoints, a CUDA
+environment with pygame, and a self-contained launcher. From this repository run:
 
 ```powershell
-venv/Scripts/python.exe -u experiments/dreamer4-community-baseline/play_dynamics.py `
-  --checkpoint C:/tmp/memmaze-d4-dynamics-48h-v3-final/dynamics/final.pt `
-  --tokenizer C:/tmp/memmaze-d4-tokenizer-24h/tokenizer_final.pt
+powershell.exe -ExecutionPolicy Bypass -File ../dreamer4/run_memmaze_community.ps1
 ```
+
+The installed artifacts are `dreamer4/checkpoints/memmaze-community-d4/dynamics-final.pt` and
+`tokenizer-final.pt`; `CHECKSUMS.sha256` pins them to the evaluated final models. The general
+`play_dynamics.py` remains the versioned source of truth on this branch.
 
 Controls: up = forward, left/right = turn, up+left/up+right = moving turns, space = pause,
 backspace = reset to a new held-out context, tab = remove frame pacing, escape = quit. The green-border

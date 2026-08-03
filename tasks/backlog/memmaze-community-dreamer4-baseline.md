@@ -307,3 +307,14 @@ to tell where the multi-step task currently stands without reconstructing state 
   K=4 shortcut schedule. Controls and green-border context replay match the existing learned Memory
   Maze player. **NEXT:** Merlin launches the pygame player for subjective control/quality review; no
   retraining or checkpoint change is required.
+- **2026-08-03 — Playable baseline promoted from scratch paths to a durable OneDrive install.** The
+  existing community checkout at `C:/Users/richt/OneDrive/Desktop/Code/dreamer4` was preserved with
+  all of its pre-existing model/interactive edits and generic checkpoints untouched. The exact evaluated
+  artifacts now live separately under `checkpoints/memmaze-community-d4/`: dynamics SHA-256
+  `7b077938fec776c74e62201ab79194a7a06e10e54856c69d47b65dda6367d674` and tokenizer SHA-256
+  `347052fae0212ea2c6b943ae7c28a886298ce551d4155b882084d63a3ea48797`. The versioned player was copied
+  to `dreamer4/play_memmaze_community.py`, pygame 2.6.1 was installed in the community repo's existing
+  CUDA environment, and `run_memmaze_community.ps1` supplies all durable paths. That exact launcher
+  strictly loaded both checkpoints and completed 33 generated frames across eviction at **60 ms/frame
+  (16.54 FPS)** with `SELFTEST OK`. `common_commands.txt` now exposes the one-line launcher. **NEXT:**
+  subjective live play review only; the installation and evaluated model artifacts are durable.

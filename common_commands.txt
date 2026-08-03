@@ -8,6 +8,8 @@ external/memory-maze/.venv/Scripts/python.exe external/memory-maze/gui/run_gui.p
 # Run the memory maze in imagination as playable
 venv/Scripts/python.exe -u src/interactive/play_memmaze.py --checkpoint checkpoints/memmaze/dynamics_vanilla.pt --tokenizer checkpoints/memmaze/tokenizer.pt
 
+# Run the independently trained community Dreamer 4 Memory Maze model as playable
+powershell.exe -ExecutionPolicy Bypass -File ../dreamer4/run_memmaze_community.ps1
 
 
 
