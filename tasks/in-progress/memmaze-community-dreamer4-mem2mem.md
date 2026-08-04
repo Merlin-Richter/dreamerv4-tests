@@ -371,3 +371,8 @@ gates, and next blocker. Do not reconstruct status later from chat or scheduler 
   and durable player/checkpoints remain unmodified. NEXT / BLOCKER: push this branch, then Merlin must
   open the ferranti master connection so the exact converted-data identity gate and H100 calibration can
   run through the repository wrappers. Ferranti jobs: none; active production seconds: **0**.
+- **2026-08-05 — Branch pushed; ferranti is now the blocker.** Implementation `bf2c117` plus provenance
+  commit `098c255` are on `origin/codex/memmaze-community-d4-mem2mem`. All work possible without the
+  academic server connection is complete. NEXT / BLOCKER: Merlin opens the ferranti master socket; then
+  sync this exact branch through `scripts/sync_code.sh`, submit the short H100 calibration through
+  `scripts/submit_job.sh`, and record its job ID. Ferranti jobs: none; active production seconds: **0**.
