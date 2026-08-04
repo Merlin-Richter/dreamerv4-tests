@@ -366,3 +366,8 @@ gates, and next blocker. Do not reconstruct status later from chat or scheduler 
   ledger, GPU-utilization gate, and paired action-trace record/replay. NEXT: finish delta/syntax review and
   commit the local implementation; then ferranti connection is required for the full converted-data gate
   and H100 calibration. No cluster job has been submitted; active production seconds remain **0**.
+- **2026-08-05 — Local implementation committed.** Branch
+  `codex/memmaze-community-d4-mem2mem`, implementation commit **`bf2c117`**. The accepted vanilla branch
+  and durable player/checkpoints remain unmodified. NEXT / BLOCKER: push this branch, then Merlin must
+  open the ferranti master connection so the exact converted-data identity gate and H100 calibration can
+  run through the repository wrappers. Ferranti jobs: none; active production seconds: **0**.
