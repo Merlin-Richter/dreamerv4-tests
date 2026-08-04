@@ -1,0 +1,67 @@
+diff --git a/dreamer4/model.py b/dreamer4/model.py
+index e249d0f..3e869a9 100644
+--- a/dreamer4/model.py
++++ b/dreamer4/model.py
+@@ -21,0 +22 @@ class Modality(IntEnum):
++    MEMORY = 8
+@@ -589,0 +591 @@ class Dynamics(nn.Module):
++        n_memory: int = 0,
+@@ -603,0 +606 @@ class Dynamics(nn.Module):
++        self.n_memory = int(n_memory)
+@@ -623,0 +627,2 @@ class Dynamics(nn.Module):
++        if self.n_memory > 0:
++            segments.append((Modality.MEMORY, self.n_memory))
+@@ -630,0 +636 @@ class Dynamics(nn.Module):
++        self.memory_slice = sl.get(Modality.MEMORY, slice(0, 0))
+@@ -649,0 +656,17 @@ class Dynamics(nn.Module):
++        # This is deliberately constructed after every vanilla parameter. A private
++        # generator gives the new parameter a deterministic initialization without
++        # advancing the global RNG stream used by shared weights.
++        if self.n_memory > 0:
++            memory_gen = torch.Generator(device="cpu")
++            memory_gen.manual_seed(0xD4A4E0)
++            self.memory_tokens = nn.Parameter(
++                torch.empty(1, 1, self.n_memory, self.d_model)
++            )
++            with torch.no_grad():
++                self.memory_tokens.normal_(mean=0.0, std=0.02, generator=memory_gen)
++
++    def blank_memory(self, B: int, T: int, *, device, dtype) -> torch.Tensor:
++        if self.n_memory <= 0:
++            raise RuntimeError("blank_memory requires n_memory > 0")
++        return self.memory_tokens.to(device=device, dtype=dtype).expand(B, T, -1, -1)
++
+@@ -658,0 +682,2 @@ class Dynamics(nn.Module):
++        memory_in: Optional[torch.Tensor] = None, # (B,T,n_memory,d_model) or None
++        return_memory: bool = False,
+@@ -675,0 +701,18 @@ class Dynamics(nn.Module):
++        toks = [action_tokens, sig_tok, step_tok, spatial_tokens, reg]
++        if self.n_memory > 0:
++            if memory_in is None:
++                memory_in = self.blank_memory(
++                    B, T, device=spatial_tokens.device, dtype=spatial_tokens.dtype
++                )
++            expected = (B, T, self.n_memory, self.d_model)
++            if tuple(memory_in.shape) != expected:
++                raise ValueError(
++                    f"memory_in must have shape {expected}, got {tuple(memory_in.shape)}"
++                )
++            memory_in = memory_in.to(
++                device=spatial_tokens.device, dtype=spatial_tokens.dtype
++            )
++            toks.append(memory_in)
++        elif memory_in is not None:
++            raise ValueError("memory_in is invalid when n_memory=0")
++
+@@ -679,3 +722 @@ class Dynamics(nn.Module):
+-            toks = [action_tokens, sig_tok, step_tok, spatial_tokens, reg, agent_tokens]
+-        else:
+-            toks = [action_tokens, sig_tok, step_tok, spatial_tokens, reg]
++            toks.append(agent_tokens)
+@@ -693,0 +735,6 @@ class Dynamics(nn.Module):
++        if return_memory:
++            memory_out = None
++            if self.n_memory > 0:
++                memory_out = x[:, :, self.memory_slice, :]
++            return x1_hat, h_t, memory_out
++
