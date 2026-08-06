@@ -1,0 +1,12 @@
+{
+  "active_samples": 37,
+  "hard_health_gate_met": false,
+  "hbm_total_mib": 81559.0,
+  "longest_below_90_percent_s": 230.02199983596802,
+  "max_hbm_used_mib": 11337.0,
+  "mean_hbm_used_mib": 10989.108108108108,
+  "mean_utilization_percent": 76.4054054054054,
+  "p05_utilization_percent": 27.0,
+  "sample_cadence_s": 10.000999927520752,
+  "target_95_percent_met": false
+}

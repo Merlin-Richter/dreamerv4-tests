@@ -1,0 +1,58 @@
+/weka/martius/mot936/dreamerv4-tests/runs/dreamer4-community-baseline/envs/venv-82924c6c2b64/lib64/python3.11/site-packages/pydantic/_internal/_generate_schema.py:2274: UnsupportedFieldAttributeWarning: The 'repr' attribute with value False was provided to the `Field()` function, which has no effect in the context it was used. 'repr' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+/weka/martius/mot936/dreamerv4-tests/runs/dreamer4-community-baseline/envs/venv-82924c6c2b64/lib64/python3.11/site-packages/pydantic/_internal/_generate_schema.py:2274: UnsupportedFieldAttributeWarning: The 'frozen' attribute with value True was provided to the `Field()` function, which has no effect in the context it was used. 'frozen' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+[WMDataset] Warning: tasks_json not found at __none__ (continuing with zeros lang_emb + default action masks).
+[WMDataset] Task filter: keeping 1/1 tasks
+[WMDataset] task=memmaze segments=1 N_eff=2902900 valid=2531700 act_dim=16 lang=no
+[WMDataset] Total valid sequences: 2531700 across 1 tasks.
+[resume] step=897 active_hours=0.050054
+device=cuda params=42,646,592 dataset=2,531,700 batch=4 start_step=897 active=180.19/360.00s
+step=900 active_h=0.050297 loss=0.011986 flow=0.102304 boot=0.000000 mem_std=1.7880 grad=0.0462 lr=4.962e-05
+step=920 active_h=0.051422 loss=0.013475 flow=0.074253 boot=0.000000 mem_std=1.8558 grad=0.0660 lr=4.786e-05
+step=940 active_h=0.052546 loss=0.013561 flow=0.076348 boot=0.000000 mem_std=1.7868 grad=0.0642 lr=4.609e-05
+step=960 active_h=0.053695 loss=0.011394 flow=0.098971 boot=0.000000 mem_std=1.7455 grad=0.0500 lr=4.430e-05
+step=980 active_h=0.054823 loss=0.008914 flow=0.118858 boot=0.000000 mem_std=1.8120 grad=0.0324 lr=4.254e-05
+step=1000 active_h=0.055947 loss=0.011968 flow=0.105956 boot=0.000000 mem_std=1.7709 grad=0.0531 lr=4.080e-05
+step=1020 active_h=0.057108 loss=0.010955 flow=0.095092 boot=0.000000 mem_std=1.8786 grad=0.0447 lr=3.901e-05
+step=1040 active_h=0.058248 loss=0.011672 flow=0.101059 boot=0.000000 mem_std=1.8687 grad=0.0445 lr=3.727e-05
+step=1060 active_h=0.059371 loss=0.016599 flow=0.054997 boot=0.000000 mem_std=1.8086 grad=0.0671 lr=3.558e-05
+step=1080 active_h=0.060496 loss=0.010340 flow=0.092887 boot=0.000000 mem_std=1.7697 grad=0.0362 lr=3.389e-05
+step=1100 active_h=0.061621 loss=0.012584 flow=0.072577 boot=0.000000 mem_std=1.8165 grad=0.0549 lr=3.223e-05
+step=1120 active_h=0.062747 loss=0.009200 flow=0.122660 boot=0.000000 mem_std=1.8078 grad=0.0259 lr=3.059e-05
+step=1140 active_h=0.063874 loss=0.012232 flow=0.072157 boot=0.000000 mem_std=1.8359 grad=0.0491 lr=2.897e-05
+step=1160 active_h=0.065001 loss=0.012354 flow=0.073929 boot=0.000000 mem_std=1.7920 grad=0.0472 lr=2.738e-05
+step=1180 active_h=0.066140 loss=0.010374 flow=0.094399 boot=0.000000 mem_std=1.8525 grad=0.0435 lr=2.580e-05
+step=1200 active_h=0.067269 loss=0.013393 flow=0.077871 boot=0.000000 mem_std=1.8420 grad=0.0560 lr=2.426e-05
+step=1220 active_h=0.068404 loss=0.009141 flow=0.121878 boot=0.000000 mem_std=1.7942 grad=0.0257 lr=2.275e-05
+step=1240 active_h=0.069532 loss=0.013269 flow=0.077026 boot=0.000000 mem_std=1.8213 grad=0.0491 lr=2.128e-05
+step=1260 active_h=0.070667 loss=0.012260 flow=0.069678 boot=0.000000 mem_std=1.7922 grad=0.0460 lr=1.984e-05
+step=1280 active_h=0.071792 loss=0.010685 flow=0.094662 boot=0.000000 mem_std=1.7996 grad=0.0338 lr=1.845e-05
+step=1300 active_h=0.072916 loss=0.011118 flow=0.104297 boot=0.000000 mem_std=1.7911 grad=0.0340 lr=1.710e-05
+step=1320 active_h=0.074065 loss=0.010412 flow=0.092395 boot=0.000000 mem_std=1.8040 grad=0.0322 lr=1.576e-05
+[checkpoint] /weka/martius/mot936/dreamerv4-tests/runs/memmaze-community-d4-mem2mem-calib-b4-r3/memory-latest.pt step=1337 active_s=270.07
+step=1340 active_h=0.075189 loss=0.010611 flow=0.094217 boot=0.000000 mem_std=1.7922 grad=0.0266 lr=1.450e-05
+step=1360 active_h=0.076313 loss=0.014511 flow=0.053274 boot=0.000000 mem_std=1.7943 grad=0.0524 lr=1.328e-05
+step=1380 active_h=0.077438 loss=0.008857 flow=0.118098 boot=0.000000 mem_std=1.8474 grad=0.0347 lr=1.210e-05
+step=1400 active_h=0.078563 loss=0.011906 flow=0.070810 boot=0.000000 mem_std=1.7835 grad=0.0426 lr=1.097e-05
+step=1420 active_h=0.079687 loss=0.008635 flow=0.115139 boot=0.000000 mem_std=1.8006 grad=0.0314 lr=9.892e-06
+step=1440 active_h=0.080834 loss=0.013136 flow=0.049993 boot=0.000000 mem_std=1.7545 grad=0.0422 lr=8.844e-06
+step=1460 active_h=0.081960 loss=0.009859 flow=0.086933 boot=0.000000 mem_std=1.7623 grad=0.0319 lr=7.865e-06
+step=1480 active_h=0.083085 loss=0.010324 flow=0.096076 boot=0.000000 mem_std=1.8350 grad=0.0301 lr=6.940e-06
+step=1500 active_h=0.084212 loss=0.014618 flow=0.050784 boot=0.000000 mem_std=1.8352 grad=0.0454 lr=6.069e-06
+step=1520 active_h=0.085337 loss=0.012219 flow=0.077793 boot=0.000000 mem_std=1.7494 grad=0.0369 lr=5.251e-06
+step=1540 active_h=0.086463 loss=0.012244 flow=0.076325 boot=0.000000 mem_std=1.8092 grad=0.0426 lr=4.491e-06
+step=1560 active_h=0.087587 loss=0.012471 flow=0.073184 boot=0.000000 mem_std=1.7991 grad=0.0395 lr=3.788e-06
+step=1580 active_h=0.088712 loss=0.011930 flow=0.073071 boot=0.000000 mem_std=1.8172 grad=0.0371 lr=3.142e-06
+step=1600 active_h=0.089838 loss=0.010681 flow=0.059982 boot=0.000000 mem_std=1.8028 grad=0.0382 lr=2.554e-06
+step=1620 active_h=0.090988 loss=0.013231 flow=0.047751 boot=0.000000 mem_std=1.7834 grad=0.0417 lr=2.015e-06
+step=1640 active_h=0.092114 loss=0.010206 flow=0.092478 boot=0.000000 mem_std=1.7274 grad=0.0342 lr=1.548e-06
+step=1660 active_h=0.093245 loss=0.012569 flow=0.047357 boot=0.000000 mem_std=1.7713 grad=0.0380 lr=1.140e-06
+step=1680 active_h=0.094370 loss=0.010736 flow=0.096414 boot=0.000000 mem_std=1.7995 grad=0.0320 lr=7.957e-07
+step=1700 active_h=0.095495 loss=0.012475 flow=0.075265 boot=0.000000 mem_std=1.8038 grad=0.0353 lr=5.125e-07
+step=1720 active_h=0.096629 loss=0.011969 flow=0.070879 boot=0.000000 mem_std=1.7700 grad=0.0348 lr=2.895e-07
+step=1740 active_h=0.097761 loss=0.011840 flow=0.068749 boot=0.000000 mem_std=1.8147 grad=0.0382 lr=1.299e-07
+step=1760 active_h=0.098887 loss=0.015422 flow=0.052793 boot=0.000000 mem_std=1.7569 grad=0.0435 lr=3.374e-08
+step=1780 active_h=0.100012 loss=0.011892 flow=0.070538 boot=0.000000 mem_std=1.7890 grad=0.0372 lr=4.918e-11
+[checkpoint] /weka/martius/mot936/dreamerv4-tests/runs/memmaze-community-d4-mem2mem-calib-b4-r3/memory-latest.pt step=1780 active_s=360.04
+TRAINING STOP step=1780 active_seconds=360.041798 budget_seconds=360.000000 checkpoint=/weka/martius/mot936/dreamerv4-tests/runs/memmaze-community-d4-mem2mem-calib-b4-r3/memory-latest.pt

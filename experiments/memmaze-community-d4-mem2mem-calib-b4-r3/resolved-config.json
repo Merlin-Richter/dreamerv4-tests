@@ -1,0 +1,31 @@
+{
+  "active_budget_seconds": 360.0,
+  "archive": false,
+  "batch_size": 4,
+  "bootstrap_start": 5000,
+  "clip_length": 128,
+  "d_model": 512,
+  "data_dirs": [
+    "/scratch_local/mot936-429431/tmp/d4_memmaze_community_mem2mem_train/demos"
+  ],
+  "depth": 8,
+  "ff9": false,
+  "frame_dirs": [
+    "/scratch_local/mot936-429431/tmp/d4_memmaze_community_mem2mem_train/shards"
+  ],
+  "k_max": 8,
+  "loss_normalization": "each of 6 scored 16-frame new halves weighted 1/6",
+  "n_agent": 1,
+  "n_heads": 4,
+  "n_memory": 8,
+  "n_register": 4,
+  "optimizer_step": "one per complete 128-frame clip batch",
+  "prediction_modes": "per-sequence 50/50 latent-present vs memory-load-bearing",
+  "seed": 0,
+  "self_fraction": 0.25,
+  "tbptt_boundary": "after 4 slides (64 newly committed frames), then after final 2 slides",
+  "tbptt_frames": 64,
+  "time_every": 1,
+  "tokenizer_sha256": "347052fae0212ea2c6b943ae7c28a886298ce551d4155b882084d63a3ea48797",
+  "window": 32
+}

@@ -1,0 +1,9 @@
+[gate 1a] vanilla construction/forward parity max_abs=0
+[gate 2] seed-0 shared initialization bit-identical; only memory_tokens is new
+[gate 3] shapes correct; future perturbation changes earlier outputs by max_abs=0
+[gate 4] relay grad=5.209043e-06; deliberate-detach grad=0.0
+[gates 5/6] distinct-channel matched-input effects: {'memory_prediction': 0.010959982872009277, 'memory_write': 0.8189592361450195, 'actions': 1.8417835235595703e-05, 'registers': 0.0002696514129638672}
+[gate 7] unique loss accounting; segmented-vs-monolithic grad max_abs=0.0
+[gate 10a] finite beyond eviction; blank-after-eviction effect=4.108697e-03; vanilla/memory target-noise generator states match
+[gate 1b] approved vanilla checkpoint strict-load parity max_abs=0.0 sha256=7b077938fec776c74e62201ab79194a7a06e10e54856c69d47b65dda6367d674
+MODEL/ROLLOUT VALIDATION PASSED

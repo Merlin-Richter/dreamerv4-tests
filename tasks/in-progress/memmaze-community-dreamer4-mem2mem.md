@@ -416,3 +416,13 @@ gates, and next blocker. Do not reconstruct status later from chat or scheduler 
   run `memmaze-community-d4-mem2mem-calib-b4-r3`, uses one H100, batch size 4, 16 CPUs, and a four-hour
   outer allocation. Active production seconds: **0**. NEXT: require the first 180-second segment, forced
   resume to 360 cumulative seconds, checkpoint consistency, and telemetry health gate all to pass.
+- **2026-08-06 — Calibration 429431 passed correctness/resume but rejected batch size 4 utilization.**
+  The run completed **1,780** optimizer steps and **360.041798** cumulative active calibration seconds.
+  Forced restart was exact: first process stopped at step 897 / 180.194211 seconds; the second restored
+  exactly that counter/clock and continued. Losses and gradients remained finite; written-memory standard
+  deviation stayed noncollapsed. Telemetry hard-failed batch size 4: mean H100 utilization **76.4054%**,
+  p05 **27%**, longest below 90% **230.022s**, mean/max HBM **10,989/11,337 MiB** of 81,559 MiB. Full logs,
+  manifests, config, GPU samples, and telemetry summary were pulled to
+  `experiments/memmaze-community-d4-mem2mem-calib-b4-r3/`. Active production seconds: **0**. NEXT:
+  calibrate batch size **24** (sixfold batch with substantial measured HBM margin); freeze only if it fits,
+  resumes, and clears the >=90% mean-utilization hard gate.
