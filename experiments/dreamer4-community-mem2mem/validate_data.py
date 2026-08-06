@@ -11,6 +11,8 @@ from pathlib import Path
 import torch
 
 EXPECTED_TOKENIZER_SHA256 = "347052fae0212ea2c6b943ae7c28a886298ce551d4155b882084d63a3ea48797"
+EXPECTED_TRAIN_MANIFEST_SHA256 = "834c9b29e4436614694635826d570d3695542058e020487500691e8954ab673c"
+EXPECTED_EVAL_MANIFEST_SHA256 = "3739484c11a87dca14c714b3b491e24e923f9a0a0c48c11cc4bf2e6950e62d20"
 
 
 def sha256(path: Path):
@@ -26,7 +28,10 @@ def load_manifest(root: Path):
     manifest = json.loads(path.read_text())
     assert manifest["format"] == "dreamer4-community-memmaze-v2-bounded-memory"
     assert manifest["task"] == "memmaze"
-    assert manifest["target_size"] == 64
+    # The approved conversion kept Memory Maze's native 64x64 resolution, so
+    # target_size is null rather than an explicit resize request. The baseline
+    # validator independently checks every stored frame is actually 64x64.
+    assert manifest["target_size"] is None
     assert manifest["action_shift"] == 0
     assert manifest["action_dim_source"] == [6]
     assert manifest["action_dim_stored"] == 16
@@ -47,6 +52,8 @@ def main():
 
     train, train_manifest_sha = load_manifest(args.train_root)
     heldout, eval_manifest_sha = load_manifest(args.eval_root)
+    assert train_manifest_sha == EXPECTED_TRAIN_MANIFEST_SHA256, train_manifest_sha
+    assert eval_manifest_sha == EXPECTED_EVAL_MANIFEST_SHA256, eval_manifest_sha
     overlap = set(train["trajectory_content_sha256"]) & set(heldout["trajectory_content_sha256"])
     assert not overlap, f"train/eval leakage: {len(overlap)} trajectories"
 

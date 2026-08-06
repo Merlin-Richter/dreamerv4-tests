@@ -384,3 +384,13 @@ gates, and next blocker. Do not reconstruct status later from chat or scheduler 
   and active-interval GPU-utilization gates before any production submission. Active production seconds:
   **0**. NEXT: inspect calibration artifacts; freeze the batch/loader/TBPTT configuration only if all
   correctness and >=90% utilization health gates pass.
+- **2026-08-06 — Calibration 429420 stopped at the data-identity schema gate; no training ran.** The
+  baseline validator completed its full 2,902,900-train-frame / 1,001,000-eval-frame shard scan and proved
+  content-disjoint splits, and setup/model gates passed. The stricter checker then failed because it
+  expected manifest `target_size=64`; both approved manifests correctly store `target_size=null`, meaning
+  no resize from native 64x64, while the baseline gate independently verifies every shard frame is 64x64.
+  Pulled the manifests through `pull_file.sh`, pinned their exact SHA-256 values
+  (`834c9b29e4436614694635826d570d3695542058e020487500691e8954ab673c` train;
+  `3739484c11a87dca14c714b3b491e24e923f9a0a0c48c11cc4bf2e6950e62d20` eval), corrected the assertion,
+  and validated the checker against both exact files locally. Ferranti job **429420**: FAILED before
+  training; active production seconds: **0**. NEXT: commit/push/sync this gate fix and rerun calibration.
