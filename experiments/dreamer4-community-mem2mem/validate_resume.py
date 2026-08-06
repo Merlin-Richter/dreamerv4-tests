@@ -111,11 +111,26 @@ def main():
     equal_nested(full_opt.state_dict(), resumed_opt.state_dict(), "optimizer")
     assert torch.equal(full_gen.get_state(), resumed_gen.get_state())
     assert full_losses == split_losses
+
+    # Production loads the entire checkpoint with map_location=cuda. That moves
+    # serialized CPU RNG ByteTensors too, so exercise the exact device crossing.
+    cuda_restore = "not-available"
+    if torch.cuda.is_available():
+        saved_cuda_gen = torch.Generator(device="cuda").manual_seed(5678)
+        trainer.atomic_save({"rng": trainer.rng_state(saved_cuda_gen)}, checkpoint)
+        cuda_payload = torch.load(checkpoint, map_location="cuda", weights_only=False)
+        assert cuda_payload["rng"]["torch_cpu"].is_cuda
+        restored_cuda_gen = torch.Generator(device="cuda").manual_seed(0)
+        trainer.restore_rng(cuda_payload["rng"], restored_cuda_gen)
+        assert torch.equal(saved_cuda_gen.get_state(), restored_cuda_gen.get_state())
+        cuda_restore = "passed"
+
     checkpoint.unlink()
     checkpoint.parent.rmdir()
     print(
         f"RESUME DETERMINISM PASSED step=2 active_seconds={active_seconds} "
-        f"losses={full_losses} temporary_checkpoint_cleaned=true"
+        f"losses={full_losses} cuda_map_location_restore={cuda_restore} "
+        "temporary_checkpoint_cleaned=true"
     )
 
 

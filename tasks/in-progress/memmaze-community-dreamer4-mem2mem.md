@@ -400,3 +400,14 @@ gates, and next blocker. Do not reconstruct status later from chat or scheduler 
   batch size 4, 16 CPUs, and a four-hour outer allocation. Active production seconds: **0**. NEXT: inspect
   all correctness, resume, HBM, throughput, and active-interval utilization results before freezing the
   production configuration.
+- **2026-08-06 — Calibration 429421 exposed a CUDA-only resume bug after a healthy first segment.** All
+  data/model gates passed, then batch-size-4 training completed **881** optimizer steps and
+  **180.028626** active calibration seconds with finite losses/gradients, noncollapsed written-memory
+  standard deviation, and a checkpoint at 90 seconds plus the segment-final checkpoint. Resume failed
+  before another optimizer step because loading the checkpoint with `map_location=cuda` moved the saved
+  CPU RNG `ByteTensor` to CUDA, which `torch.set_rng_state` rejects. Fixed `restore_rng` to normalize CPU,
+  CUDA-global, and rollout-generator byte states to CPU before the generator APIs consume them. Extended
+  `validate_resume.py` with the exact CUDA-map-location path; local RTX CUDA gate passes while preserving
+  the prior exact two-step loss/model/optimizer/RNG equality. Ferranti jobs: **429420**, **429421** failed
+  as documented; active production seconds: **0**. NEXT: commit/push/sync the resume fix and run a fresh
+  calibration through the forced resume and telemetry health gate.

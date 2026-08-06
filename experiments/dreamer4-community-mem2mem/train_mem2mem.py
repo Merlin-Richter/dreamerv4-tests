@@ -99,10 +99,13 @@ def rng_state(generator: torch.Generator):
 def restore_rng(state, generator: torch.Generator):
     random.setstate(state["python"])
     np.random.set_state(state["numpy"])
-    torch.set_rng_state(state["torch_cpu"])
+    # Loading the full checkpoint with map_location="cuda" also moves these
+    # serialized ByteTensors to CUDA. Generator state APIs require CPU bytes,
+    # including for CUDA generators.
+    torch.set_rng_state(state["torch_cpu"].cpu())
     if torch.cuda.is_available() and state.get("torch_cuda") is not None:
-        torch.cuda.set_rng_state_all(state["torch_cuda"])
-    generator.set_state(state["rollout"])
+        torch.cuda.set_rng_state_all([value.cpu() for value in state["torch_cuda"]])
+    generator.set_state(state["rollout"].cpu())
 
 
 def atomic_save(payload, path: Path):
