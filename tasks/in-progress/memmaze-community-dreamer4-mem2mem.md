@@ -446,3 +446,11 @@ gates, and next blocker. Do not reconstruct status later from chat or scheduler 
   stop cannot be mislabeled complete; synthetic complete/partial acceptance/rejection and bash syntax
   gates pass. Active production seconds: **0**. NEXT: commit/push/sync the frozen production driver and
   submit the 48-active-hour run.
+- **2026-08-06 — 48-active-hour production run submitted.** Frozen production commit
+  **`0fb8759a41dd237d1daf0a3ef92fb847a4aeb909`** was pushed and synced exactly. Ferranti job **429437**,
+  run `memmaze-community-d4-mem2mem-48h`, has one H100, 16 CPUs, and a **120-hour** outer allocation; the
+  calibrated trainer owns the exact **172,800 active-second** stop. It starts seed0 from scratch, writes
+  `memory-latest.pt` plus hourly active-time snapshots, and can create `memory-final.pt` only after the
+  hard active-clock/config/exposure gate passes. Active production seconds at submission: **0**. NEXT:
+  require full startup identity gates, advancing finite optimizer steps, >=90% active-interval utilization,
+  bounded HBM/host RSS, and healthy transition through shortcut bootstrap step 5,000.
