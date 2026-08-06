@@ -426,3 +426,8 @@ gates, and next blocker. Do not reconstruct status later from chat or scheduler 
   `experiments/memmaze-community-d4-mem2mem-calib-b4-r3/`. Active production seconds: **0**. NEXT:
   calibrate batch size **24** (sixfold batch with substantial measured HBM margin); freeze only if it fits,
   resumes, and clears the >=90% mean-utilization hard gate.
+- **2026-08-06 — Batch-size-24 utilization calibration submitted.** Retained and committed the batch-4
+  artifacts as `735ee38926b2d9c3dc738506e18bb4f7aea9b87b`, synced that exact SHA, and submitted ferranti job
+  **429432**, run `memmaze-community-d4-mem2mem-calib-b24`: one H100, batch size 24, 16 CPUs, four-hour
+  outer allocation. Active production seconds: **0**. NEXT: inspect OOM/HBM, forced-resume exactness,
+  throughput, and active-interval utilization; freeze bs24 only if every gate passes.
