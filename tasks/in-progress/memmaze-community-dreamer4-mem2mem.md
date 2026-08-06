@@ -463,3 +463,10 @@ gates, and next blocker. Do not reconstruct status later from chat or scheduler 
   roughly 3.67 active hours of margin around the 48-hour target. The hard final gate prevents allocation
   1 from being called complete. NEXT: commit/push/sync the corrected scheduler provenance and submit
   allocation 1. Production active seconds: **0**.
+- **2026-08-06 — Production allocation 1 submitted.** Corrected scheduling commit
+  **`0963308c07e0b081f902140b2ab2a392e924f9cb`** was pushed and synced exactly. Ferranti job **429438**,
+  run `memmaze-community-d4-mem2mem-48h`, requests one H100, 16 CPUs, and the accepted 54-hour envelope.
+  It uses the frozen bs24 configuration and the shared resumable `memory-latest.pt`/active ledger that
+  allocation 2 will continue. Active production seconds at submission: **0**. NEXT: require all startup
+  identity/model gates, advancing finite training, calibrated utilization/HBM, bounded host RSS, first
+  hourly checkpoint, and healthy bootstrap activation at optimizer step 5,000.
