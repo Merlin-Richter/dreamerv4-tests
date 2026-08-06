@@ -394,3 +394,9 @@ gates, and next blocker. Do not reconstruct status later from chat or scheduler 
   `3739484c11a87dca14c714b3b491e24e923f9a0a0c48c11cc4bf2e6950e62d20` eval), corrected the assertion,
   and validated the checker against both exact files locally. Ferranti job **429420**: FAILED before
   training; active production seconds: **0**. NEXT: commit/push/sync this gate fix and rerun calibration.
+- **2026-08-06 — Corrected H100 calibration retry submitted.** Committed the exact-manifest schema fix as
+  **`6d279a91500fa6c8d41409fff475796da53829db`**, pushed it, and synced that exact SHA through the approved
+  wrapper. Ferranti job **429421**, run `memmaze-community-d4-mem2mem-calib-b4-r2`, retries with one H100,
+  batch size 4, 16 CPUs, and a four-hour outer allocation. Active production seconds: **0**. NEXT: inspect
+  all correctness, resume, HBM, throughput, and active-interval utilization results before freezing the
+  production configuration.
