@@ -1,0 +1,163 @@
+=== job memmaze-community-d4-mem2mem-calib-b24 on mlcbm012 | jobid 429432 | Thu Aug  6 20:09:37 CEST 2026 ===
+NVIDIA H100 80GB HBM3, 81559 MiB
+=== commit: 735ee38926b2d9c3dc738506e18bb4f7aea9b87b ===
+=== reusing cached venv /weka/martius/mot936/venvs/venv-b05c6eb3f672f99e ===
+=== running: env D4_BATCH_SIZE=24 D4_NUM_WORKERS=4 bash experiments/dreamer4-community-mem2mem/calibrate_h100.sh ===
+[synth] 5 npz of T=60 -> /scratch_local/mot936-429432/tmp/d4val_mxszfins/raw
+5/5 traj  (30.1/s, 9 shards, peak_rss=0.50 GiB)
+DONE task=memmaze: 5 trajectories, N=300 frames, 10 shards (shard_size=32), n_actions=[6]
+  frames -> /scratch_local/mot936-429432/tmp/d4val_mxszfins/d4/shards/memmaze
+  demo   -> /scratch_local/mot936-429432/tmp/d4val_mxszfins/d4/demos/memmaze.pt  (episode/action(A=16)/reward, N=300)
+[ShardedFrameDataset] roots=1, shards=10, seq_starts=230
+[tokenizer] ShardedFrameDataset ok: sample=(8, 3, 64, 64) range=[0.00,1.00]
+[WMDataset] Warning: tasks_json not found at __none__ (continuing with zeros lang_emb + default action masks).
+[WMDataset] Task filter: keeping 1/1 tasks
+[WMDataset] task=memmaze segments=1 N_eff=300 valid=220 act_dim=16 lang=no
+[WMDataset] Total valid sequences: 220 across 1 tasks.
+[dynamics] WMDataset ok: obs=(4, 17, 3, 64, 64) act=(4, 16, 16) (clean one-hot in first 6)
+[alignment] raw action[t] -> raw image[t] survives conversion, WMDataset, and train shift exactly
+[model] 64x64 forward ok: z=(2, 6, 16, 32) z1_packed=(2, 6, 8, 64) dyn_out=(2, 6, 8, 64) (output is 0 on untrained model: flow_x_head is zero-init)
+
+VALIDATION PASSED - community WMDataset + ShardedFrameDataset + model accept the format at 64x64.
+[gate 1a] vanilla construction/forward parity max_abs=0
+[gate 2] seed-0 shared initialization bit-identical; only memory_tokens is new
+[gate 3] shapes correct; future perturbation changes earlier outputs by max_abs=0
+[gate 4] relay grad=5.209043e-06; deliberate-detach grad=0.0
+[gates 5/6] distinct-channel matched-input effects: {'memory_prediction': 0.010959982872009277, 'memory_write': 0.8189592361450195, 'actions': 1.8417835235595703e-05, 'registers': 0.0002696514129638672}
+[gate 7] unique loss accounting; segmented-vs-monolithic grad max_abs=0.0
+[gate 10a] finite beyond eviction; blank-after-eviction effect=4.108697e-03; vanilla/memory target-noise generator states match
+MODEL/ROLLOUT VALIDATION PASSED
+MEM2MEM SETUP PASSED
+D4_ROOT=/weka/martius/mot936/dreamerv4-tests/runs/dreamer4-community-mem2mem/upstream-b8abafbf-004e14cba1ee
+D4_PYTHON=/weka/martius/mot936/dreamerv4-tests/runs/dreamer4-community-baseline/envs/venv-82924c6c2b64/bin/python
+{
+  "root": "/weka/martius/mot936/dreamerv4-tests/data/d4_memmaze_community/train-part0-v2",
+  "task": "memmaze",
+  "trajectories": 2900,
+  "frames": 2902900,
+  "shards": 1418,
+  "trajectory_names_sha256": "066ad5ca371f8a4ad6d280ceb0c5630926dbc8b03d1d251bbd2ad18d0065b83d"
+}
+{
+  "root": "/weka/martius/mot936/dreamerv4-tests/data/d4_memmaze_community/eval-v2",
+  "task": "memmaze",
+  "trajectories": 1000,
+  "frames": 1001000,
+  "shards": 489,
+  "trajectory_names_sha256": "a16019bcd51f662de671258f320729f8e67613f1b235df873384d77c0bd0b53a"
+}
+SPLIT DISJOINTNESS PASSED
+CONVERSION VALIDATION PASSED
+/weka/martius/mot936/dreamerv4-tests/runs/dreamer4-community-baseline/envs/venv-82924c6c2b64/lib64/python3.11/site-packages/pydantic/_internal/_generate_schema.py:2274: UnsupportedFieldAttributeWarning: The 'repr' attribute with value False was provided to the `Field()` function, which has no effect in the context it was used. 'repr' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+/weka/martius/mot936/dreamerv4-tests/runs/dreamer4-community-baseline/envs/venv-82924c6c2b64/lib64/python3.11/site-packages/pydantic/_internal/_generate_schema.py:2274: UnsupportedFieldAttributeWarning: The 'frozen' attribute with value True was provided to the `Field()` function, which has no effect in the context it was used. 'frozen' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+{
+  "action_alignment": "raw action[t] produced raw image[t]",
+  "channel_order": "RGB",
+  "content_overlap": 0,
+  "encoding_strategy": "online exact (episode,start,W) windows; no whole-clip cache",
+  "eval_manifest_sha256": "3739484c11a87dca14c714b3b491e24e923f9a0a0c48c11cc4bf2e6950e62d20",
+  "eval_trajectories": 1000,
+  "eval_trajectory_names_sha256": "a16019bcd51f662de671258f320729f8e67613f1b235df873384d77c0bd0b53a",
+  "repeated_window_encoding_max_abs": 0.0,
+  "tokenizer_config_d_bottleneck": 32,
+  "tokenizer_config_n_latents": 16,
+  "tokenizer_latent_shape": [
+    1,
+    32,
+    16,
+    32
+  ],
+  "tokenizer_sha256": "347052fae0212ea2c6b943ae7c28a886298ce551d4155b882084d63a3ea48797",
+  "train_manifest_sha256": "834c9b29e4436614694635826d570d3695542058e020487500691e8954ab673c",
+  "train_trajectories": 2900,
+  "train_trajectory_names_sha256": "066ad5ca371f8a4ad6d280ceb0c5630926dbc8b03d1d251bbd2ad18d0065b83d",
+  "window": 32
+}
+DATA IDENTITY VALIDATION PASSED
+[gate 1a] vanilla construction/forward parity max_abs=0
+[gate 2] seed-0 shared initialization bit-identical; only memory_tokens is new
+[gate 3] shapes correct; future perturbation changes earlier outputs by max_abs=0
+[gate 4] relay grad=5.209043e-06; deliberate-detach grad=0.0
+[gates 5/6] distinct-channel matched-input effects: {'memory_prediction': 0.010959982872009277, 'memory_write': 0.8189592361450195, 'actions': 1.8417835235595703e-05, 'registers': 0.0002696514129638672}
+[gate 7] unique loss accounting; segmented-vs-monolithic grad max_abs=0.0
+[gate 10a] finite beyond eviction; blank-after-eviction effect=4.108697e-03; vanilla/memory target-noise generator states match
+[gate 1b] approved vanilla checkpoint strict-load parity max_abs=0.0 sha256=7b077938fec776c74e62201ab79194a7a06e10e54856c69d47b65dda6367d674
+MODEL/ROLLOUT VALIDATION PASSED
+RESUME DETERMINISM PASSED step=2 active_seconds=12.5 losses=[0.47961749136447906, 0.37350645661354065] cuda_map_location_restore=passed temporary_checkpoint_cleaned=true
+/weka/martius/mot936/dreamerv4-tests/runs/dreamer4-community-baseline/envs/venv-82924c6c2b64/lib64/python3.11/site-packages/pydantic/_internal/_generate_schema.py:2274: UnsupportedFieldAttributeWarning: The 'repr' attribute with value False was provided to the `Field()` function, which has no effect in the context it was used. 'repr' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+/weka/martius/mot936/dreamerv4-tests/runs/dreamer4-community-baseline/envs/venv-82924c6c2b64/lib64/python3.11/site-packages/pydantic/_internal/_generate_schema.py:2274: UnsupportedFieldAttributeWarning: The 'frozen' attribute with value True was provided to the `Field()` function, which has no effect in the context it was used. 'frozen' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+[WMDataset] Warning: tasks_json not found at __none__ (continuing with zeros lang_emb + default action masks).
+[WMDataset] Task filter: keeping 1/1 tasks
+[WMDataset] task=memmaze segments=1 N_eff=2902900 valid=2531700 act_dim=16 lang=no
+[WMDataset] Total valid sequences: 2531700 across 1 tasks.
+device=cuda params=42,646,592 dataset=2,531,700 batch=24 start_step=0 active=0.00/180.00s
+step=1 active_h=0.000245 loss=0.061322 flow=0.298704 boot=0.000000 mem_std=1.6737 grad=0.5097 lr=1.000e-04
+step=20 active_h=0.002959 loss=0.033239 flow=0.199303 boot=0.000000 mem_std=2.3176 grad=0.1484 lr=9.922e-05
+step=40 active_h=0.005816 loss=0.033718 flow=0.181272 boot=0.000000 mem_std=1.9966 grad=0.1304 lr=9.686e-05
+step=60 active_h=0.008672 loss=0.038060 flow=0.155165 boot=0.000000 mem_std=2.2922 grad=0.2123 lr=9.299e-05
+step=80 active_h=0.011559 loss=0.025640 flow=0.150248 boot=0.000000 mem_std=2.1929 grad=0.0741 lr=8.774e-05
+step=100 active_h=0.014415 loss=0.018210 flow=0.155281 boot=0.000000 mem_std=2.1577 grad=0.0405 lr=8.121e-05
+step=120 active_h=0.017266 loss=0.022389 flow=0.127477 boot=0.000000 mem_std=2.1658 grad=0.0599 lr=7.375e-05
+step=140 active_h=0.020120 loss=0.019534 flow=0.122930 boot=0.000000 mem_std=2.1048 grad=0.0378 lr=6.552e-05
+step=160 active_h=0.022975 loss=0.015448 flow=0.135016 boot=0.000000 mem_std=2.1189 grad=0.0283 lr=5.679e-05
+[checkpoint] /weka/martius/mot936/dreamerv4-tests/runs/memmaze-community-d4-mem2mem-calib-b24/memory-latest.pt step=175 active_s=90.42
+step=180 active_h=0.025830 loss=0.014868 flow=0.132579 boot=0.000000 mem_std=2.0545 grad=0.0243 lr=4.784e-05
+step=200 active_h=0.028684 loss=0.016736 flow=0.111869 boot=0.000000 mem_std=2.0677 grad=0.0322 lr=3.897e-05
+step=220 active_h=0.031539 loss=0.013933 flow=0.123080 boot=0.000000 mem_std=2.0514 grad=0.0260 lr=3.044e-05
+step=240 active_h=0.034393 loss=0.015143 flow=0.106777 boot=0.000000 mem_std=2.0847 grad=0.0299 lr=2.255e-05
+step=260 active_h=0.037248 loss=0.016166 flow=0.106430 boot=0.000000 mem_std=2.0682 grad=0.0254 lr=1.553e-05
+step=280 active_h=0.040102 loss=0.017689 flow=0.093882 boot=0.000000 mem_std=2.0340 grad=0.0335 lr=9.624e-06
+step=300 active_h=0.042957 loss=0.015776 flow=0.103321 boot=0.000000 mem_std=2.0310 grad=0.0298 lr=5.010e-06
+step=320 active_h=0.045812 loss=0.017555 flow=0.093046 boot=0.000000 mem_std=2.0471 grad=0.0318 lr=1.840e-06
+step=340 active_h=0.048667 loss=0.013899 flow=0.115760 boot=0.000000 mem_std=2.0127 grad=0.0228 lr=2.149e-07
+[checkpoint] /weka/martius/mot936/dreamerv4-tests/runs/memmaze-community-d4-mem2mem-calib-b24/memory-latest.pt step=350 active_s=180.34
+TRAINING STOP step=350 active_seconds=180.337252 budget_seconds=180.000000 checkpoint=/weka/martius/mot936/dreamerv4-tests/runs/memmaze-community-d4-mem2mem-calib-b24/memory-latest.pt
+/weka/martius/mot936/dreamerv4-tests/runs/dreamer4-community-baseline/envs/venv-82924c6c2b64/lib64/python3.11/site-packages/pydantic/_internal/_generate_schema.py:2274: UnsupportedFieldAttributeWarning: The 'repr' attribute with value False was provided to the `Field()` function, which has no effect in the context it was used. 'repr' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+/weka/martius/mot936/dreamerv4-tests/runs/dreamer4-community-baseline/envs/venv-82924c6c2b64/lib64/python3.11/site-packages/pydantic/_internal/_generate_schema.py:2274: UnsupportedFieldAttributeWarning: The 'frozen' attribute with value True was provided to the `Field()` function, which has no effect in the context it was used. 'frozen' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+[WMDataset] Warning: tasks_json not found at __none__ (continuing with zeros lang_emb + default action masks).
+[WMDataset] Task filter: keeping 1/1 tasks
+[WMDataset] task=memmaze segments=1 N_eff=2902900 valid=2531700 act_dim=16 lang=no
+[WMDataset] Total valid sequences: 2531700 across 1 tasks.
+[resume] step=350 active_hours=0.050094
+device=cuda params=42,646,592 dataset=2,531,700 batch=24 start_step=350 active=180.34/360.00s
+step=360 active_h=0.051661 loss=0.015578 flow=0.103824 boot=0.000000 mem_std=2.0512 grad=0.0475 lr=4.762e-05
+step=380 active_h=0.054549 loss=0.015094 flow=0.101134 boot=0.000000 mem_std=2.0017 grad=0.0427 lr=4.310e-05
+step=400 active_h=0.057434 loss=0.013339 flow=0.105100 boot=0.000000 mem_std=1.9569 grad=0.0327 lr=3.865e-05
+step=420 active_h=0.060316 loss=0.014245 flow=0.095521 boot=0.000000 mem_std=1.9603 grad=0.0438 lr=3.429e-05
+step=440 active_h=0.063198 loss=0.014864 flow=0.096555 boot=0.000000 mem_std=1.9589 grad=0.0417 lr=3.007e-05
+step=460 active_h=0.066080 loss=0.013099 flow=0.105500 boot=0.000000 mem_std=1.9541 grad=0.0263 lr=2.600e-05
+step=480 active_h=0.068993 loss=0.013554 flow=0.105606 boot=0.000000 mem_std=1.8846 grad=0.0279 lr=2.209e-05
+step=500 active_h=0.071874 loss=0.014534 flow=0.087367 boot=0.000000 mem_std=1.9123 grad=0.0323 lr=1.846e-05
+step=520 active_h=0.074757 loss=0.013006 flow=0.096861 boot=0.000000 mem_std=1.9222 grad=0.0228 lr=1.508e-05
+[checkpoint] /weka/martius/mot936/dreamerv4-tests/runs/memmaze-community-d4-mem2mem-calib-b24/memory-latest.pt step=522 active_s=270.16
+step=540 active_h=0.077639 loss=0.013966 flow=0.089643 boot=0.000000 mem_std=1.9257 grad=0.0277 lr=1.198e-05
+step=560 active_h=0.080521 loss=0.014055 flow=0.079096 boot=0.000000 mem_std=1.8992 grad=0.0251 lr=9.204e-06
+step=580 active_h=0.083406 loss=0.014164 flow=0.084549 boot=0.000000 mem_std=1.8878 grad=0.0252 lr=6.755e-06
+step=600 active_h=0.086295 loss=0.013404 flow=0.093023 boot=0.000000 mem_std=1.9054 grad=0.0279 lr=4.659e-06
+step=620 active_h=0.089183 loss=0.013867 flow=0.086774 boot=0.000000 mem_std=1.8911 grad=0.0247 lr=2.935e-06
+step=640 active_h=0.092072 loss=0.013488 flow=0.085633 boot=0.000000 mem_std=1.9000 grad=0.0194 lr=1.599e-06
+step=660 active_h=0.094960 loss=0.012958 flow=0.095120 boot=0.000000 mem_std=1.9399 grad=0.0184 lr=6.618e-07
+step=680 active_h=0.097849 loss=0.011261 flow=0.104736 boot=0.000000 mem_std=1.8621 grad=0.0183 lr=1.300e-07
+[checkpoint] /weka/martius/mot936/dreamerv4-tests/runs/memmaze-community-d4-mem2mem-calib-b24/memory-latest.pt step=695 active_s=360.06
+TRAINING STOP step=695 active_seconds=360.055772 budget_seconds=360.000000 checkpoint=/weka/martius/mot936/dreamerv4-tests/runs/memmaze-community-d4-mem2mem-calib-b24/memory-latest.pt
+{
+  "active_samples": 36,
+  "hard_health_gate_met": true,
+  "hbm_total_mib": 81559.0,
+  "longest_below_90_percent_s": 0.0,
+  "max_hbm_used_mib": 54843.0,
+  "mean_hbm_used_mib": 54625.77777777778,
+  "mean_utilization_percent": 98.75,
+  "p05_utilization_percent": 97.0,
+  "sample_cadence_s": 20.002000093460083,
+  "target_95_percent_met": true
+}
+GPU UTILIZATION HEALTH GATE PASSED
+H100 CALIBRATION PASSED batch_size=24 active_hours=0.10
+=== done memmaze-community-d4-mem2mem-calib-b24 rc=0 Thu Aug  6 20:23:33 CEST 2026 ===

@@ -1,0 +1,30 @@
+/weka/martius/mot936/dreamerv4-tests/runs/dreamer4-community-baseline/envs/venv-82924c6c2b64/lib64/python3.11/site-packages/pydantic/_internal/_generate_schema.py:2274: UnsupportedFieldAttributeWarning: The 'repr' attribute with value False was provided to the `Field()` function, which has no effect in the context it was used. 'repr' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+/weka/martius/mot936/dreamerv4-tests/runs/dreamer4-community-baseline/envs/venv-82924c6c2b64/lib64/python3.11/site-packages/pydantic/_internal/_generate_schema.py:2274: UnsupportedFieldAttributeWarning: The 'frozen' attribute with value True was provided to the `Field()` function, which has no effect in the context it was used. 'frozen' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+[WMDataset] Warning: tasks_json not found at __none__ (continuing with zeros lang_emb + default action masks).
+[WMDataset] Task filter: keeping 1/1 tasks
+[WMDataset] task=memmaze segments=1 N_eff=2902900 valid=2531700 act_dim=16 lang=no
+[WMDataset] Total valid sequences: 2531700 across 1 tasks.
+device=cuda params=42,646,592 dataset=2,531,700 batch=24 start_step=0 active=0.00/180.00s
+step=1 active_h=0.000245 loss=0.061322 flow=0.298704 boot=0.000000 mem_std=1.6737 grad=0.5097 lr=1.000e-04
+step=20 active_h=0.002959 loss=0.033239 flow=0.199303 boot=0.000000 mem_std=2.3176 grad=0.1484 lr=9.922e-05
+step=40 active_h=0.005816 loss=0.033718 flow=0.181272 boot=0.000000 mem_std=1.9966 grad=0.1304 lr=9.686e-05
+step=60 active_h=0.008672 loss=0.038060 flow=0.155165 boot=0.000000 mem_std=2.2922 grad=0.2123 lr=9.299e-05
+step=80 active_h=0.011559 loss=0.025640 flow=0.150248 boot=0.000000 mem_std=2.1929 grad=0.0741 lr=8.774e-05
+step=100 active_h=0.014415 loss=0.018210 flow=0.155281 boot=0.000000 mem_std=2.1577 grad=0.0405 lr=8.121e-05
+step=120 active_h=0.017266 loss=0.022389 flow=0.127477 boot=0.000000 mem_std=2.1658 grad=0.0599 lr=7.375e-05
+step=140 active_h=0.020120 loss=0.019534 flow=0.122930 boot=0.000000 mem_std=2.1048 grad=0.0378 lr=6.552e-05
+step=160 active_h=0.022975 loss=0.015448 flow=0.135016 boot=0.000000 mem_std=2.1189 grad=0.0283 lr=5.679e-05
+[checkpoint] /weka/martius/mot936/dreamerv4-tests/runs/memmaze-community-d4-mem2mem-calib-b24/memory-latest.pt step=175 active_s=90.42
+step=180 active_h=0.025830 loss=0.014868 flow=0.132579 boot=0.000000 mem_std=2.0545 grad=0.0243 lr=4.784e-05
+step=200 active_h=0.028684 loss=0.016736 flow=0.111869 boot=0.000000 mem_std=2.0677 grad=0.0322 lr=3.897e-05
+step=220 active_h=0.031539 loss=0.013933 flow=0.123080 boot=0.000000 mem_std=2.0514 grad=0.0260 lr=3.044e-05
+step=240 active_h=0.034393 loss=0.015143 flow=0.106777 boot=0.000000 mem_std=2.0847 grad=0.0299 lr=2.255e-05
+step=260 active_h=0.037248 loss=0.016166 flow=0.106430 boot=0.000000 mem_std=2.0682 grad=0.0254 lr=1.553e-05
+step=280 active_h=0.040102 loss=0.017689 flow=0.093882 boot=0.000000 mem_std=2.0340 grad=0.0335 lr=9.624e-06
+step=300 active_h=0.042957 loss=0.015776 flow=0.103321 boot=0.000000 mem_std=2.0310 grad=0.0298 lr=5.010e-06
+step=320 active_h=0.045812 loss=0.017555 flow=0.093046 boot=0.000000 mem_std=2.0471 grad=0.0318 lr=1.840e-06
+step=340 active_h=0.048667 loss=0.013899 flow=0.115760 boot=0.000000 mem_std=2.0127 grad=0.0228 lr=2.149e-07
+[checkpoint] /weka/martius/mot936/dreamerv4-tests/runs/memmaze-community-d4-mem2mem-calib-b24/memory-latest.pt step=350 active_s=180.34
+TRAINING STOP step=350 active_seconds=180.337252 budget_seconds=180.000000 checkpoint=/weka/martius/mot936/dreamerv4-tests/runs/memmaze-community-d4-mem2mem-calib-b24/memory-latest.pt

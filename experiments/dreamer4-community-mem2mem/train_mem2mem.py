@@ -21,6 +21,10 @@ from torch.utils.data import DataLoader, Dataset, Sampler
 HERE = Path(__file__).resolve().parent
 EXPECTED_TOKENIZER_SHA256 = "347052fae0212ea2c6b943ae7c28a886298ce551d4155b882084d63a3ea48797"
 PRODUCTION_LOCK = {
+    "batch_size": 24,
+    "num_workers": 4,
+    "cache_mb": 128,
+    "shard_size": 2_048,
     "window": 32,
     "clip_length": 128,
     "tbptt_frames": 64,
@@ -34,6 +38,10 @@ PRODUCTION_LOCK = {
     "n_register": 4,
     "n_agent": 1,
     "time_every": 1,
+    "packing_factor": 2,
+    "lr": 1e-4,
+    "weight_decay": 1e-2,
+    "grad_clip": 1.0,
 }
 
 
@@ -117,6 +125,10 @@ def atomic_save(payload, path: Path):
 
 def resolved_config(args):
     return {
+        "batch_size": args.batch_size,
+        "num_workers": args.num_workers,
+        "cache_mb": args.cache_mb,
+        "shard_size": args.shard_size,
         "window": args.window,
         "clip_length": args.clip_length,
         "tbptt_frames": args.tbptt_frames,
@@ -130,6 +142,10 @@ def resolved_config(args):
         "n_register": args.n_register,
         "n_agent": args.n_agent,
         "time_every": args.time_every,
+        "packing_factor": args.packing_factor,
+        "lr": args.lr,
+        "weight_decay": args.weight_decay,
+        "grad_clip": args.grad_clip,
         "optimizer_step": "one per complete 128-frame clip batch",
         "loss_normalization": "each of 6 scored 16-frame new halves weighted 1/6",
         "tbptt_boundary": "after 4 slides (64 newly committed frames), then after final 2 slides",
@@ -162,7 +178,7 @@ def parser():
     p.add_argument("--resume", type=Path, default=None)
     p.add_argument("--resolved-config", type=Path, default=None)
     p.add_argument("--active-ledger", type=Path, default=None)
-    p.add_argument("--batch-size", type=int, default=4)
+    p.add_argument("--batch-size", type=int, default=24)
     p.add_argument("--num-workers", type=int, default=4)
     p.add_argument("--cache-mb", type=int, default=128)
     p.add_argument("--shard-size", type=int, default=2048)

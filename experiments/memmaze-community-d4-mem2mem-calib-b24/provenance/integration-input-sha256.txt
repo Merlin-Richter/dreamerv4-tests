@@ -1,0 +1,3 @@
+c18dad57f8acfbeb3026eb43486c2b12519826818ab198733632081db11544f1  /weka/martius/mot936/dreamerv4-tests/experiments/dreamer4-community-baseline/upstream-memmaze.patch
+fec642d234265975f9aa408225a3df46f7847e5b137256cd20a7ee01de19a237  /weka/martius/mot936/dreamerv4-tests/experiments/dreamer4-community-mem2mem/upstream-memory.patch
+82924c6c2b6468450ec99ad470ecc50c95335d7de23bfc3d10d6e205619edb52  /weka/martius/mot936/dreamerv4-tests/experiments/dreamer4-community-baseline/requirements-community.txt

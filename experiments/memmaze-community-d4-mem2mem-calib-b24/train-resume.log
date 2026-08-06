@@ -1,0 +1,30 @@
+/weka/martius/mot936/dreamerv4-tests/runs/dreamer4-community-baseline/envs/venv-82924c6c2b64/lib64/python3.11/site-packages/pydantic/_internal/_generate_schema.py:2274: UnsupportedFieldAttributeWarning: The 'repr' attribute with value False was provided to the `Field()` function, which has no effect in the context it was used. 'repr' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+/weka/martius/mot936/dreamerv4-tests/runs/dreamer4-community-baseline/envs/venv-82924c6c2b64/lib64/python3.11/site-packages/pydantic/_internal/_generate_schema.py:2274: UnsupportedFieldAttributeWarning: The 'frozen' attribute with value True was provided to the `Field()` function, which has no effect in the context it was used. 'frozen' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+[WMDataset] Warning: tasks_json not found at __none__ (continuing with zeros lang_emb + default action masks).
+[WMDataset] Task filter: keeping 1/1 tasks
+[WMDataset] task=memmaze segments=1 N_eff=2902900 valid=2531700 act_dim=16 lang=no
+[WMDataset] Total valid sequences: 2531700 across 1 tasks.
+[resume] step=350 active_hours=0.050094
+device=cuda params=42,646,592 dataset=2,531,700 batch=24 start_step=350 active=180.34/360.00s
+step=360 active_h=0.051661 loss=0.015578 flow=0.103824 boot=0.000000 mem_std=2.0512 grad=0.0475 lr=4.762e-05
+step=380 active_h=0.054549 loss=0.015094 flow=0.101134 boot=0.000000 mem_std=2.0017 grad=0.0427 lr=4.310e-05
+step=400 active_h=0.057434 loss=0.013339 flow=0.105100 boot=0.000000 mem_std=1.9569 grad=0.0327 lr=3.865e-05
+step=420 active_h=0.060316 loss=0.014245 flow=0.095521 boot=0.000000 mem_std=1.9603 grad=0.0438 lr=3.429e-05
+step=440 active_h=0.063198 loss=0.014864 flow=0.096555 boot=0.000000 mem_std=1.9589 grad=0.0417 lr=3.007e-05
+step=460 active_h=0.066080 loss=0.013099 flow=0.105500 boot=0.000000 mem_std=1.9541 grad=0.0263 lr=2.600e-05
+step=480 active_h=0.068993 loss=0.013554 flow=0.105606 boot=0.000000 mem_std=1.8846 grad=0.0279 lr=2.209e-05
+step=500 active_h=0.071874 loss=0.014534 flow=0.087367 boot=0.000000 mem_std=1.9123 grad=0.0323 lr=1.846e-05
+step=520 active_h=0.074757 loss=0.013006 flow=0.096861 boot=0.000000 mem_std=1.9222 grad=0.0228 lr=1.508e-05
+[checkpoint] /weka/martius/mot936/dreamerv4-tests/runs/memmaze-community-d4-mem2mem-calib-b24/memory-latest.pt step=522 active_s=270.16
+step=540 active_h=0.077639 loss=0.013966 flow=0.089643 boot=0.000000 mem_std=1.9257 grad=0.0277 lr=1.198e-05
+step=560 active_h=0.080521 loss=0.014055 flow=0.079096 boot=0.000000 mem_std=1.8992 grad=0.0251 lr=9.204e-06
+step=580 active_h=0.083406 loss=0.014164 flow=0.084549 boot=0.000000 mem_std=1.8878 grad=0.0252 lr=6.755e-06
+step=600 active_h=0.086295 loss=0.013404 flow=0.093023 boot=0.000000 mem_std=1.9054 grad=0.0279 lr=4.659e-06
+step=620 active_h=0.089183 loss=0.013867 flow=0.086774 boot=0.000000 mem_std=1.8911 grad=0.0247 lr=2.935e-06
+step=640 active_h=0.092072 loss=0.013488 flow=0.085633 boot=0.000000 mem_std=1.9000 grad=0.0194 lr=1.599e-06
+step=660 active_h=0.094960 loss=0.012958 flow=0.095120 boot=0.000000 mem_std=1.9399 grad=0.0184 lr=6.618e-07
+step=680 active_h=0.097849 loss=0.011261 flow=0.104736 boot=0.000000 mem_std=1.8621 grad=0.0183 lr=1.300e-07
+[checkpoint] /weka/martius/mot936/dreamerv4-tests/runs/memmaze-community-d4-mem2mem-calib-b24/memory-latest.pt step=695 active_s=360.06
+TRAINING STOP step=695 active_seconds=360.055772 budget_seconds=360.000000 checkpoint=/weka/martius/mot936/dreamerv4-tests/runs/memmaze-community-d4-mem2mem-calib-b24/memory-latest.pt

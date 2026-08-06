@@ -38,3 +38,10 @@ The trainer's active clock covers only dynamics rollout forward/backward/optimiz
 the frozen tokenizer's seven exact window encodes, checkpoint I/O, and diagnostics are outside that
 clock. Checkpoints preserve optimizer/scaler state, all RNG state, active seconds, and the next
 counter-keyed batch step, so resume neither repeats nor skips an effective optimizer step.
+
+H100 calibration job 429432 froze production at batch size 24, four loader workers, and 128 MiB shard
+cache per worker. It achieved 98.75% mean active-interval utilization (p05 97%), used at most 54,843 MiB
+of 81,559 MiB HBM, and passed an exact process restart at 180.337252 active seconds before stopping at
+360.055772 seconds. The exact frozen values and measured wall-time projection are in
+`production-config.json`. Production writes resumable hourly state to `memory-latest.pt`; only a
+checkpoint whose audited active clock reaches 172,800 seconds is copied to `memory-final.pt`.

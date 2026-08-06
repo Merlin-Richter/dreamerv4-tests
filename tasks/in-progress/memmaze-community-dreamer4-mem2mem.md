@@ -431,3 +431,18 @@ gates, and next blocker. Do not reconstruct status later from chat or scheduler 
   **429432**, run `memmaze-community-d4-mem2mem-calib-b24`: one H100, batch size 24, 16 CPUs, four-hour
   outer allocation. Active production seconds: **0**. NEXT: inspect OOM/HBM, forced-resume exactness,
   throughput, and active-interval utilization; freeze bs24 only if every gate passes.
+- **2026-08-06 — H100 calibration passed and production configuration frozen.** Ferranti job **429432**
+  completed exit 0 after 13m56s scheduler elapsed: **695** steps / **360.055772** active seconds, exact
+  resume from step 350 / 180.337252 seconds, mean utilization **98.75%**, p05 **97%**, no sample below
+  90%, mean/max HBM **54,625.78/54,843 MiB** of 81,559 MiB, and finite/noncollapsed training throughout.
+  Passing logs, GPU samples, exact active-clock ledger (SHA-256
+  `75ca1451c83da9441143e6f1b736576e6f42f443347fd82ebeee15c30426305a`), config, checksums, and gates are
+  retained under `experiments/memmaze-community-d4-mem2mem-calib-b24/`. Frozen production is bs24,
+  workers4, cache128 MiB/worker, seed0, W32/stride16/L128, TBPTT64, M8, k_max8, bootstrap step5000,
+  self-fraction0.25, AdamW lr1e-4/wd1e-2, grad clip1, hourly active-time checkpoints. Calibration's
+  active dynamics work occupied **47.8410%** of its training wall span, projecting **100.3323 wall hours**
+  for 48 active hours; the outer scheduler request is therefore frozen at **120h**. Added a hard final
+  checkpoint validator and separate `memory-latest.pt`/`memory-final.pt` semantics, so an early scheduler
+  stop cannot be mislabeled complete; synthetic complete/partial acceptance/rejection and bash syntax
+  gates pass. Active production seconds: **0**. NEXT: commit/push/sync the frozen production driver and
+  submit the 48-active-hour run.

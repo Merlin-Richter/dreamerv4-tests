@@ -22,7 +22,8 @@ mkdir -p "$RUN_DIR"
 bash "$EXP/setup_upstream.sh"
 # shellcheck disable=SC1091
 source "$BASE/current.env"
-cp -a "$D4_PROVENANCE" "$RUN_DIR/provenance"
+mkdir -p "$RUN_DIR/provenance"
+cp -a "$D4_PROVENANCE"/. "$RUN_DIR/provenance"/
 
 test -f "$TOK_CKPT"
 test -f "$VANILLA_CKPT"
