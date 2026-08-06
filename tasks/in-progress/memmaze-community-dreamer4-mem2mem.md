@@ -454,3 +454,12 @@ gates, and next blocker. Do not reconstruct status later from chat or scheduler 
   hard active-clock/config/exposure gate passes. Active production seconds at submission: **0**. NEXT:
   require full startup identity gates, advancing finite optimizer steps, >=90% active-interval utilization,
   bounded HBM/host RSS, and healthy transition through shortcut bootstrap step 5,000.
+- **2026-08-06 — Initial production request 429437 cancelled before start: partition time limit.**
+  Ferranti left the 120-hour request pending with reason `PartitionTimeLimit`; it consumed **0** production
+  active seconds and was cancelled through the ownership-guarded wrapper. The calibrated projection is
+  100.3323 wall hours, while a 54-hour request is known accepted from the completed vanilla run. Frozen
+  scheduling is therefore corrected to **two resumable 54-hour allocations** with the same run name and
+  hourly `memory-latest.pt`; their calibrated combined capacity is about 51.67 active hours, leaving
+  roughly 3.67 active hours of margin around the 48-hour target. The hard final gate prevents allocation
+  1 from being called complete. NEXT: commit/push/sync the corrected scheduler provenance and submit
+  allocation 1. Production active seconds: **0**.

@@ -45,3 +45,5 @@ of 81,559 MiB HBM, and passed an exact process restart at 180.337252 active seco
 360.055772 seconds. The exact frozen values and measured wall-time projection are in
 `production-config.json`. Production writes resumable hourly state to `memory-latest.pt`; only a
 checkpoint whose audited active clock reaches 172,800 seconds is copied to `memory-final.pt`.
+Ferranti rejects a single 120-hour request at the partition limit, so the measured ~100.3 wall-hour
+projection is provisioned as two resumable 54-hour allocations with the same run name and checkpoint.
