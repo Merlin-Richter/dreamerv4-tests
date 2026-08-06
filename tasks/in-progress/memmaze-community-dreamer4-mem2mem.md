@@ -376,3 +376,11 @@ gates, and next blocker. Do not reconstruct status later from chat or scheduler 
   academic server connection is complete. NEXT / BLOCKER: Merlin opens the ferranti master socket; then
   sync this exact branch through `scripts/sync_code.sh`, submit the short H100 calibration through
   `scripts/submit_job.sh`, and record its job ID. Ferranti jobs: none; active production seconds: **0**.
+- **2026-08-06 — Ferranti connected; H100 calibration submitted.** The approved wrappers synced branch
+  `codex/memmaze-community-d4-mem2mem` at exact commit
+  **`9eec994d930460279309e1dcc1f49b23b8685f24`**. Ferranti job **429420** is the short calibration run
+  `memmaze-community-d4-mem2mem-calib-b4`: one H100, batch size 4, 16 CPUs, four-hour outer allocation.
+  It runs the full converted-data identity, vanilla parity/model, deterministic resume, checkpoint/resume,
+  and active-interval GPU-utilization gates before any production submission. Active production seconds:
+  **0**. NEXT: inspect calibration artifacts; freeze the batch/loader/TBPTT configuration only if all
+  correctness and >=90% utilization health gates pass.
