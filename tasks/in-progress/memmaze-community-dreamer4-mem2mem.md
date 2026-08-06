@@ -470,3 +470,20 @@ gates, and next blocker. Do not reconstruct status later from chat or scheduler 
   allocation 2 will continue. Active production seconds at submission: **0**. NEXT: require all startup
   identity/model gates, advancing finite training, calibrated utilization/HBM, bounded host RSS, first
   hourly checkpoint, and healthy bootstrap activation at optimizer step 5,000.
+- **2026-08-06 — Production startup healthy through step 246.** Allocation 1 job **429438** is RUNNING
+  on ferranti node `mlcbm010` from exact production code
+  **`0963308c07e0b081f902140b2ab2a392e924f9cb`** (submission ledger
+  **`783aff68e4a17dd7743a43db71de722d853f35df`**). The full setup, 3,903,900-frame conversion scan,
+  train/eval disjointness, exact tokenizer/manifests, vanilla parity, shared initialization, causality,
+  relay-gradient, distinct-channel, loss-accounting, and beyond-eviction gates all passed again on the
+  production node. Training started from seed 0 with 42,646,592 parameters, 2,531,700 valid sequences,
+  and W&B run `gh3n2zlg`. Loss remained finite and fell from **0.061322** at step 1 to **0.012850** at
+  step 220; written-memory standard deviation remained noncollapsed (**1.95** at step 220), and gradients
+  remained finite. Bootstrap loss is correctly zero before its frozen step-5,000 activation. The exact
+  active-clock snapshot is step **246 / 127.120510 seconds**. Production-start telemetry over 12 active
+  samples passed both gates: mean utilization **98.5833%**, p05 **96%**, longest sustained below 90%
+  **0s**, mean/max HBM **54,383/54,383 MiB** of 81,559 MiB. Live `sacct` does not yet report batch-step
+  MaxRSS; retain final scheduler MaxRSS when the allocation closes. NEXT: verify the first hourly
+  active-time checkpoint/resume artifact and the healthy transition through shortcut bootstrap step
+  **5,000**; allocation 2 remains required after this 54-hour envelope unless the audited 172,800-second
+  target has already been reached.
