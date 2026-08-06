@@ -411,3 +411,8 @@ gates, and next blocker. Do not reconstruct status later from chat or scheduler 
   the prior exact two-step loss/model/optimizer/RNG equality. Ferranti jobs: **429420**, **429421** failed
   as documented; active production seconds: **0**. NEXT: commit/push/sync the resume fix and run a fresh
   calibration through the forced resume and telemetry health gate.
+- **2026-08-06 — Clean post-fix calibration submitted.** CUDA-verified resume fix commit
+  **`d10e17d28d341feee3a9e0301a08576ad6f3057a`** was pushed and synced exactly. Ferranti job **429431**,
+  run `memmaze-community-d4-mem2mem-calib-b4-r3`, uses one H100, batch size 4, 16 CPUs, and a four-hour
+  outer allocation. Active production seconds: **0**. NEXT: require the first 180-second segment, forced
+  resume to 360 cumulative seconds, checkpoint consistency, and telemetry health gate all to pass.
