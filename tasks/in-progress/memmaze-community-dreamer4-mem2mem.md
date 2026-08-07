@@ -11,7 +11,7 @@ This is the externally grounded comparison we actually want:
 
 - **Vanilla:** the completed community Dreamer 4 baseline.
 - **Memory:** the same community implementation, tokenizer, data, actions, transformer dimensions,
-  shortcut objective, optimizer family, seed, and effective H100 budget, with only:
+  shortcut objective, optimizer family, seed, and 48-hour cumulative training-loop wall budget, with only:
   1. per-frame memory tokens and their read-old/write-new inference semantics; and
   2. long sequential rollout training that teaches memory-to-memory construction.
 
@@ -41,8 +41,9 @@ The comparison target is the completed community baseline, not our in-repository
   `347052fae0212ea2c6b943ae7c28a886298ce551d4155b882084d63a3ea48797`.
 - Completed vanilla dynamics SHA-256:
   `7b077938fec776c74e62201ab79194a7a06e10e54856c69d47b65dda6367d674`.
-- Vanilla production job: ferranti **423141**, step 298,164, exactly 172,800.10 seconds of active
-  training, seed 0.
+- Vanilla production job: ferranti **423141**, step 298,164, seed 0. Its `elapsed_train_s` was
+  **172,800.10 seconds** from a timer started immediately before DataLoader iteration, so it counted
+  batch waits, online tokenizer encoding, dynamics optimization, logging, and periodic checkpoint time.
 - Data: exact `train-part0-v2` training conversion and content-disjoint `eval-v2` held-out conversion;
   preserve the manifest, episode membership, RGB channel order, and action convention
   `raw action[t] produced raw image[t]`.
@@ -74,8 +75,12 @@ training may:
   to the online path and the cache is only a transport optimization.
 
 It may not encode whole 128/1001-frame sequences under a different temporal-position/context convention
-and call that “the same tokenized data.” Any cache construction happens before the 48-hour dynamics clock
-and its manifest must pin the tokenizer hash, source conversion hash, window, dtype, and action alignment.
+and call that “the same tokenized data.” The selected transport is an exact FP32 cache of every independent
+`(episode, start, W=32)` encoder call, flattened by valid window start. It is deliberately not a single
+`(episode,time)` latent tensor: this temporal causal tokenizer gives a frame different latents when its
+position/history inside the 32-frame window changes. Cache construction happens before the 48-hour
+training clock, and its manifest pins the tokenizer hash, source conversion hash, window, dtype, and full
+array hashes.
 
 ## Memory-token architecture
 
@@ -213,7 +218,7 @@ All gates must pass on local CUDA or a short ferranti probe before submitting th
    boundary is crossed.
 8. **Data identity:** tokenizer hash, train/eval manifests, episode disjointness, RGB order, action
    alignment, and window-keyed encoding equivalence pass.
-9. **Resume determinism:** checkpoint/resume preserves model, optimizer, active-training clock, shortcut
+9. **Resume determinism:** checkpoint/resume preserves model, optimizer, cumulative training-loop clock, shortcut
    bootstrap state, data position/seed, and TBPTT configuration without repeating or skipping effective
    training budget.
 10. **Player gate:** vanilla and memory checkpoints both load through the same pygame player; scripted
@@ -223,22 +228,25 @@ All gates must pass on local CUDA or a short ferranti probe before submitting th
 ## Training and compute contract
 
 - Cluster: ferranti, **one H100**.
-- Primary production budget: exactly **48 hours = 172,800 seconds of effective H100 training**.
-- The active clock advances only during forward/backward/optimizer rollout training. Repository setup,
-  data validation/staging, cache construction, compilation/warmup, checkpoint serialization, telemetry,
-  evaluation, queueing, and preemption downtime do not consume the 48-hour budget.
-- GPU telemetry is mandatory at fine cadence. During counted active segments require sustained high H100
-  use: target mean utilization >=95%, hard health gate >=90%, with no unexplained idle interval over five
-  minutes. A nominal 48-hour wall clock with low utilization does **not** satisfy the task.
-- If utilization is below the gate, profile/fix loader, encoding, rollout batching, or TBPTT scheduling
-  before production. Do not compensate by quietly counting idle hours.
-- Use resumable periodic checkpoints and an outer scheduler allocation with enough setup/finalization
-  margin. Completion is determined by the trainer's audited active clock, not Slurm elapsed time or epoch
-  count.
-- Match vanilla optimizer hyperparameters and elapsed-time LR schedule. Memory rollout batch size may be
-  smaller for HBM, but record batch size, slides/step, target frames/step, optimizer steps, unique/source
-  frames read, total scored frames, and achieved utilization so the compute-matched comparison is honest.
-- The primary comparison is compute-matched at 48 effective H100 hours. Do not extend the memory run to
+- Primary production budget: exactly **48 hours = 172,800 seconds on the same cumulative training-loop
+  wall clock used by vanilla**.
+- The clock starts immediately before DataLoader iteration and counts first-batch startup/waits, cached
+  latent reads, host-to-device transfers, dynamics forward/backward/optimizer work, logging, and periodic
+  checkpoint serialization. Upstream setup, cache construction/validation, W&B setup, final checkpoint
+  serialization/evaluation, queueing, and preemption downtime remain outside it, matching vanilla's timer
+  boundaries.
+- GPU telemetry is mandatory at fine cadence. Target mean utilization is >=95%; the hard health gate is
+  >=90% with no unexplained idle interval over five minutes. Utilization is a health/efficiency diagnostic,
+  not a second narrower clock and never grants extra training time.
+- If utilization is below the gate, profile/fix cache I/O, rollout batching, or TBPTT scheduling before
+  production. Do not compensate by extending the 48-hour budget.
+- Use resumable periodic checkpoints in one **54-hour** scheduler allocation, leaving setup/finalization
+  margin. Completion is determined by audited cumulative training-loop time, not Slurm elapsed time,
+  optimizer-only time, or epoch count.
+- Match vanilla optimizer hyperparameters and 48-hour elapsed-time LR schedule. Memory rollout batch size
+  may be smaller for HBM, but record batch size, slides/step, target frames/step, optimizer steps,
+  unique/source latent windows read, total scored frames, and achieved utilization.
+- The primary comparison is time-matched at 48 training-loop wall hours. Do not extend the memory run to
   match vanilla optimizer steps or frames after seeing the interactive result; that would be a separate,
   pre-declared secondary experiment.
 
@@ -262,16 +270,16 @@ All gates must pass on local CUDA or a short ferranti probe before submitting th
 
 ### Phase 3 — H100 calibration
 
-- Calibrate long-clip batch size, loader workers/cache, online/window encoding strategy, and TBPTT segment
-  scheduling on an H100.
+- Build and validate the exact window-keyed FP32 latent cache, then calibrate long-clip batch size, mmap
+  loader workers/prefetch, and TBPTT segment scheduling on an H100.
 - Demonstrate sustained utilization and bounded host/HBM memory through multiple TBPTT boundaries and at
   least one checkpoint save/resume.
 - Freeze the production configuration before the main run. Do not tune against held-out interactive
   behavior.
 
-### Phase 4 — 48-effective-hour memory training
+### Phase 4 — 48-training-loop-hour memory training
 
-- Train from seed-0 scratch for exactly 172,800 counted active seconds.
+- Train from seed-0 scratch for exactly 172,800 counted cumulative training-loop seconds.
 - Monitor finite losses/gradients, written-memory statistics, action-shuffle sensitivity, relay influence,
   throughput, HBM/host RAM, utilization, and periodic checkpoints.
 - Retain the exact final checkpoint regardless of whether intermediate health diagnostics look better.
@@ -310,7 +318,7 @@ Retain and pull locally:
 - final and periodic memory checkpoints plus SHA-256;
 - full resolved config and code/upstream commits;
 - tokenizer/data manifest hashes and disjointness report;
-- active-clock ledger, scheduler accounting, optimizer/scored-frame exposure, resume events;
+- training-loop clock ledger, scheduler accounting, optimizer/scored-frame exposure, resume events;
 - GPU telemetry, HBM/host RSS, training logs, and health diagnostics;
 - correctness-gate outputs and H100 calibration results;
 - durable player command, action traces used for review, and Merlin's final assessment.
@@ -324,8 +332,8 @@ must never overwrite the completed vanilla model.
 - A no-FF9, no-archive, rollout-only mem2mem trainer performs sequential 32/16 read-old/write-new memory
   training with real 64-frame TBPTT over 128-frame contiguous clips.
 - The primary memory arm used the exact approved tokenizer, exact train split/actions, seed-0 shared
-  initialization, community shortcut objective, and **48 hours of verified high-utilization effective H100
-  training**.
+  initialization, community shortcut objective, and **48 hours on the vanilla-matched cumulative
+  training-loop wall clock**, with utilization reported separately.
 - The final memory checkpoint is pulled, hash-verified, durably installed beside vanilla, and both models
   run through the same interactive player beyond window eviction.
 - Merlin completed the paired interactive comparison and the outcome—positive, negative, or mixed—is
@@ -334,8 +342,12 @@ must never overwrite the completed vanilla model.
 ## Progress
 
 Maintain this section throughout the task. After each meaningful transition, append a dated entry with
-the exact branch/commit, ferranti job IDs, active training seconds, utilization, artifacts, completed
+the exact branch/commit, ferranti job IDs, cumulative training-loop seconds, utilization, artifacts, completed
 gates, and next blocker. Do not reconstruct status later from chat or scheduler history.
+
+**Supersession note:** progress entries through the 2026-08-06 startup snapshot preserve what was run and
+observed, but their optimizer-only “active” clock, online re-encoding, and two-allocation conclusions are
+rejected. The 2026-08-07 correction below is the current contract.
 
 - **2026-08-04 — Task specified.** Locked an external community vanilla-vs-memory comparison using the
   same approved tokenizer/data/actions and a seed-0 scratch memory arm. Memory uses eight optional tokens,
@@ -487,3 +499,18 @@ gates, and next blocker. Do not reconstruct status later from chat or scheduler 
   active-time checkpoint/resume artifact and the healthy transition through shortcut bootstrap step
   **5,000**; allocation 2 remains required after this 54-hour envelope unless the audited 172,800-second
   target has already been reached.
+- **2026-08-07 — Online run cancelled; exact latent-cache and fair-clock correction committed.** Inspection
+  of the accepted vanilla trainer proved that its timer starts immediately before DataLoader iteration and
+  counts loader waits, frozen-tokenizer encoding, optimization, logging, and periodic checkpoint time. The
+  mem2mem trainer's optimizer-only clock therefore was not compute-comparable, and repeated encoding of
+  the same frozen-tokenizer windows was avoidable. Ferranti job **429438** was cancelled through the
+  ownership-guarded wrapper after **04:03:56** scheduler elapsed (Slurm state `CANCELLED`, batch exit
+  `0:15`, MaxRSS **9,718,628 KiB**); its partial weights will not be used. Correction commit
+  **`d4cca6800f5fd1eaa8f58ea1706e09cedc5edd7e`** adds a resumable exact FP32 cache for all **2,810,100**
+  independent W=32 windows (`(2810100,32,8,64)`, **171.515 GiB**), a pixel-free cached training path,
+  cache identity/equality gates, and the vanilla-matched cumulative 172,800-second training-loop clock.
+  A local two-episode cache passed interrupt/resume, full hash, sampled online equality
+  (`max_abs=0`), seven-window clip lookup, cached training, exact checkpoint resume, and finalization-only
+  recovery after a simulated interrupted hash. NEXT: push/sync the correction, build the full durable
+  cache on ferranti, pin its manifest SHA-256, run cached-input H100 calibration, then start a fresh seed-0
+  48-hour run in one 54-hour allocation.
