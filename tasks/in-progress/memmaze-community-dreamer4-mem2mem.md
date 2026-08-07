@@ -514,3 +514,12 @@ rejected. The 2026-08-07 correction below is the current contract.
   recovery after a simulated interrupted hash. NEXT: push/sync the correction, build the full durable
   cache on ferranti, pin its manifest SHA-256, run cached-input H100 calibration, then start a fresh seed-0
   48-hour run in one 54-hour allocation.
+- **2026-08-07 — Full exact latent-cache build submitted.** Correction/provenance SHA
+  **`70b278f8f8efd0a6742ec04f00837b8e3d04ac03`** was pushed and synced exactly through the approved
+  wrapper. Ferranti job **429610**, run `memmaze-community-d4-window-cache-v1`, requests one H100,
+  16 CPUs, and 12 hours. It validates the approved conversion/tokenizer, writes the durable resumable
+  171.515 GiB FP32 window cache outside the dynamics budget, computes its complete SHA-256, and runs
+  sampled bit-exact online equality plus long-clip lookup gates. Initial scheduler state is `PENDING`;
+  cumulative production training-loop seconds remain **0**. NEXT: monitor 429610 to completion, retain
+  its manifest/validation artifacts, pin the manifest SHA-256 in the production driver, and run cached-I/O
+  H100 calibration.
