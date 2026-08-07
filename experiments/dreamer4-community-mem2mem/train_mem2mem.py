@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""48-effective-hour rollout-only mem2mem trainer for community Dreamer 4."""
+"""48-wall-hour cached-latent mem2mem trainer for community Dreamer 4."""
 from __future__ import annotations
 
 import argparse
@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from torch.amp import GradScaler, autocast
-from torch.utils.data import DataLoader, Dataset, Sampler
+from torch.utils.data import DataLoader, Sampler
 
 HERE = Path(__file__).resolve().parent
 EXPECTED_TOKENIZER_SHA256 = "347052fae0212ea2c6b943ae7c28a886298ce551d4155b882084d63a3ea48797"
@@ -42,6 +42,7 @@ PRODUCTION_LOCK = {
     "lr": 1e-4,
     "weight_decay": 1e-2,
     "grad_clip": 1.0,
+    "lr_schedule_hours": 48.0,
 }
 
 
@@ -79,19 +80,6 @@ class CounterBatchSampler(Sampler[list[int]]):
 
     def __len__(self):
         return max(0, self.stop_step - self.start_step)
-
-
-class IndexedDataset(Dataset):
-    def __init__(self, dataset):
-        self.dataset = dataset
-
-    def __len__(self):
-        return len(self.dataset)
-
-    def __getitem__(self, index):
-        sample = dict(self.dataset[index])
-        sample["_source_window_index"] = torch.tensor(index, dtype=torch.long)
-        return sample
 
 
 def rng_state(generator: torch.Generator):
@@ -146,10 +134,13 @@ def resolved_config(args):
         "lr": args.lr,
         "weight_decay": args.weight_decay,
         "grad_clip": args.grad_clip,
+        "lr_schedule_hours": args.lr_schedule_hours,
         "optimizer_step": "one per complete 128-frame clip batch",
         "loss_normalization": "each of 6 scored 16-frame new halves weighted 1/6",
         "tbptt_boundary": "after 4 slides (64 newly committed frames), then after final 2 slides",
         "prediction_modes": "per-sequence 50/50 latent-present vs memory-load-bearing",
+        "latent_source": "exact FP32 (episode,window_start,W) community-tokenizer cache",
+        "training_clock": "cumulative whole training-loop wall time, matching vanilla",
         "ff9": False,
         "archive": False,
     }
@@ -173,11 +164,13 @@ def parser():
     p.add_argument("--data-dirs", nargs="+", required=True)
     p.add_argument("--frame-dirs", nargs="+", required=True)
     p.add_argument("--tokenizer", type=Path, required=True)
+    p.add_argument("--latent-cache", type=Path, required=True)
+    p.add_argument("--expected-latent-cache-manifest-sha256", required=True)
     p.add_argument("--tasks-json", default="__none__")
     p.add_argument("--checkpoint", type=Path, required=True)
     p.add_argument("--resume", type=Path, default=None)
     p.add_argument("--resolved-config", type=Path, default=None)
-    p.add_argument("--active-ledger", type=Path, default=None)
+    p.add_argument("--training-ledger", type=Path, default=None)
     p.add_argument("--batch-size", type=int, default=24)
     p.add_argument("--num-workers", type=int, default=4)
     p.add_argument("--cache-mb", type=int, default=128)
@@ -200,6 +193,7 @@ def parser():
     p.add_argument("--weight-decay", type=float, default=1e-2)
     p.add_argument("--grad-clip", type=float, default=1.0)
     p.add_argument("--max-hours", type=float, default=48.0)
+    p.add_argument("--lr-schedule-hours", type=float, default=48.0)
     p.add_argument("--max-steps", type=int, default=100_000_000)
     p.add_argument("--save-every-hours", type=float, default=1.0)
     p.add_argument("--log-every", type=int, default=20)
@@ -216,17 +210,17 @@ def parser():
 def main():
     args = parser().parse_args()
     assert_production_lock(args)
-    if args.max_hours <= 0 or args.save_every_hours <= 0:
-        raise ValueError("max-hours and save-every-hours must be positive")
+    if args.max_hours <= 0 or args.lr_schedule_hours <= 0 or args.save_every_hours <= 0:
+        raise ValueError("max-hours, lr-schedule-hours, and save-every-hours must be positive")
     if args.window * 4 != args.clip_length or args.tbptt_frames != 2 * args.window:
         raise ValueError("locked rollout geometry requires L=4W and TBPTT=2W")
 
     dreamer4 = args.dreamer4.resolve()
     sys.path.insert(0, str(dreamer4 / "dreamer4"))
     sys.path.insert(0, str(HERE))
-    from model import Dynamics, pack_bottleneck_to_spatial, temporal_patchify
-    from train_dynamics import load_frozen_tokenizer_from_pt_ckpt
+    from model import Dynamics
     from wm_dataset import WMDataset, collate_batch
+    from latent_cache import CachedLatentClipDataset, load_manifest
     from rollout import mem2mem_rollout
 
     tokenizer_sha = sha256(args.tokenizer)
@@ -235,6 +229,15 @@ def main():
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
     seed_everything(args.seed)
     rollout_generator = torch.Generator(device=device).manual_seed(args.seed)
+
+    cache_manifest, cache_manifest_sha = load_manifest(args.latent_cache)
+    if cache_manifest_sha != args.expected_latent_cache_manifest_sha256:
+        raise RuntimeError(
+            f"latent cache manifest hash {cache_manifest_sha} != expected "
+            f"{args.expected_latent_cache_manifest_sha256}"
+        )
+    if cache_manifest["tokenizer_sha256"] != tokenizer_sha:
+        raise RuntimeError("latent cache was built with a different tokenizer")
 
     dataset = WMDataset(
         data_dir=args.data_dirs,
@@ -249,12 +252,16 @@ def main():
         strict_tasks=True,
         verbose=True,
     )
-    indexed_dataset = IndexedDataset(dataset)
+    cached_dataset = CachedLatentClipDataset(
+        dataset, args.latent_cache, window=args.window, clip_length=args.clip_length
+    )
     seen_source_windows = torch.zeros(len(dataset), dtype=torch.bool)
 
-    encoder, _, tok_args = load_frozen_tokenizer_from_pt_ckpt(
-        str(args.tokenizer), device=device, override={"H": 64, "W": 64, "C": 3, "patch": 4}
-    )
+    tokenizer_payload = torch.load(args.tokenizer, map_location="cpu", weights_only=False)
+    tok_args = tokenizer_payload["args"]
+    if not isinstance(tok_args, dict):
+        tok_args = vars(tok_args)
+    del tokenizer_payload
     n_latents = int(tok_args.get("n_latents", 16))
     d_bottleneck = int(tok_args.get("d_bottleneck", 32))
     if n_latents % args.packing_factor:
@@ -287,7 +294,7 @@ def main():
     scaler = GradScaler(device="cuda", enabled=device.type == "cuda")
 
     step = 0
-    active_seconds = 0.0
+    training_seconds = 0.0
     wandb_id = None
     if args.resume is not None:
         payload = torch.load(args.resume, map_location=device, weights_only=False)
@@ -295,41 +302,50 @@ def main():
             raise RuntimeError("resume configuration differs from checkpoint")
         if payload["tokenizer_sha256"] != tokenizer_sha:
             raise RuntimeError("resume tokenizer hash differs")
+        if payload["latent_cache_manifest_sha256"] != cache_manifest_sha:
+            raise RuntimeError("resume latent-cache manifest differs")
         dynamics.load_state_dict(payload["dynamics"], strict=True)
         optimizer.load_state_dict(payload["opt"])
         scaler.load_state_dict(payload["scaler"])
         step = int(payload["step"])
-        active_seconds = float(payload["active_seconds"])
+        training_seconds = float(payload["elapsed_train_s"])
         wandb_id = payload.get("wandb_id")
         seen_source_windows.copy_(payload["seen_source_windows"].to(torch.bool))
         restore_rng(payload["rng"], rollout_generator)
-        print(f"[resume] step={step} active_hours={active_seconds / 3600.0:.6f}", flush=True)
+        print(f"[resume] step={step} train_hours={training_seconds / 3600.0:.6f}", flush=True)
 
     resolved = resolved_config(args)
     resolved_path = args.resolved_config or args.checkpoint.with_name("resolved-config.json")
-    active_ledger = args.active_ledger or args.checkpoint.with_name("active-clock.jsonl")
+    training_ledger = args.training_ledger or args.checkpoint.with_name("training-clock.jsonl")
     resolved_path.parent.mkdir(parents=True, exist_ok=True)
-    if active_ledger.exists():
-        rows = [json.loads(line) for line in active_ledger.read_text().splitlines() if line.strip()]
+    if training_ledger.exists():
+        rows = [json.loads(line) for line in training_ledger.read_text().splitlines() if line.strip()]
         if args.resume is None and rows:
-            raise RuntimeError(f"active ledger already exists without --resume: {active_ledger}")
-        kept = [row for row in rows if int(row["step"]) <= step]
+            raise RuntimeError(f"training ledger already exists without --resume: {training_ledger}")
+        kept = [
+            row for row in rows
+            if float(row["training_cumulative_s"]) <= training_seconds + 1e-6
+        ]
         if kept:
-            if int(kept[-1]["step"]) != step:
-                raise RuntimeError("active ledger does not reach the resumed optimizer step")
-            if abs(float(kept[-1]["active_cumulative_s"]) - active_seconds) > 1e-6:
-                raise RuntimeError("active ledger and checkpoint clocks disagree")
-        active_ledger.write_text(
+            if abs(float(kept[-1]["training_cumulative_s"]) - training_seconds) > 1e-6:
+                raise RuntimeError("training ledger and checkpoint clocks disagree")
+        elif training_seconds != 0.0:
+            raise RuntimeError("nonzero resumed training clock has no matching ledger row")
+        training_ledger.write_text(
             "".join(json.dumps(row, sort_keys=True) + "\n" for row in kept), encoding="utf-8"
         )
     resolved_path.write_text(json.dumps({
         **resolved,
         "tokenizer_sha256": tokenizer_sha,
+        "latent_cache": str(args.latent_cache.resolve()),
+        "latent_cache_manifest_sha256": cache_manifest_sha,
+        "latent_cache_dtype": cache_manifest["dtype"],
+        "latent_cache_shape": cache_manifest["shape"],
         "data_dirs": args.data_dirs,
         "frame_dirs": args.frame_dirs,
         "batch_size": args.batch_size,
         "seed": args.seed,
-        "active_budget_seconds": args.max_hours * 3600.0,
+        "training_wall_budget_seconds": args.max_hours * 3600.0,
     }, indent=2, sort_keys=True) + "\n")
 
     def checkpoint_payload():
@@ -344,21 +360,23 @@ def main():
         return {
             "step": step,
             "epoch": 0,
-            "active_seconds": active_seconds,
-            "elapsed_train_s": active_seconds,
+            "elapsed_train_s": training_seconds,
             "dynamics": dynamics.state_dict(),
             "opt": optimizer.state_dict(),
             "scaler": scaler.state_dict(),
             "args": checkpoint_args,
             "resolved_config": resolved,
             "tokenizer_sha256": tokenizer_sha,
+            "latent_cache_manifest_sha256": cache_manifest_sha,
             "wandb_id": wandb_id,
             "rng": rng_state(rollout_generator),
             "seen_source_windows": seen_source_windows,
             "exposure": {
                 "optimizer_steps": step,
                 "unique_source_windows": int(seen_source_windows.sum()),
-                "source_frames_read": step * args.batch_size * (args.clip_length + 1),
+                "source_frames_read": 0,
+                "source_latent_windows_read": step * args.batch_size * 7,
+                "source_latent_frames_read": step * args.batch_size * 7 * args.window,
                 "scored_frames": step * args.batch_size * (args.clip_length - args.window),
                 "scored_slides_per_step": 6,
                 "target_frames_per_step": args.batch_size * (args.clip_length - args.window),
@@ -378,7 +396,7 @@ def main():
 
     sampler = CounterBatchSampler(len(dataset), args.batch_size, step, args.max_steps, args.seed)
     loader = DataLoader(
-        indexed_dataset,
+        cached_dataset,
         batch_sampler=sampler,
         num_workers=args.num_workers,
         pin_memory=device.type == "cuda",
@@ -403,22 +421,53 @@ def main():
         )
 
     budget_seconds = args.max_hours * 3600.0
-    next_save = (math.floor(active_seconds / (args.save_every_hours * 3600.0)) + 1) * (
+    schedule_seconds = args.lr_schedule_hours * 3600.0
+    next_save = (math.floor(training_seconds / (args.save_every_hours * 3600.0)) + 1) * (
         args.save_every_hours * 3600.0
     )
     print(
         f"device={device} params={sum(p.numel() for p in dynamics.parameters()):,} "
         f"dataset={len(dataset):,} batch={args.batch_size} start_step={step} "
-        f"active={active_seconds:.2f}/{budget_seconds:.2f}s",
+        f"training_wall={training_seconds:.2f}/{budget_seconds:.2f}s "
+        f"cache_manifest={cache_manifest_sha}",
         flush=True,
     )
 
+    training_ledger.parent.mkdir(parents=True, exist_ok=True)
+    session_base_seconds = training_seconds
+    session_start_monotonic = time.monotonic()
+    last_accounted_seconds = training_seconds
+    last_accounted_wall = time.time()
+
+    def current_training_seconds():
+        return session_base_seconds + (time.monotonic() - session_start_monotonic)
+
+    def append_clock(event: str):
+        nonlocal training_seconds, last_accounted_seconds, last_accounted_wall
+        wall_end = time.time()
+        training_seconds = current_training_seconds()
+        duration = training_seconds - last_accounted_seconds
+        if duration > 0:
+            with training_ledger.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps({
+                    "event": event,
+                    "step": step,
+                    "wall_start_epoch_s": last_accounted_wall,
+                    "wall_end_epoch_s": wall_end,
+                    "training_duration_s": duration,
+                    "training_cumulative_s": training_seconds,
+                }, sort_keys=True) + "\n")
+            last_accounted_seconds = training_seconds
+            last_accounted_wall = wall_end
+
     for batch in loader:
-        if active_seconds >= budget_seconds or stop_requested:
+        training_seconds = current_training_seconds()
+        if training_seconds >= budget_seconds or stop_requested:
             break
         source_indices = batch.pop("_source_window_index")
+        batch.pop("_global_start")
         seen_source_windows[source_indices.long()] = True
-        frames = batch["obs"][:, :-1].to(device, non_blocking=True).float().div_(255.0)
+        cached_windows = batch["latents"].to(device, non_blocking=True)
         raw_actions = batch["act"].to(device, non_blocking=True).clamp(-1, 1)
         raw_masks = batch["act_mask"].to(device, non_blocking=True)
         actions = torch.zeros_like(raw_actions)
@@ -427,36 +476,23 @@ def main():
         action_masks[:, 1:] = raw_masks[:, :-1]
         actions.mul_(action_masks)
 
-        # Encode every exact W-frame key independently, matching the accepted
-        # vanilla encoder's temporal window convention.  No whole-clip cache.
-        encoded_windows = {}
-        with torch.no_grad():
-            for start in range(0, args.clip_length - args.window + 1, args.window // 2):
-                end = start + args.window
-                patches = temporal_patchify(frames[:, start:end], 4)
-                latent, _ = encoder(patches)
-                encoded_windows[start] = pack_bottleneck_to_spatial(
-                    latent, n_spatial=n_spatial, k=args.packing_factor
-                )
-
         def window_source(start, end):
             if end - start != args.window:
                 raise ValueError("rollout requested a non-W encoder key")
-            return encoded_windows[start]
+            index = start // (args.window // 2)
+            if start % (args.window // 2) or not 0 <= index < cached_windows.shape[1]:
+                raise ValueError(f"rollout requested uncached start {start}")
+            return cached_windows[:, index]
 
-        B = frames.shape[0]
+        B = cached_windows.shape[0]
         B_self = int(round(args.self_fraction * B))
         B_self = max(0, min(B - 1, B_self))
-        progress = min(1.0, active_seconds / budget_seconds)
+        progress = min(1.0, training_seconds / schedule_seconds)
         lr = args.lr * 0.5 * (1.0 + math.cos(math.pi * progress))
         for group in optimizer.param_groups:
             group["lr"] = lr
         optimizer.zero_grad(set_to_none=True)
 
-        if device.type == "cuda":
-            torch.cuda.synchronize(device)
-        active_wall_start = time.time()
-        active_start = time.monotonic()
         with autocast(device_type=device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
             result = mem2mem_rollout(
                 dynamics,
@@ -483,19 +519,8 @@ def main():
         scaler.update()
         if device.type == "cuda":
             torch.cuda.synchronize(device)
-        active_duration = time.monotonic() - active_start
-        active_wall_end = time.time()
-        active_seconds += active_duration
         step += 1
-        active_ledger.parent.mkdir(parents=True, exist_ok=True)
-        with active_ledger.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps({
-                "step": step,
-                "wall_start_epoch_s": active_wall_start,
-                "wall_end_epoch_s": active_wall_end,
-                "active_duration_s": active_duration,
-                "active_cumulative_s": active_seconds,
-            }, sort_keys=True) + "\n")
+        append_clock("optimizer_step")
 
         if step % args.log_every == 0 or step == 1:
             memory_std = float(result.final_memory.detach().float().std())
@@ -520,12 +545,13 @@ def main():
                 "resources/host_max_rss_kib": host_max_rss_kib,
                 "stats/scored_frames": step * args.batch_size * (args.clip_length - args.window),
                 "stats/unique_source_windows": int(seen_source_windows.sum()),
-                "stats/source_frames_read": step * args.batch_size * (args.clip_length + 1),
-                "time/active_hours": active_seconds / 3600.0,
+                "stats/source_frames_read": 0,
+                "stats/source_latent_windows_read": step * args.batch_size * 7,
+                "time/training_wall_hours": training_seconds / 3600.0,
                 "lr": lr,
             }
             print(
-                f"step={step} active_h={active_seconds / 3600.0:.6f} "
+                f"step={step} train_h={training_seconds / 3600.0:.6f} "
                 f"loss={result.mean_loss:.6f} flow={result.flow_mse:.6f} "
                 f"boot={result.bootstrap_mse:.6f} mem_std={memory_std:.4f} "
                 f"grad={float(grad_norm):.4f} lr={lr:.3e}",
@@ -534,22 +560,37 @@ def main():
             if wandb is not None:
                 wandb.log(metrics, step=step)
 
-        if active_seconds >= next_save or stop_requested:
+        if (
+            training_seconds >= next_save
+            and training_seconds < budget_seconds
+            and not stop_requested
+        ):
+            append_clock("checkpoint")
             payload = checkpoint_payload()
             atomic_save(payload, args.checkpoint)
             snapshot = args.checkpoint.with_name(
-                f"step-{step:08d}-active-{active_seconds:012.2f}s.pt"
+                f"step-{step:08d}-train-{training_seconds:012.2f}s.pt"
             )
             atomic_save(payload, snapshot)
-            print(f"[checkpoint] {args.checkpoint} step={step} active_s={active_seconds:.2f}", flush=True)
-            while next_save <= active_seconds:
+            print(
+                f"[checkpoint] {args.checkpoint} step={step} train_s={training_seconds:.2f}",
+                flush=True,
+            )
+            while next_save <= training_seconds:
                 next_save += args.save_every_hours * 3600.0
-        if active_seconds >= budget_seconds or stop_requested:
+        if training_seconds >= budget_seconds or stop_requested:
             break
 
-    atomic_save(checkpoint_payload(), args.checkpoint)
+    append_clock("stop")
+    final_payload = checkpoint_payload()
+    atomic_save(final_payload, args.checkpoint)
+    if stop_requested and training_seconds < budget_seconds:
+        interrupted = args.checkpoint.with_name(
+            f"step-{step:08d}-interrupted-train-{training_seconds:012.2f}s.pt"
+        )
+        atomic_save(final_payload, interrupted)
     print(
-        f"TRAINING STOP step={step} active_seconds={active_seconds:.6f} "
+        f"TRAINING STOP step={step} elapsed_train_s={training_seconds:.6f} "
         f"budget_seconds={budget_seconds:.6f} checkpoint={args.checkpoint}",
         flush=True,
     )

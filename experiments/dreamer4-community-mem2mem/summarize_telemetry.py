@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarize nvidia-smi samples that fall inside audited active-clock intervals."""
+"""Summarize nvidia-smi samples inside the audited whole training-loop clock."""
 from __future__ import annotations
 
 import argparse
@@ -17,16 +17,26 @@ def number(value):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--gpu-csv", type=Path, nargs="+", required=True)
-    ap.add_argument("--active-ledger", type=Path, required=True)
+    ap.add_argument("--training-ledger", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
 
     intervals = []
-    for line in args.active_ledger.read_text().splitlines():
+    for line in args.training_ledger.read_text().splitlines():
         if line.strip():
             row = json.loads(line)
-            intervals.append((row["wall_start_epoch_s"], row["wall_end_epoch_s"]))
-    assert intervals, "active ledger is empty"
+            start = float(row["wall_start_epoch_s"])
+            end = float(row["wall_end_epoch_s"])
+            assert end >= start, row
+            intervals.append((start, end))
+    assert intervals, "training ledger is empty"
+    intervals.sort()
+    merged_intervals = []
+    for start, end in intervals:
+        if merged_intervals and start <= merged_intervals[-1][1] + 1e-6:
+            merged_intervals[-1] = (merged_intervals[-1][0], max(end, merged_intervals[-1][1]))
+        else:
+            merged_intervals.append((start, end))
 
     samples = []
     for gpu_csv in args.gpu_csv:
@@ -41,13 +51,15 @@ def main():
                         break
                     except ValueError:
                         pass
-                if parsed is None or not any(start <= parsed <= end for start, end in intervals):
+                if parsed is None or not any(
+                    start <= parsed <= end for start, end in merged_intervals
+                ):
                     continue
                 util_key = next(key for key in row if key.strip().startswith("utilization.gpu"))
                 used_key = next(key for key in row if key.strip().startswith("memory.used"))
                 total_key = next(key for key in row if key.strip().startswith("memory.total"))
                 samples.append((parsed, number(row[util_key]), number(row[used_key]), number(row[total_key])))
-    assert samples, "no GPU samples overlap active intervals"
+    assert samples, "no GPU samples overlap training intervals"
     samples.sort()
     cadence = statistics.median(
         b[0] - a[0] for a, b in zip(samples, samples[1:]) if 0 < b[0] - a[0] < 60
@@ -66,7 +78,9 @@ def main():
     utils = [sample[1] for sample in samples]
     used = [sample[2] for sample in samples]
     report = {
-        "active_samples": len(samples),
+        "ledger_rows": len(intervals),
+        "training_sessions": len(merged_intervals),
+        "training_samples": len(samples),
         "sample_cadence_s": cadence,
         "mean_utilization_percent": statistics.fmean(utils),
         "p05_utilization_percent": sorted(utils)[max(0, int(0.05 * len(utils)) - 1)],

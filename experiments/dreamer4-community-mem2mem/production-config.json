@@ -1,10 +1,10 @@
 {
-  "active_budget_seconds": 172800,
+  "training_wall_budget_seconds": 172800,
   "archive": false,
   "batch_size": 24,
   "bootstrap_start": 5000,
   "cache_mb_per_worker": 128,
-  "calibration": {
+  "superseded_online_calibration": {
     "active_fraction_of_training_wall_span": 0.4784102694828321,
     "active_seconds": 360.055771934043,
     "artifact": "experiments/memmaze-community-d4-mem2mem-calib-b24",
@@ -15,6 +15,7 @@
     "p05_utilization_percent": 97.0,
     "projected_wall_hours_for_48_active": 100.33229439637373
   },
+  "cached_calibration": null,
   "clip_length": 128,
   "d_model": 512,
   "depth": 8,
@@ -22,14 +23,23 @@
   "grad_clip": 1.0,
   "k_max": 8,
   "learning_rate": 0.0001,
+  "lr_schedule_hours": 48,
+  "latent_cache": {
+    "dtype": "float32",
+    "encoding": "exact independent W=32 windows",
+    "format": "dreamer4-community-window-latents-v1",
+    "manifest_sha256": null,
+    "shape": [2810100, 32, 8, 64],
+    "size_bytes": 184162713600
+  },
   "n_agent": 1,
   "n_heads": 4,
   "n_memory": 8,
   "n_register": 4,
   "num_workers": 4,
   "packing_factor": 2,
-  "save_every_active_hours": 1,
-  "planned_scheduler_allocations": 2,
+  "save_every_training_wall_hours": 1,
+  "planned_scheduler_allocations": 1,
   "scheduler_outer_hours_per_allocation": 54,
   "seed": 0,
   "self_fraction": 0.25,

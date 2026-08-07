@@ -86,11 +86,11 @@ def main():
 
     split_model, split_opt, split_gen = new_run()
     split_losses = [train_step(split_model, split_opt, split_gen, 0)]
-    active_seconds = 12.5
+    elapsed_train_s = 12.5
     checkpoint = Path(tempfile.mkdtemp(prefix="d4resume_")) / "resume.pt"
     trainer.atomic_save({
         "step": 1,
-        "active_seconds": active_seconds,
+        "elapsed_train_s": elapsed_train_s,
         "dynamics": split_model.state_dict(),
         "opt": split_opt.state_dict(),
         "rng": trainer.rng_state(split_gen),
@@ -104,7 +104,7 @@ def main():
     resumed_opt.load_state_dict(payload["opt"])
     trainer.restore_rng(payload["rng"], resumed_gen)
     assert payload["step"] == payload["data_position"]["counter_batch_step"] == 1
-    assert payload["active_seconds"] == active_seconds
+    assert payload["elapsed_train_s"] == elapsed_train_s
     split_losses.append(train_step(resumed_model, resumed_opt, resumed_gen, payload["step"]))
 
     equal_nested(full_model.state_dict(), resumed_model.state_dict(), "model")
@@ -128,7 +128,7 @@ def main():
     checkpoint.unlink()
     checkpoint.parent.rmdir()
     print(
-        f"RESUME DETERMINISM PASSED step=2 active_seconds={active_seconds} "
+        f"RESUME DETERMINISM PASSED step=2 elapsed_train_s={elapsed_train_s} "
         f"losses={full_losses} cuda_map_location_restore={cuda_restore} "
         "temporary_checkpoint_cleaned=true"
     )

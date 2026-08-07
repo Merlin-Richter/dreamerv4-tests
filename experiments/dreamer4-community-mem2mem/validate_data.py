@@ -117,7 +117,7 @@ def main():
         "channel_order": "RGB",
         "action_alignment": "raw action[t] produced raw image[t]",
         "window": 32,
-        "encoding_strategy": "online exact (episode,start,W) windows; no whole-clip cache",
+        "encoding_reference": "exact independent (episode,start,W) community-tokenizer windows",
         "repeated_window_encoding_max_abs": encoding_max_abs,
         "tokenizer_latent_shape": list(first.shape),
         "tokenizer_config_n_latents": int(tok_args.get("n_latents", 16)),

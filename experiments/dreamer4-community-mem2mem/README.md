@@ -18,7 +18,10 @@ The implementation is locked to:
 - a real 64-frame TBPTT boundary after four slides. The first segment is backwarded and released,
   boundary memory is detached, then the last two slides are backwarded. Both use 1/6 loss scaling and
   one optimizer step is taken per complete long-clip batch;
-- exact online `(episode,start,W)` tokenizer windows. Whole-128-frame encoding is not used.
+- an offline FP32 cache of every exact `(episode,window_start,W=32)` community-tokenizer result.
+  The cache preserves the vanilla encoder's independent-window semantics bit-for-bit while ensuring
+  that tokenizer work is performed once, before dynamics training. Whole-episode or whole-128-frame
+  encoding is not substituted.
 
 Local gates against a patched checkout:
 
@@ -32,18 +35,22 @@ venv/Scripts/python.exe -u experiments/dreamer4-community-mem2mem/validate_resum
 
 `validate_data.py` is the server-side identity gate because the full converted train/eval trees live
 on ferranti. It verifies the approved tokenizer hash, conversion manifests, RGB/action convention,
-content-disjoint episodes, WMDataset-to-frame action alignment, and exact repeated W-window encoding.
+content-disjoint episodes, WMDataset-to-frame action alignment, and the reference online encoder.
+`build_latent_cache_h100.sh` then creates the 2,810,100 exact W-window entries with shape
+`(2810100,32,8,64)` in FP32 (171.515 GiB) and hashes the completed array. The validator checks the
+manifest identity, proves sampled cached rows are bit-identical to online encoding (`max_abs=0`), and
+verifies all seven window lookups used by a 128-frame training clip. Production additionally re-hashes
+the complete array before starting its training clock.
 
-The trainer's active clock covers only dynamics rollout forward/backward/optimizer work. Data loading,
-the frozen tokenizer's seven exact window encodes, checkpoint I/O, and diagnostics are outside that
-clock. Checkpoints preserve optimizer/scaler state, all RNG state, active seconds, and the next
-counter-keyed batch step, so resume neither repeats nor skips an effective optimizer step.
+The production clock now matches the accepted vanilla baseline: cumulative wall time from entry into
+the training loop through data loading, cached-latent reads, dynamics forward/backward/optimizer,
+logging, and periodic checkpoints. Setup, cache construction/validation, and the final checkpoint write
+remain outside the 48-hour clock, as in vanilla. Checkpoints preserve optimizer/scaler state, all RNG
+state, cumulative training-loop seconds, the exact cache-manifest hash, and the next counter-keyed batch
+step, so resume neither repeats nor skips an optimizer step.
 
-H100 calibration job 429432 froze production at batch size 24, four loader workers, and 128 MiB shard
-cache per worker. It achieved 98.75% mean active-interval utilization (p05 97%), used at most 54,843 MiB
-of 81,559 MiB HBM, and passed an exact process restart at 180.337252 active seconds before stopping at
-360.055772 seconds. The exact frozen values and measured wall-time projection are in
-`production-config.json`. Production writes resumable hourly state to `memory-latest.pt`; only a
-checkpoint whose audited active clock reaches 172,800 seconds is copied to `memory-final.pt`.
-Ferranti rejects a single 120-hour request at the partition limit, so the measured ~100.3 wall-hour
-projection is provisioned as two resumable 54-hour allocations with the same run name and checkpoint.
+The prior online-encoding calibration/job are retained as superseded provenance only. Job 429438 was
+cancelled after 4:03:56 because its narrow dynamics-only timer would have granted the memory arm roughly
+twice the physical H100 time of vanilla. After the exact cache is built, a short cached-loader H100
+calibration must re-confirm batch size, resume, utilization, and HBM. Production then starts fresh from
+seed 0 in one 54-hour allocation and stops after exactly 172,800 cumulative training-loop seconds.
