@@ -523,3 +523,11 @@ rejected. The 2026-08-07 correction below is the current contract.
   cumulative production training-loop seconds remain **0**. NEXT: monitor 429610 to completion, retain
   its manifest/validation artifacts, pin the manifest SHA-256 in the production driver, and run cached-I/O
   H100 calibration.
+- **2026-08-07 — Cache startup path fixed; corrected build submitted.** Job **429610** failed before
+  encoding because the new drivers requested nonexistent `manifest.json`; the approved converter writes
+  `conversion_manifest.json`. All setup, conversion, model, and data-identity gates had passed, and no
+  cache rows or H100 training budget were consumed. Fix **`bd4e40dff3e3660452aeb247ee2e4c5ac299a2f6`**
+  updates build, calibration, and production consistently and was pushed/synced exactly. Corrected
+  ferranti job **429612**, run `memmaze-community-d4-window-cache-v2`, requests one H100, 16 CPUs, and
+  12 hours. Cumulative production training-loop seconds remain **0**. NEXT: monitor 429612 through cache
+  construction/hash/equality gates and pin the completed manifest.
