@@ -40,7 +40,7 @@ test "$(sha256sum "$CACHE_ROOT/manifest.json" | awk '{print $1}')" = "$CACHE_MAN
   --dreamer4 "$D4_ROOT" --vanilla-checkpoint "$VANILLA_CKPT" | tee "$RUN_DIR/model-gates.log"
 "$D4_PYTHON" -u "$EXP/validate_latent_cache.py" \
   --dreamer4 "$D4_ROOT" --data-dirs "$TRAIN_OUT/demos" --frame-dirs "$TRAIN_OUT/shards" \
-  --tokenizer "$TOK_CKPT" --train-manifest "$TRAIN_OUT/manifest.json" \
+  --tokenizer "$TOK_CKPT" --train-manifest "$TRAIN_OUT/conversion_manifest.json" \
   --cache "$CACHE_ROOT" --report "$RUN_DIR/cache-validation.json" --full-hash \
   2>&1 | tee "$RUN_DIR/cache-validation.log"
 

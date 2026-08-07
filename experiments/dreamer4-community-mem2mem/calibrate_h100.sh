@@ -41,7 +41,7 @@ CACHE_MANIFEST_SHA256="$(sha256sum "$CACHE_ROOT/manifest.json" | awk '{print $1}
   --dreamer4 "$D4_ROOT" | tee "$RUN_DIR/resume-gate.log"
 "$D4_PYTHON" -u "$EXP/validate_latent_cache.py" \
   --dreamer4 "$D4_ROOT" --data-dirs "$TRAIN_OUT/demos" --frame-dirs "$TRAIN_OUT/shards" \
-  --tokenizer "$TOK_CKPT" --train-manifest "$TRAIN_OUT/manifest.json" \
+  --tokenizer "$TOK_CKPT" --train-manifest "$TRAIN_OUT/conversion_manifest.json" \
   --cache "$CACHE_ROOT" --report "$RUN_DIR/cache-validation.json" \
   2>&1 | tee "$RUN_DIR/cache-validation.log"
 

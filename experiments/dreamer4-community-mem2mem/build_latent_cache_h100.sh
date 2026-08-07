@@ -28,14 +28,14 @@ cp -a "$D4_PROVENANCE"/. "$RUN_DIR/provenance"/
 
 "$D4_PYTHON" -u "$EXP/build_latent_cache.py" \
   --dreamer4 "$D4_ROOT" --data-dirs "$TRAIN_OUT/demos" --frame-dirs "$TRAIN_OUT/shards" \
-  --tokenizer "$TOK_CKPT" --train-manifest "$TRAIN_OUT/manifest.json" \
+  --tokenizer "$TOK_CKPT" --train-manifest "$TRAIN_OUT/conversion_manifest.json" \
   --out "$CACHE_ROOT" --window 32 --packing-factor 2 --batch-size 64 \
   --num-workers 4 --cache-mb 128 --shard-size 2048 \
   2>&1 | tee -a "$RUN_DIR/cache-build.log"
 
 "$D4_PYTHON" -u "$EXP/validate_latent_cache.py" \
   --dreamer4 "$D4_ROOT" --data-dirs "$TRAIN_OUT/demos" --frame-dirs "$TRAIN_OUT/shards" \
-  --tokenizer "$TOK_CKPT" --train-manifest "$TRAIN_OUT/manifest.json" \
+  --tokenizer "$TOK_CKPT" --train-manifest "$TRAIN_OUT/conversion_manifest.json" \
   --cache "$CACHE_ROOT" --report "$RUN_DIR/cache-validation.json" \
   2>&1 | tee "$RUN_DIR/cache-validation.log"
 cp "$CACHE_ROOT/manifest.json" "$RUN_DIR/cache-manifest.json"
