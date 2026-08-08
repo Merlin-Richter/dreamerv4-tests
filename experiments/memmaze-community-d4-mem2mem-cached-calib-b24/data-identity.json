@@ -1,0 +1,23 @@
+{
+  "action_alignment": "raw action[t] produced raw image[t]",
+  "channel_order": "RGB",
+  "content_overlap": 0,
+  "encoding_reference": "exact independent (episode,start,W) community-tokenizer windows",
+  "eval_manifest_sha256": "3739484c11a87dca14c714b3b491e24e923f9a0a0c48c11cc4bf2e6950e62d20",
+  "eval_trajectories": 1000,
+  "eval_trajectory_names_sha256": "a16019bcd51f662de671258f320729f8e67613f1b235df873384d77c0bd0b53a",
+  "repeated_window_encoding_max_abs": 0.0,
+  "tokenizer_config_d_bottleneck": 32,
+  "tokenizer_config_n_latents": 16,
+  "tokenizer_latent_shape": [
+    1,
+    32,
+    16,
+    32
+  ],
+  "tokenizer_sha256": "347052fae0212ea2c6b943ae7c28a886298ce551d4155b882084d63a3ea48797",
+  "train_manifest_sha256": "834c9b29e4436614694635826d570d3695542058e020487500691e8954ab673c",
+  "train_trajectories": 2900,
+  "train_trajectory_names_sha256": "066ad5ca371f8a4ad6d280ceb0c5630926dbc8b03d1d251bbd2ad18d0065b83d",
+  "window": 32
+}

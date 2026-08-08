@@ -1,0 +1,50 @@
+{
+  "archive": false,
+  "batch_size": 24,
+  "bootstrap_start": 5000,
+  "cache_mb": 128,
+  "clip_length": 128,
+  "d_model": 512,
+  "data_dirs": [
+    "/weka/martius/mot936/dreamerv4-tests/data/d4_memmaze_community/train-part0-v2/demos"
+  ],
+  "depth": 8,
+  "ff9": false,
+  "frame_dirs": [
+    "/weka/martius/mot936/dreamerv4-tests/data/d4_memmaze_community/train-part0-v2/shards"
+  ],
+  "grad_clip": 1.0,
+  "k_max": 8,
+  "latent_cache": "/weka/martius/mot936/dreamerv4-tests/data/d4_memmaze_community/train-part0-v2-community-window32-fp32",
+  "latent_cache_dtype": "float32",
+  "latent_cache_manifest_sha256": "e7a4e57e63e357d1986154a1b6c3cea9f4220b1a716e4a553df8a345fb2f4fcf",
+  "latent_cache_shape": [
+    2810100,
+    32,
+    8,
+    64
+  ],
+  "latent_source": "exact FP32 (episode,window_start,W) community-tokenizer cache",
+  "loss_normalization": "each of 6 scored 16-frame new halves weighted 1/6",
+  "lr": 0.0001,
+  "lr_schedule_hours": 0.1,
+  "n_agent": 1,
+  "n_heads": 4,
+  "n_memory": 8,
+  "n_register": 4,
+  "num_workers": 4,
+  "optimizer_step": "one per complete 128-frame clip batch",
+  "packing_factor": 2,
+  "prediction_modes": "per-sequence 50/50 latent-present vs memory-load-bearing",
+  "seed": 0,
+  "self_fraction": 0.25,
+  "shard_size": 2048,
+  "tbptt_boundary": "after 4 slides (64 newly committed frames), then after final 2 slides",
+  "tbptt_frames": 64,
+  "time_every": 1,
+  "tokenizer_sha256": "347052fae0212ea2c6b943ae7c28a886298ce551d4155b882084d63a3ea48797",
+  "training_clock": "cumulative whole training-loop wall time, matching vanilla",
+  "training_wall_budget_seconds": 360.0,
+  "weight_decay": 0.01,
+  "window": 32
+}

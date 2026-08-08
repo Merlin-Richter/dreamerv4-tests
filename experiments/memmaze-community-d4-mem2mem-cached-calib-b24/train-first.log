@@ -1,0 +1,25 @@
+[WMDataset] Warning: tasks_json not found at __none__ (continuing with zeros lang_emb + default action masks).
+[WMDataset] Task filter: keeping 1/1 tasks
+[WMDataset] task=memmaze segments=1 N_eff=2902900 valid=2531700 act_dim=16 lang=no
+[WMDataset] Total valid sequences: 2531700 across 1 tasks.
+device=cuda params=42,646,592 dataset=2,531,700 batch=24 start_step=0 training_wall=0.00/180.00s cache_manifest=e7a4e57e63e357d1986154a1b6c3cea9f4220b1a716e4a553df8a345fb2f4fcf
+step=1 train_h=0.000513 loss=0.061322 flow=0.298704 boot=0.000000 mem_std=1.7510 grad=0.5133 lr=1.000e-04
+step=20 train_h=0.003244 loss=0.033210 flow=0.199390 boot=0.000000 mem_std=2.3304 grad=0.1434 lr=9.976e-05
+step=40 train_h=0.006118 loss=0.033422 flow=0.179480 boot=0.000000 mem_std=2.0328 grad=0.1102 lr=9.912e-05
+step=60 train_h=0.008994 loss=0.037030 flow=0.152317 boot=0.000000 mem_std=2.0657 grad=0.1294 lr=9.808e-05
+step=80 train_h=0.011865 loss=0.025461 flow=0.148639 boot=0.000000 mem_std=2.1400 grad=0.0828 lr=9.665e-05
+step=100 train_h=0.014766 loss=0.017944 flow=0.154104 boot=0.000000 mem_std=2.3117 grad=0.0498 lr=9.482e-05
+step=120 train_h=0.017639 loss=0.021595 flow=0.124101 boot=0.000000 mem_std=2.1872 grad=0.0518 lr=9.264e-05
+step=140 train_h=0.020509 loss=0.018923 flow=0.119246 boot=0.000000 mem_std=2.1044 grad=0.0587 lr=9.011e-05
+step=160 train_h=0.023379 loss=0.014757 flow=0.130240 boot=0.000000 mem_std=2.0432 grad=0.0318 lr=8.726e-05
+[checkpoint] /weka/martius/mot936/dreamerv4-tests/runs/memmaze-community-d4-mem2mem-cached-calib-b24/memory-latest.pt step=172 train_s=90.37
+step=180 train_h=0.026617 loss=0.014233 flow=0.126187 boot=0.000000 mem_std=2.0091 grad=0.0471 lr=8.368e-05
+step=200 train_h=0.029494 loss=0.015672 flow=0.105805 boot=0.000000 mem_std=1.9552 grad=0.0473 lr=8.021e-05
+step=220 train_h=0.032366 loss=0.013030 flow=0.117153 boot=0.000000 mem_std=1.9408 grad=0.0315 lr=7.650e-05
+step=240 train_h=0.035237 loss=0.014052 flow=0.100694 boot=0.000000 mem_std=1.9631 grad=0.0653 lr=7.257e-05
+step=260 train_h=0.038109 loss=0.014443 flow=0.098216 boot=0.000000 mem_std=1.9402 grad=0.0414 lr=6.846e-05
+step=280 train_h=0.040982 loss=0.015782 flow=0.086057 boot=0.000000 mem_std=1.9678 grad=0.0816 lr=6.419e-05
+step=300 train_h=0.043854 loss=0.013471 flow=0.090968 boot=0.000000 mem_std=2.0243 grad=0.0385 lr=5.981e-05
+step=320 train_h=0.046726 loss=0.014324 flow=0.079948 boot=0.000000 mem_std=1.9676 grad=0.0285 lr=5.536e-05
+step=340 train_h=0.049602 loss=0.011648 flow=0.100971 boot=0.000000 mem_std=1.9708 grad=0.0283 lr=5.085e-05
+TRAINING STOP step=343 elapsed_train_s=180.120748 budget_seconds=180.000000 checkpoint=/weka/martius/mot936/dreamerv4-tests/runs/memmaze-community-d4-mem2mem-cached-calib-b24/memory-latest.pt

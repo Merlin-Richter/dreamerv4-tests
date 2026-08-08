@@ -1,0 +1,1 @@
+RESUME DETERMINISM PASSED step=2 elapsed_train_s=12.5 losses=[0.47961749136447906, 0.37350645661354065] cuda_map_location_restore=passed temporary_checkpoint_cleaned=true
