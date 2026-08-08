@@ -545,3 +545,15 @@ rejected. The 2026-08-07 correction below is the current contract.
   **430087**, run `memmaze-community-d4-window-cache-numerics`, requests one H100/16 CPUs/1h. Cumulative
   production training-loop seconds remain **0**. NEXT: freeze an evidence-based numerical gate from
   430087; accept the completed cache only if same-batch replay and singleton error support it.
+- **2026-08-08 — Exact cache accepted and pinned.** H100 diagnostics **430087** and **430088** proved
+  builder batch-64 replay is bit-exact (`max_abs=0`) and, more importantly, batch-24 re-encoding—the
+  actual mem2mem online reference—is also bit-exact across sampled groups (`max_abs=0`). Batch-1 max
+  absolute error was **0.00061658** with max relative L2 **0.00019420**; accepted-vanilla batch-128 was
+  exact for full groups and its final partial group had max absolute **0.00085971** / relative L2
+  **0.00018268**. These are batch-shape GEMM rounding, not cache corruption. Commit
+  **`ff089c5e83574fcfd0eb5d75bf247ab9d37dd835`** pins manifest
+  `e7a4e57e63e357d1986154a1b6c3cea9f4220b1a716e4a553df8a345fb2f4fcf`, requires exact batch-64 and
+  batch-24 replay, bounds alternate batch shapes at max-abs 0.002 / relative-L2 0.0005, and retains the
+  small build/diagnostic artifacts locally. The 171.515 GiB array remains durable on Weka and was not
+  pulled. Cumulative production training-loop seconds remain **0**. NEXT: sync the pinned-cache commit
+  and run the forced-resume cached-I/O H100 calibration before freezing batch size/utilization.
