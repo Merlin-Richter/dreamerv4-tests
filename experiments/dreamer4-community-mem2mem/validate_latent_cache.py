@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gate cache identity, full hashes, online equality, and long-clip lookup alignment."""
+"""Gate cache identity, numerical encoder equivalence, and long-clip lookup alignment."""
 from __future__ import annotations
 
 import argparse
@@ -24,6 +24,9 @@ def main():
     ap.add_argument("--cache", type=Path, required=True)
     ap.add_argument("--report", type=Path, required=True)
     ap.add_argument("--full-hash", action="store_true")
+    ap.add_argument("--reference-batch-size", type=int, default=64)
+    ap.add_argument("--max-singleton-abs", type=float, default=float("inf"))
+    ap.add_argument("--max-replay-abs", type=float, default=0.0)
     args = ap.parse_args()
 
     manifest, manifest_sha = load_manifest(args.cache)
@@ -57,7 +60,23 @@ def main():
         str(args.tokenizer), device=device,
         override={"H": 64, "W": 64, "C": 3, "patch": 4},
     )
-    max_abs = 0.0
+    def error_stats(actual: torch.Tensor, expected: torch.Tensor) -> dict:
+        actual = actual.float()
+        expected = expected.float()
+        delta = actual - expected
+        expected_norm = float(expected.norm())
+        return {
+            "max_abs": float(delta.abs().max()),
+            "mean_abs": float(delta.abs().mean()),
+            "rmse": float(delta.square().mean().sqrt()),
+            "relative_l2": float(delta.norm()) / max(expected_norm, 1e-30),
+            "cosine": float(torch.nn.functional.cosine_similarity(
+                actual.flatten(), expected.flatten(), dim=0
+            )),
+            "bit_equal": bool(torch.equal(actual, expected)),
+        }
+
+    singleton_rows = {}
     with torch.inference_mode():
         for row in rows:
             task_idx, start = windows._lookup(row)
@@ -68,8 +87,31 @@ def main():
             cached_row = cache.rows_for_starts(np.array([start]))[0]
             assert int(cached_row) == row
             cached = torch.from_numpy(np.array(cache.latents[cached_row], copy=True))
-            max_abs = max(max_abs, float((packed - cached).abs().max()))
-            assert torch.equal(packed, cached)
+            singleton_rows[str(row)] = error_stats(packed, cached)
+
+    # Reproduce the builder's sequential batch shape. This distinguishes a bad
+    # cache write from harmless floating-point kernel differences caused by
+    # comparing batch-64 construction against singleton online encoding.
+    replay_groups = {}
+    batch_size = int(args.reference_batch_size)
+    if batch_size <= 0:
+        raise ValueError("reference-batch-size must be positive")
+    group_starts = sorted(set((row // batch_size) * batch_size for row in rows))
+    with torch.inference_mode():
+        for group_start in group_starts:
+            group_rows = list(range(group_start, min(group_start + batch_size, len(windows))))
+            frames = []
+            starts = []
+            for row in group_rows:
+                task_idx, start = windows._lookup(row)
+                frames.append(windows._get_frames(task_idx, start, 32))
+                starts.append(start)
+            frame_batch = torch.stack(frames).to(device).float().div_(255.0)
+            latent, _ = encoder(temporal_patchify(frame_batch, 4))
+            packed = pack_bottleneck_to_spatial(latent, n_spatial=8, k=2).cpu()
+            cached_rows = cache.rows_for_starts(np.asarray(starts, dtype=np.int64))
+            expected = torch.from_numpy(np.array(cache.latents[cached_rows], copy=True))
+            replay_groups[str(group_start)] = error_stats(packed, expected)
 
     cached_clips = CachedLatentClipDataset(clips, args.cache, window=32, clip_length=128)
     for clip_index in (0, len(clips) // 3, len(clips) - 1):
@@ -80,12 +122,23 @@ def main():
         assert torch.equal(sample["latents"], expected)
         assert int(sample["_global_start"]) == start
 
+    singleton_max_abs = max(item["max_abs"] for item in singleton_rows.values())
+    replay_max_abs = max(item["max_abs"] for item in replay_groups.values())
     report = {
         "cache_manifest_sha256": manifest_sha,
         "cache_shape": manifest["shape"],
         "dtype": manifest["dtype"],
         "full_hash_checked": args.full_hash,
-        "online_vs_cached_max_abs": max_abs,
+        "singleton_online_vs_cached": {
+            "max_abs": singleton_max_abs,
+            "rows": singleton_rows,
+        },
+        "builder_batch_replay_vs_cached": {
+            "reference_batch_size": batch_size,
+            "max_abs": replay_max_abs,
+            "all_bit_equal": all(item["bit_equal"] for item in replay_groups.values()),
+            "groups": replay_groups,
+        },
         "sampled_online_windows": rows,
         "sampled_long_clips": [0, len(clips) // 3, len(clips) - 1],
         "tokenizer_sha256": manifest["tokenizer_sha256"],
@@ -94,6 +147,14 @@ def main():
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(report, indent=2, sort_keys=True))
+    if singleton_max_abs > args.max_singleton_abs:
+        raise RuntimeError(
+            f"singleton online/cache max_abs {singleton_max_abs} > {args.max_singleton_abs}"
+        )
+    if replay_max_abs > args.max_replay_abs:
+        raise RuntimeError(
+            f"builder-batch replay/cache max_abs {replay_max_abs} > {args.max_replay_abs}"
+        )
     print("EXACT COMMUNITY LATENT CACHE VALIDATION PASSED")
 
 
