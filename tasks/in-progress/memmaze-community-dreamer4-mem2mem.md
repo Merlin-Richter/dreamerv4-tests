@@ -565,3 +565,16 @@ rejected. The 2026-08-07 correction below is the current contract.
   gates and must pass utilization, HBM, finite-loss/gradient, noncollapsed-memory, clock-ledger, and exact
   checkpoint-resume checks before production is frozen. Cumulative production training-loop seconds remain
   **0**. NEXT: inspect 430089 and freeze/launch only if every cached-input gate passes.
+- **2026-08-08 — Cached H100 calibration passed; production configuration frozen.** Ferranti job
+  **430089** completed exit 0 after 6m56s scheduler elapsed. It performed **685** optimizer steps in
+  **360.181498** cumulative whole-loop seconds (**1.90182 steps/s**). Forced restart was exact: process 1
+  stopped at step **343 / 180.120748s**, and process 2 restored exactly that step/clock before continuing.
+  Losses and gradients stayed finite; written-memory standard deviation remained noncollapsed. GPU health
+  passed: mean utilization **96.9167%**, p05 **91%**, longest sub-90% interval **0s**, mean/max HBM
+  **52,950/52,991 MiB** of 81,559 MiB; scheduler MaxRSS **9,124,100 KiB**. Clock-ledger SHA-256 is
+  **`89d4bc67abda36047f7784ce63539b5f23363f410424e65ac94810f1699a8d98`** and calibration-checkpoint
+  SHA-256 is **`b7dc41112d7c9fc4b5abed93aabff5472bbc57c38e4ef6b6998bf5aad3f7a80a`**. Freeze commit
+  **`cc5327432a3ef908d66e902a11a2df96c2c380d6`** retains all small artifacts and locks batch24/workers4,
+  exact cache manifest, the 48-hour LR schedule, one 54-hour allocation, and the vanilla-matched
+  172,800-second whole-loop stop. Cumulative production training-loop seconds remain **0**. NEXT: sync
+  the frozen commit and submit the fresh seed-0 production run under a new cached run name.
