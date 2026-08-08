@@ -578,3 +578,13 @@ rejected. The 2026-08-07 correction below is the current contract.
   exact cache manifest, the 48-hour LR schedule, one 54-hour allocation, and the vanilla-matched
   172,800-second whole-loop stop. Cumulative production training-loop seconds remain **0**. NEXT: sync
   the frozen commit and submit the fresh seed-0 production run under a new cached run name.
+- **2026-08-08 — Fresh cached 48-hour production run launched.** Passing-calibration ledger SHA
+  **`1e49c2ddb3632d4b63839cf0d12f0d9b17257d97`** was pushed and synced exactly. Ferranti job
+  **430090**, run `memmaze-community-d4-mem2mem-cached-48h`, is `RUNNING` with one H100, 16 CPUs, and
+  one accepted **54-hour** scheduler allocation. It starts seed 0 from scratch under the new run name,
+  reads only the pinned exact latent cache during training, uses the frozen batch24/workers4 configuration,
+  and stops after exactly **172,800 cumulative vanilla-matched training-loop seconds**; cache/setup/full
+  hash and final serialization remain outside that clock. `memory-final.pt` can be created only after the
+  hard config/cache/exposure/time gate passes. Production training-loop seconds at submission: **0**.
+  NEXT: verify startup identity/full-cache-hash gates, first advancing optimizer steps and utilization,
+  first hourly checkpoint, then healthy shortcut-bootstrap activation at step 5,000.
