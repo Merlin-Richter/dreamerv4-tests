@@ -588,3 +588,11 @@ rejected. The 2026-08-07 correction below is the current contract.
   hard config/cache/exposure/time gate passes. Production training-loop seconds at submission: **0**.
   NEXT: verify startup identity/full-cache-hash gates, first advancing optimizer steps and utilization,
   first hourly checkpoint, then healthy shortcut-bootstrap activation at step 5,000.
+- **2026-08-08 — Fresh production startup and full-cache integrity passed.** Job **430090** completed the
+  full 171.515 GiB SHA-256 scan plus exact manifest, batch64 replay, batch24 online-reference equality,
+  bounded alternate-batch numerics, data identity, vanilla parity, shared initialization, causality,
+  relay-gradient, distinct-channel, loss-accounting, and beyond-eviction gates. W&B run is **`ai5rh826`**.
+  Fresh seed-0 training then advanced through step **280 / ~146.45 cumulative whole-loop seconds**;
+  loss/gradients remained finite and written-memory standard deviation noncollapsed. Bootstrap loss is
+  correctly zero before frozen step 5,000. NEXT: retain live utilization/HBM health, verify the first
+  hourly checkpoint, and inspect the transition through bootstrap step 5,000.
