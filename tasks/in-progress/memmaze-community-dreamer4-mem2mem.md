@@ -531,3 +531,17 @@ rejected. The 2026-08-07 correction below is the current contract.
   ferranti job **429612**, run `memmaze-community-d4-window-cache-v2`, requests one H100, 16 CPUs, and
   12 hours. Cumulative production training-loop seconds remain **0**. NEXT: monitor 429612 through cache
   construction/hash/equality gates and pin the completed manifest.
+- **2026-08-08 — Full cache encoded/hashed; H100 batch-numerics diagnostic submitted.** Ferranti job
+  **429612** encoded all **2,810,100 / 2,810,100** windows at **307.2 windows/s** and finalized the
+  `(2810100,32,8,64)` FP32 array. Data SHA-256 is
+  **`48d9a9f4bd504f36e5ea81af2f35089e92dff4f1260d6ca1b1dd811a8ea53cb8`**; row-map SHA-256 is
+  **`1ec521e31facf6cb8fd2404e66122d28bf6b6ff3e5732ce218332cabf26fc861`**; current manifest SHA-256 is
+  **`e7a4e57e63e357d1986154a1b6c3cea9f4220b1a716e4a553df8a345fb2f4fcf`**. The job then failed only
+  because its validator demanded bit equality between batch-64 cache construction and batch-1 online
+  H100 encoding. Rather than weakening that assertion blindly, diagnostic commit
+  **`a8fb01c5805456cb2241304c2df1571875e347cd`** adds per-row absolute/RMSE/relative/cosine measurements
+  plus same-batch-64 replay, which should distinguish harmless GEMM batch-shape rounding from a bad cache
+  write. It passed against the local cache (same-builder-batch replay max-abs 0). Ferranti diagnostic job
+  **430087**, run `memmaze-community-d4-window-cache-numerics`, requests one H100/16 CPUs/1h. Cumulative
+  production training-loop seconds remain **0**. NEXT: freeze an evidence-based numerical gate from
+  430087; accept the completed cache only if same-batch replay and singleton error support it.
