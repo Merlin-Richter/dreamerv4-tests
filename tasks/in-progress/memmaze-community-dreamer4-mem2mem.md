@@ -557,3 +557,11 @@ rejected. The 2026-08-07 correction below is the current contract.
   small build/diagnostic artifacts locally. The 171.515 GiB array remains durable on Weka and was not
   pulled. Cumulative production training-loop seconds remain **0**. NEXT: sync the pinned-cache commit
   and run the forced-resume cached-I/O H100 calibration before freezing batch size/utilization.
+- **2026-08-08 — Production-shaped cached calibration submitted.** Accepted-cache ledger SHA
+  **`2a8f10c05e143b4e1d648f6998c47f9bc4eb12ee`** was pushed and synced exactly. Ferranti job
+  **430089**, run `memmaze-community-d4-mem2mem-cached-calib-b24`, requests one H100, 16 CPUs, and two
+  hours. It uses batch 24/four mmap workers, the pinned durable cache, 180 seconds before a forced process
+  restart, and 360 cumulative vanilla-matched training-loop seconds. The job re-runs model/resume/cache
+  gates and must pass utilization, HBM, finite-loss/gradient, noncollapsed-memory, clock-ledger, and exact
+  checkpoint-resume checks before production is frozen. Cumulative production training-loop seconds remain
+  **0**. NEXT: inspect 430089 and freeze/launch only if every cached-input gate passes.
