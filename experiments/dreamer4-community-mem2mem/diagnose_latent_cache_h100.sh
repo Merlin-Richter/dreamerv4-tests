@@ -21,7 +21,8 @@ test -f "$CACHE_ROOT/manifest.json"
   --dreamer4 "$D4_ROOT" --data-dirs "$TRAIN_OUT/demos" --frame-dirs "$TRAIN_OUT/shards" \
   --tokenizer "$TOK_CKPT" --train-manifest "$TRAIN_OUT/conversion_manifest.json" \
   --cache "$CACHE_ROOT" --report "$RUN_DIR/cache-numerical-diagnostic.json" \
-  --reference-batch-size 64 --max-singleton-abs inf --max-replay-abs inf \
+  --reference-batch-size 64 --comparison-batch-sizes 24 128 \
+  --max-singleton-abs inf --max-replay-abs inf \
   2>&1 | tee "$RUN_DIR/cache-numerical-diagnostic.log"
 cp "$CACHE_ROOT/manifest.json" "$RUN_DIR/cache-manifest.json"
 sha256sum "$CACHE_ROOT/manifest.json" "$CACHE_ROOT/row-by-start.npy" "$TOK_CKPT" \

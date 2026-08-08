@@ -25,6 +25,7 @@ def main():
     ap.add_argument("--report", type=Path, required=True)
     ap.add_argument("--full-hash", action="store_true")
     ap.add_argument("--reference-batch-size", type=int, default=64)
+    ap.add_argument("--comparison-batch-sizes", type=int, nargs="*", default=())
     ap.add_argument("--max-singleton-abs", type=float, default=float("inf"))
     ap.add_argument("--max-replay-abs", type=float, default=0.0)
     args = ap.parse_args()
@@ -76,6 +77,35 @@ def main():
             "bit_equal": bool(torch.equal(actual, expected)),
         }
 
+    def compare_at_batch_size(batch_size: int) -> dict:
+        if batch_size <= 0:
+            raise ValueError("comparison batch sizes must be positive")
+        groups = {}
+        group_starts = sorted(set((row // batch_size) * batch_size for row in rows))
+        with torch.inference_mode():
+            for group_start in group_starts:
+                group_rows = list(range(group_start, min(group_start + batch_size, len(windows))))
+                frames = []
+                starts = []
+                for row in group_rows:
+                    task_idx, start = windows._lookup(row)
+                    frames.append(windows._get_frames(task_idx, start, 32))
+                    starts.append(start)
+                frame_batch = torch.stack(frames).to(device).float().div_(255.0)
+                latent, _ = encoder(temporal_patchify(frame_batch, 4))
+                packed = pack_bottleneck_to_spatial(latent, n_spatial=8, k=2).cpu()
+                cached_rows = cache.rows_for_starts(np.asarray(starts, dtype=np.int64))
+                expected = torch.from_numpy(np.array(cache.latents[cached_rows], copy=True))
+                groups[str(group_start)] = error_stats(packed, expected)
+        return {
+            "batch_size": batch_size,
+            "max_abs": max(item["max_abs"] for item in groups.values()),
+            "max_relative_l2": max(item["relative_l2"] for item in groups.values()),
+            "min_cosine": min(item["cosine"] for item in groups.values()),
+            "all_bit_equal": all(item["bit_equal"] for item in groups.values()),
+            "groups": groups,
+        }
+
     singleton_rows = {}
     with torch.inference_mode():
         for row in rows:
@@ -92,26 +122,13 @@ def main():
     # Reproduce the builder's sequential batch shape. This distinguishes a bad
     # cache write from harmless floating-point kernel differences caused by
     # comparing batch-64 construction against singleton online encoding.
-    replay_groups = {}
     batch_size = int(args.reference_batch_size)
-    if batch_size <= 0:
-        raise ValueError("reference-batch-size must be positive")
-    group_starts = sorted(set((row // batch_size) * batch_size for row in rows))
-    with torch.inference_mode():
-        for group_start in group_starts:
-            group_rows = list(range(group_start, min(group_start + batch_size, len(windows))))
-            frames = []
-            starts = []
-            for row in group_rows:
-                task_idx, start = windows._lookup(row)
-                frames.append(windows._get_frames(task_idx, start, 32))
-                starts.append(start)
-            frame_batch = torch.stack(frames).to(device).float().div_(255.0)
-            latent, _ = encoder(temporal_patchify(frame_batch, 4))
-            packed = pack_bottleneck_to_spatial(latent, n_spatial=8, k=2).cpu()
-            cached_rows = cache.rows_for_starts(np.asarray(starts, dtype=np.int64))
-            expected = torch.from_numpy(np.array(cache.latents[cached_rows], copy=True))
-            replay_groups[str(group_start)] = error_stats(packed, expected)
+    replay = compare_at_batch_size(batch_size)
+    comparisons = {
+        str(comparison_batch_size): compare_at_batch_size(comparison_batch_size)
+        for comparison_batch_size in args.comparison_batch_sizes
+        if comparison_batch_size != batch_size
+    }
 
     cached_clips = CachedLatentClipDataset(clips, args.cache, window=32, clip_length=128)
     for clip_index in (0, len(clips) // 3, len(clips) - 1):
@@ -123,7 +140,7 @@ def main():
         assert int(sample["_global_start"]) == start
 
     singleton_max_abs = max(item["max_abs"] for item in singleton_rows.values())
-    replay_max_abs = max(item["max_abs"] for item in replay_groups.values())
+    replay_max_abs = replay["max_abs"]
     report = {
         "cache_manifest_sha256": manifest_sha,
         "cache_shape": manifest["shape"],
@@ -134,11 +151,10 @@ def main():
             "rows": singleton_rows,
         },
         "builder_batch_replay_vs_cached": {
+            **replay,
             "reference_batch_size": batch_size,
-            "max_abs": replay_max_abs,
-            "all_bit_equal": all(item["bit_equal"] for item in replay_groups.values()),
-            "groups": replay_groups,
         },
+        "comparison_batch_shapes_vs_cached": comparisons,
         "sampled_online_windows": rows,
         "sampled_long_clips": [0, len(clips) // 3, len(clips) - 1],
         "tokenizer_sha256": manifest["tokenizer_sha256"],
