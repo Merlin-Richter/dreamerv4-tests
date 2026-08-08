@@ -12,7 +12,7 @@ TRAIN_OUT="$ROOT/data/d4_memmaze_community/train-part0-v2"
 EVAL_OUT="$ROOT/data/d4_memmaze_community/eval-v2"
 TOK_CKPT="$ROOT/runs/memmaze-d4-tokenizer-24h/tokenizer/final.pt"
 CACHE_ROOT="$ROOT/data/d4_memmaze_community/train-part0-v2-community-window32-fp32"
-CACHE_MANIFEST_SHA256="REPLACE_AFTER_CACHE_BUILD"
+CACHE_MANIFEST_SHA256="e7a4e57e63e357d1986154a1b6c3cea9f4220b1a716e4a553df8a345fb2f4fcf"
 VANILLA_CKPT="${D4_VANILLA_CKPT:-$ROOT/runs/memmaze-d4-dynamics-48h-v3/dynamics/final.pt}"
 BATCH_SIZE=24
 NUM_WORKERS=4
@@ -42,6 +42,9 @@ test "$(sha256sum "$CACHE_ROOT/manifest.json" | awk '{print $1}')" = "$CACHE_MAN
   --dreamer4 "$D4_ROOT" --data-dirs "$TRAIN_OUT/demos" --frame-dirs "$TRAIN_OUT/shards" \
   --tokenizer "$TOK_CKPT" --train-manifest "$TRAIN_OUT/conversion_manifest.json" \
   --cache "$CACHE_ROOT" --report "$RUN_DIR/cache-validation.json" --full-hash \
+  --reference-batch-size 64 --comparison-batch-sizes 24 128 \
+  --require-bit-exact-comparison-batches 24 --max-singleton-abs 0.002 \
+  --max-replay-abs 0 --max-comparison-abs 0.002 --max-comparison-relative-l2 0.0005 \
   2>&1 | tee "$RUN_DIR/cache-validation.log"
 
 LATEST="$RUN_DIR/memory-latest.pt"

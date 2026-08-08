@@ -38,9 +38,10 @@ on ferranti. It verifies the approved tokenizer hash, conversion manifests, RGB/
 content-disjoint episodes, WMDataset-to-frame action alignment, and the reference online encoder.
 `build_latent_cache_h100.sh` then creates the 2,810,100 exact W-window entries with shape
 `(2810100,32,8,64)` in FP32 (171.515 GiB) and hashes the completed array. The validator checks the
-manifest identity, proves sampled cached rows are bit-identical to online encoding (`max_abs=0`), and
-verifies all seven window lookups used by a 128-frame training clip. Production additionally re-hashes
-the complete array before starting its training clock.
+manifest identity, requires bit-exact builder-batch replay and bit-exact batch-24 encoding (the mem2mem
+online reference), bounds alternate H100 batch-shape rounding, and verifies all seven window lookups used
+by a 128-frame training clip. Production additionally re-hashes the complete array before starting its
+training clock.
 
 The production clock now matches the accepted vanilla baseline: cumulative wall time from entry into
 the training loop through data loading, cached-latent reads, dynamics forward/backward/optimizer,

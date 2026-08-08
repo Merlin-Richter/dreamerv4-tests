@@ -37,6 +37,9 @@ cp -a "$D4_PROVENANCE"/. "$RUN_DIR/provenance"/
   --dreamer4 "$D4_ROOT" --data-dirs "$TRAIN_OUT/demos" --frame-dirs "$TRAIN_OUT/shards" \
   --tokenizer "$TOK_CKPT" --train-manifest "$TRAIN_OUT/conversion_manifest.json" \
   --cache "$CACHE_ROOT" --report "$RUN_DIR/cache-validation.json" \
+  --reference-batch-size 64 --comparison-batch-sizes 24 128 \
+  --require-bit-exact-comparison-batches 24 --max-singleton-abs 0.002 \
+  --max-replay-abs 0 --max-comparison-abs 0.002 --max-comparison-relative-l2 0.0005 \
   2>&1 | tee "$RUN_DIR/cache-validation.log"
 cp "$CACHE_ROOT/manifest.json" "$RUN_DIR/cache-manifest.json"
 sha256sum "$CACHE_ROOT/manifest.json" "$CACHE_ROOT/row-by-start.npy" \

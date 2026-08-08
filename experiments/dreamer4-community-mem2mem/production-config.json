@@ -25,10 +25,19 @@
   "learning_rate": 0.0001,
   "lr_schedule_hours": 48,
   "latent_cache": {
+    "builder_batch_size": 64,
+    "data_sha256": "48d9a9f4bd504f36e5ea81af2f35089e92dff4f1260d6ca1b1dd811a8ea53cb8",
     "dtype": "float32",
     "encoding": "exact independent W=32 windows",
     "format": "dreamer4-community-window-latents-v1",
-    "manifest_sha256": null,
+    "manifest_sha256": "e7a4e57e63e357d1986154a1b6c3cea9f4220b1a716e4a553df8a345fb2f4fcf",
+    "numerical_gate": {
+      "batch_24_bit_exact": true,
+      "builder_batch_64_bit_exact": true,
+      "max_abs_other_batch_shapes": 0.002,
+      "max_relative_l2_other_batch_shapes": 0.0005
+    },
+    "row_by_start_sha256": "1ec521e31facf6cb8fd2404e66122d28bf6b6ff3e5732ce218332cabf26fc861",
     "shape": [2810100, 32, 8, 64],
     "size_bytes": 184162713600
   },

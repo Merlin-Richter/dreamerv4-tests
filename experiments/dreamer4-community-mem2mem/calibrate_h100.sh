@@ -43,6 +43,9 @@ CACHE_MANIFEST_SHA256="$(sha256sum "$CACHE_ROOT/manifest.json" | awk '{print $1}
   --dreamer4 "$D4_ROOT" --data-dirs "$TRAIN_OUT/demos" --frame-dirs "$TRAIN_OUT/shards" \
   --tokenizer "$TOK_CKPT" --train-manifest "$TRAIN_OUT/conversion_manifest.json" \
   --cache "$CACHE_ROOT" --report "$RUN_DIR/cache-validation.json" \
+  --reference-batch-size 64 --comparison-batch-sizes 24 128 \
+  --require-bit-exact-comparison-batches 24 --max-singleton-abs 0.002 \
+  --max-replay-abs 0 --max-comparison-abs 0.002 --max-comparison-relative-l2 0.0005 \
   2>&1 | tee "$RUN_DIR/cache-validation.log"
 
 CKPT="$RUN_DIR/memory-latest.pt"

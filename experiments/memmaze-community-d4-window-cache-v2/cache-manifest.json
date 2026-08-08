@@ -1,0 +1,25 @@
+{
+  "d_bottleneck": 32,
+  "d_spatial": 64,
+  "dtype": "float32",
+  "encoding": "exact independent causal W-frame windows; FP32 outputs",
+  "format": "dreamer4-community-window-latents-v1",
+  "frame_count": 2902900,
+  "latents_file": "latents.npy",
+  "latents_sha256": "48d9a9f4bd504f36e5ea81af2f35089e92dff4f1260d6ca1b1dd811a8ea53cb8",
+  "n_latents": 16,
+  "n_spatial": 8,
+  "packing_factor": 2,
+  "row_by_start_file": "row-by-start.npy",
+  "row_by_start_sha256": "1ec521e31facf6cb8fd2404e66122d28bf6b6ff3e5732ce218332cabf26fc861",
+  "shape": [
+    2810100,
+    32,
+    8,
+    64
+  ],
+  "tokenizer_sha256": "347052fae0212ea2c6b943ae7c28a886298ce551d4155b882084d63a3ea48797",
+  "train_manifest_sha256": "834c9b29e4436614694635826d570d3695542058e020487500691e8954ab673c",
+  "window": 32,
+  "window_count": 2810100
+}

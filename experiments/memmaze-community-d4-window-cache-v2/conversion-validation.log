@@ -1,0 +1,18 @@
+{
+  "root": "/weka/martius/mot936/dreamerv4-tests/data/d4_memmaze_community/train-part0-v2",
+  "task": "memmaze",
+  "trajectories": 2900,
+  "frames": 2902900,
+  "shards": 1418,
+  "trajectory_names_sha256": "066ad5ca371f8a4ad6d280ceb0c5630926dbc8b03d1d251bbd2ad18d0065b83d"
+}
+{
+  "root": "/weka/martius/mot936/dreamerv4-tests/data/d4_memmaze_community/eval-v2",
+  "task": "memmaze",
+  "trajectories": 1000,
+  "frames": 1001000,
+  "shards": 489,
+  "trajectory_names_sha256": "a16019bcd51f662de671258f320729f8e67613f1b235df873384d77c0bd0b53a"
+}
+SPLIT DISJOINTNESS PASSED
+CONVERSION VALIDATION PASSED

@@ -26,8 +26,11 @@ def main():
     ap.add_argument("--full-hash", action="store_true")
     ap.add_argument("--reference-batch-size", type=int, default=64)
     ap.add_argument("--comparison-batch-sizes", type=int, nargs="*", default=())
+    ap.add_argument("--require-bit-exact-comparison-batches", type=int, nargs="*", default=())
     ap.add_argument("--max-singleton-abs", type=float, default=float("inf"))
     ap.add_argument("--max-replay-abs", type=float, default=0.0)
+    ap.add_argument("--max-comparison-abs", type=float, default=float("inf"))
+    ap.add_argument("--max-comparison-relative-l2", type=float, default=float("inf"))
     args = ap.parse_args()
 
     manifest, manifest_sha = load_manifest(args.cache)
@@ -171,6 +174,23 @@ def main():
         raise RuntimeError(
             f"builder-batch replay/cache max_abs {replay_max_abs} > {args.max_replay_abs}"
         )
+    for required_batch in args.require_bit_exact_comparison_batches:
+        comparison = comparisons.get(str(required_batch))
+        if comparison is None:
+            raise RuntimeError(f"required comparison batch {required_batch} was not evaluated")
+        if not comparison["all_bit_equal"]:
+            raise RuntimeError(f"required comparison batch {required_batch} is not bit-exact")
+    for comparison_batch, comparison in comparisons.items():
+        if comparison["max_abs"] > args.max_comparison_abs:
+            raise RuntimeError(
+                f"batch-{comparison_batch} max_abs {comparison['max_abs']} "
+                f"> {args.max_comparison_abs}"
+            )
+        if comparison["max_relative_l2"] > args.max_comparison_relative_l2:
+            raise RuntimeError(
+                f"batch-{comparison_batch} relative_l2 {comparison['max_relative_l2']} "
+                f"> {args.max_comparison_relative_l2}"
+            )
     print("EXACT COMMUNITY LATENT CACHE VALIDATION PASSED")
 
 
