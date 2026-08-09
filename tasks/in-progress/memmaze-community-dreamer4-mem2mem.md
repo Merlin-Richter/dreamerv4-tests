@@ -596,3 +596,13 @@ rejected. The 2026-08-07 correction below is the current contract.
   loss/gradients remained finite and written-memory standard deviation noncollapsed. Bootstrap loss is
   correctly zero before frozen step 5,000. NEXT: retain live utilization/HBM health, verify the first
   hourly checkpoint, and inspect the transition through bootstrap step 5,000.
+- **2026-08-09 — Fresh production reached 74.6% of the exact training clock.** Job **430090** remains
+  `RUNNING` after **1-11:51:24** scheduler elapsed and reached step **226,140** at
+  **35.790674 / 48.000000 cumulative whole-loop hours**. Recent loss, flow loss, bootstrap loss, gradients,
+  and written-memory standard deviation are finite and healthy (`loss=0.001089`, `flow=0.006135`,
+  `boot=0.000675`, `grad=0.0083`, `mem_std=3.9342`). The frozen bootstrap boundary behaved exactly as
+  intended: bootstrap loss was zero at steps 4,980 and 5,000 and became nonzero at step 5,020. Hourly
+  checkpoints are advancing normally; the latest verified one is step **221,140** at **126,000.44s**.
+  About **12.21 training hours** remain, with roughly **5.9 hours** of scheduler headroom beyond the
+  projected finish. NEXT: monitor through the exact 172,800-second stop, final checkpoint gates, artifact
+  pull, and player/evaluation work.
