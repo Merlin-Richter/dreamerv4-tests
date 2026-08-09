@@ -16,6 +16,7 @@ import importlib
 import json
 import math
 import os
+import pathlib
 import random
 import sys
 import time
@@ -40,6 +41,18 @@ ACTION_NAMES = {
     4: "fwd+left",
     5: "fwd+right",
 }
+
+
+def _load_checkpoint(path: Path):
+    """Load Linux- or Windows-authored checkpoints on the local platform."""
+    if os.name != "nt":
+        return torch.load(path, map_location="cpu", weights_only=False)
+    original_posix_path = pathlib.PosixPath
+    pathlib.PosixPath = pathlib.WindowsPath
+    try:
+        return torch.load(path, map_location="cpu", weights_only=False)
+    finally:
+        pathlib.PosixPath = original_posix_path
 
 
 def get_keymap(pygame):
@@ -95,7 +108,7 @@ def _load_models(
     dynamics_path: Path,
     device: torch.device,
 ):
-    tok_ckpt = torch.load(tokenizer_path, map_location="cpu", weights_only=False)
+    tok_ckpt = _load_checkpoint(tokenizer_path)
     tok_cfg = dict(tok_ckpt.get("args", {}))
     H = int(tok_cfg.get("H", 128))
     W = int(tok_cfg.get("W", 128))
@@ -136,7 +149,7 @@ def _load_models(
     tokenizer = tokenizer.to(device).eval()
     tokenizer.requires_grad_(False)
 
-    dyn_ckpt = torch.load(dynamics_path, map_location="cpu", weights_only=False)
+    dyn_ckpt = _load_checkpoint(dynamics_path)
     dyn_cfg = dict(dyn_ckpt.get("args", {}))
     if not bool(dyn_cfg.get("use_actions", False)):
         raise AssertionError("dynamics checkpoint is not action-conditioned")

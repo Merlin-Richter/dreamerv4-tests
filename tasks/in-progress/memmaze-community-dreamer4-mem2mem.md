@@ -606,3 +606,14 @@ rejected. The 2026-08-07 correction below is the current contract.
   About **12.21 training hours** remain, with roughly **5.9 hours** of scheduler headroom beyond the
   projected finish. NEXT: monitor through the exact 172,800-second stop, final checkpoint gates, artifact
   pull, and player/evaluation work.
+- **2026-08-09 — Immutable 35-hour checkpoint pulled for optional mid-run play.** Without pausing or
+  mutating job **430090**, the immutable hourly snapshot at step **221,140 / 126,000.438123s** was pulled
+  through the approved wrapper. It is **514,488,117 bytes** with local SHA-256
+  **`ca6e7fb3ba17a16b94ddd55fe1734863abbbb3b450c91eddbad057537fc453bd`** and retains `n_memory=8` plus
+  the pinned cache-manifest SHA. A Windows portability defect exposed by the real cluster checkpoint
+  (`pathlib.PosixPath` in saved arguments) was fixed in the player loader. The actual snapshot then passed
+  a **33-generated-frame** CUDA self-test across eviction at **14.90 fps** using a separate pinned/patched
+  upstream checkout; the accepted vanilla installation remained untouched. This checkpoint is for
+  provisional interactive inspection only and does not replace the exact 48-hour final artifact. A
+  post-transfer check found the production run still healthy and advancing at step **247,160 / 39.115272h**;
+  the pull caused no observable interruption.
