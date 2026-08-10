@@ -1,4 +1,5 @@
 param(
+    [string] $CheckpointPath,
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]] $PlayerArgs
 )
@@ -13,7 +14,11 @@ $PatchedDreamer4 = Join-Path (Split-Path $TaskRoot -Parent) "memmaze-community-d
 $CommunityRoot = Join-Path $CodeRoot "dreamer4"
 $Python = Join-Path $PrimaryRoot "venv\Scripts\python.exe"
 $Player = Join-Path $PSScriptRoot "play_dynamics.py"
-$Checkpoint = Join-Path $TaskRoot "checkpoints\memmaze-community-d4-mem2mem\memory-midrun-step-00221140-train-000126000.44s.pt"
+$Checkpoint = if ($CheckpointPath) {
+    $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($CheckpointPath)
+} else {
+    Join-Path $TaskRoot "checkpoints\memmaze-community-d4-mem2mem\memory-midrun-step-00221140-train-000126000.44s.pt"
+}
 $Tokenizer = Join-Path $CommunityRoot "checkpoints\memmaze-community-d4\tokenizer-final.pt"
 $Frames = Join-Path $PrimaryRoot "data\memmaze9x9_val12.npy"
 $Actions = Join-Path $PrimaryRoot "data\memmaze9x9_val12_actions.npy"

@@ -1,0 +1,14 @@
+{
+  "hard_health_gate_met": true,
+  "hbm_total_mib": 81559.0,
+  "ledger_rows": 303296,
+  "longest_below_90_percent_s": 30.003000020980835,
+  "max_hbm_used_mib": 52911.0,
+  "mean_hbm_used_mib": 52910.969903924066,
+  "mean_utilization_percent": 95.85166107188331,
+  "p05_utilization_percent": 90.0,
+  "sample_cadence_s": 10.000999927520752,
+  "target_95_percent_met": true,
+  "training_samples": 17278,
+  "training_sessions": 1
+}

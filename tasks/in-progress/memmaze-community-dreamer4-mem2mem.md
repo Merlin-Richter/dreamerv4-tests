@@ -617,3 +617,15 @@ rejected. The 2026-08-07 correction below is the current contract.
   provisional interactive inspection only and does not replace the exact 48-hour final artifact. A
   post-transfer check found the production run still healthy and advancing at step **247,160 / 39.115272h**;
   the pull caused no observable interruption.
+- **2026-08-10 — Exact 48-hour production checkpoint completed, pulled, and locally gated.** Ferranti job
+  **430090** completed exit `0:0` after **2-00:04:13** scheduler elapsed. The trainer stopped at step
+  **303,248** after **172,800.299007 cumulative whole-loop seconds** and passed the final production
+  config/cache/exposure/time gate. GPU health also passed: mean utilization **95.8517%**, p05 **90%**,
+  longest sub-90% interval **30.003s**, and mean/max HBM **52,910.97/52,911 MiB** of 81,559 MiB. The
+  immutable `memory-final.pt` is **514,477,149 bytes** with cluster and local SHA-256
+  **`aff682549e03616e30d46d83e19bfe79b69aa60fb1bfe714ae225fb98872ab93`**. It was installed beside the
+  accepted vanilla checkpoint as `dynamics-mem2mem-final.pt` without modifying the vanilla artifact.
+  The actual final model passed a 33-generated-frame CUDA player self-test across eviction at **12.18
+  fps**. Compact final summaries are retained under `experiments/memmaze-community-d4-mem2mem-48h/`;
+  the 64.3 MB exact clock ledger remains local/ignored and the 171.515 GiB cache was not pulled. NEXT:
+  Merlin's paired interactive vanilla-vs-memory assessment and recording the qualitative outcome.
