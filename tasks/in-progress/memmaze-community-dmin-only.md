@@ -127,3 +127,13 @@ self-distillation term — and 415103 had val 0.0043 with h1 0.0226. The rollout
   `--schedule`/`--eval-d`/`--sheet-sequences`, with defaults that reproduce the historic protocol
   exactly. The vast rental plan in the original draft is dropped, not deferred.
   NEXT: sync to ferranti and submit the 24 h arm.
+- [2026-08-19] **Submitted.** Implementation commit `5f06a89` pushed to
+  `origin/codex/memmaze-community-d4-dmin`; ferranti synced to that exact SHA. Ferranti job
+  **438958** (`memmaze-d4-dynamics-dmin-24h`, 1x H100, 16 CPUs, 30 h allocation for a 24 h active
+  budget) submitted 18:25 Europe/Berlin, PENDING behind a 186-job queue. Artifacts land under
+  `runs/memmaze-d4-dynamics-dmin-24h/`. Active training seconds: **0**.
+  Do NOT re-sync ferranti to a newer commit while 438958 is queued or running — the remote
+  checkout is shared, and moving it would swap the code under the job.
+  NEXT: confirm the run starts, that `gate_dmin_only.py` passes on the cluster, that `boot_mse`
+  logs as exactly 0.000000, and that H100 utilization holds >=90%; then record achieved steps/s
+  against the control's 1.7255 before believing any speedup claim.
