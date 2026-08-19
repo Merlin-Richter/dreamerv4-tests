@@ -1,21 +1,30 @@
 #!/usr/bin/env bash
 # Ferranti Phase 5 scoring: the d_min-only arm vs the vanilla control, on the same held-out split.
 #
-# Three checkpoints x two sampling schedules, all through one instrument with one seed:
+# Three checkpoints x three sampling schedules, all through one instrument with one seed:
 #
 #   dmin_final          runs/memmaze-d4-dynamics-dmin-24h/dynamics/final.pt   (24 active H100 h)
 #   control_final       runs/memmaze-d4-dynamics-48h-v3/dynamics/final.pt     (48 active H100 h)
 #   control_stepmatched the control periodic checkpoint nearest the arm final step
 #
-#   K=8  (--schedule finest)          the FAIR comparison.  d_min-only trains ONLY step_idx=emax,
-#                                     and the control trains it on 75% of its rows, so K=8 is in
-#                                     distribution for both.
-#   K=4  (--schedule shortcut -d .25) the shortcut-capability test, and the historic protocol.
-#                                     The arm is EXPECTED to do badly here: upstream keys the step
-#                                     size through nn.Embedding(log2(k_max)+1, d_model), so a
-#                                     d_min-only model reads a never-trained embedding row at K=4.
-#                                     Report it as the price of dropping the bootstrap, not as the
-#                                     model being bad.
+#   K=1  (--schedule shortcut -d 1.0) the setting a d_min-only x-prediction arm should be READ at.
+#                                     With K=1 the sampler degenerates to z = x1_hat: one forward,
+#                                     no re-noising.  Every K>1 step re-noises the model's OWN
+#                                     prediction to an intermediate tau, an input never produced in
+#                                     training, and that is the DOMINANT penalty -- ColorField
+#                                     measured a d_min-only model at K=1 0.978 / K=2 0.680 /
+#                                     K=4 0.615 / K=8 0.532.  In-distribution for the control too:
+#                                     its self rows sample step_idx uniformly over {0,1,2}.
+#   K=8  (--schedule finest)          the step size the arm actually trained (d_min = 1/k_max), and
+#                                     in-distribution for the control, which trains d_min on 75% of
+#                                     its rows.  Fair, but pays the re-noising cost above.
+#   K=4  (--schedule shortcut -d .25) the historic protocol, kept for continuity.  Worst case for
+#                                     the arm: re-noised AND reading step_embed row 2, which
+#                                     nn.Embedding(log2(k_max)+1, d_model) leaves at random init
+#                                     because d_min-only training never gives it a gradient.
+#
+# Report all three.  A d_min-only arm that wins at K=1 and loses at K=4 has not "broken shortcut
+# sampling" -- it declined to learn it, which is what dropping the bootstrap term buys and costs.
 #
 # control_stepmatched exists because the arm gets 24 h against the control 48 h.  Compute-matched
 # and step-matched disagreeing is itself the finding; scoring both means the 2x budget gap cannot
@@ -121,11 +130,14 @@ score() {
     --device cuda "$@" 2>&1 | tee "$out/eval.log"
 }
 
+score dmin_final_K1    "$DMIN_DIR/final.pt" "$N_SEQ" --schedule shortcut --eval-d 1.0
+score control_final_K1 "$CTRL_DIR/final.pt" "$N_SEQ" --schedule shortcut --eval-d 1.0
 score dmin_final_K8    "$DMIN_DIR/final.pt" "$N_SEQ" --schedule finest
 score control_final_K8 "$CTRL_DIR/final.pt" "$N_SEQ" --schedule finest
 score dmin_final_K4    "$DMIN_DIR/final.pt" "$N_SEQ" --schedule shortcut --eval-d 0.25
 score control_final_K4 "$CTRL_DIR/final.pt" "$N_SEQ" --schedule shortcut --eval-d 0.25
 if [ -n "$CTRL_MATCHED" ]; then
+  score control_stepmatched_K1 "$CTRL_MATCHED" "$N_SEQ" --schedule shortcut --eval-d 1.0
   score control_stepmatched_K8 "$CTRL_MATCHED" "$N_SEQ" --schedule finest
   score control_stepmatched_K4 "$CTRL_MATCHED" "$N_SEQ" --schedule shortcut --eval-d 0.25
 fi

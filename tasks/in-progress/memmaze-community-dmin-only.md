@@ -51,7 +51,7 @@ flow loss, versus 96 for the control. That is inherent to dropping the bootstrap
 stops being spent on it — not a separate knob, and it is exactly what a compute-matched
 comparison is supposed to capture.
 
-## Scoring must use K=8, and that is a proven constraint rather than a preference
+## The sampling schedule is not a free choice: score at K=1, K=8 and K=4
 
 Upstream keys the shortcut step size through `nn.Embedding(log2(k_max)+1, d_model)` (`model.py`
 `step_embed`). A d_min-only model only ever trains row `emax=3` (K=8). Rows 0..2 stay at their
@@ -70,11 +70,28 @@ The gate must perturb `flow_x_head` before probing: upstream zero-inits it, so a
 every upstream gradient is exactly zero and a naive probe reads a false zero everywhere. This is
 the same zero-init the baseline runbook already flags for why early predictions are 0.
 
-So **K=8 (`--schedule finest`) is the fair comparison** — in-distribution for both arms, since the
-control trains d_min on 75% of its rows — and **K=4 is a shortcut-capability test the arm is
-expected to lose**. Report the 2x2. If the arm wins at K=8 and loses at K=4, the honest reading is
-"the bootstrap term buys few-step sampling and costs single-step quality", which is the tradeoff
-shortcut models are meant to make — a more precise claim than "bootstrap breaks it".
+The dead row is only the *second-order* problem, and reasoning from it alone would pick the wrong K.
+The dominant one is **re-noising**: with x-prediction the first sampling step already emits ẑ₁, and
+every further step re-noises the model's OWN prediction to an intermediate tau — an input never
+produced during training. The ColorField testbed measured a d_min-only model at **K=1 0.978 /
+K=2 0.680 / K=4 0.615 / K=8 0.532**, and at K=1 the `d_idx=0` row is *also* untrained, so the
+input distribution clearly dominates the dead row.
+
+Hence score at three schedules, not two:
+
+- **K=1** (`--schedule shortcut --eval-d 1.0`) — the sampler degenerates to `z = x1_hat`: one
+  forward, no re-noising. This is how a d_min-only x-prediction arm should be read. Verified
+  supported by their scheduler (`_is_pow2(1)` holds) and by their sampler math (`tau=0`, `dt=1`,
+  `denom=1` → `z = x1_hat` exactly). In-distribution for the control too, whose self rows sample
+  `step_idx` uniformly over {0,1,2}.
+- **K=8** (`--schedule finest`) — the step size the arm actually trained (d_min = 1/k_max), and
+  in-distribution for the control. Fair, but pays the re-noising cost.
+- **K=4** (`--schedule shortcut --eval-d 0.25`) — the historic protocol, kept for continuity, and
+  the worst case for the arm: re-noised *and* reading the dead `step_embed` row 2.
+
+If the arm wins at K=1 and loses at K=4, it has not "broken shortcut sampling" — it declined to
+learn it, which is exactly what dropping the bootstrap term buys and costs. That is a far more
+precise claim than "bootstrap breaks it", and it is the one the 3x3 matrix can support.
 
 ## Pre-registered prediction (this is what makes it a mechanism test, not a repeat)
 
@@ -105,7 +122,7 @@ Two mitigations are built into the protocol rather than left as caveats:
 ## Scoring
 
 Report through `phase5_evaluate_dmin.sh`: 3 checkpoints (arm final, control final, control
-step-matched) x 2 schedules (K=8 finest, K=4 shortcut), one instrument, one seed, 64 held-out
+step-matched) x 3 schedules (K=1, K=8 finest, K=4), one instrument, one seed, 64 held-out
 sequences. The historic run used 4 sequences, too few to separate arms; the driver also reruns
 that exact 4-sequence K=4 configuration as a drift check against the recorded mse 0.007988 /
 PSNR 20.98 dB.
