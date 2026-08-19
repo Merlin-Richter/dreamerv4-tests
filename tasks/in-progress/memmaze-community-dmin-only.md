@@ -154,3 +154,30 @@ self-distillation term — and 415103 had val 0.0043 with h1 0.0226. The rollout
   NEXT: confirm the run starts, that `gate_dmin_only.py` passes on the cluster, that `boot_mse`
   logs as exactly 0.000000, and that H100 utilization holds >=90%; then record achieved steps/s
   against the control's 1.7255 before believing any speedup claim.
+- [2026-08-19 22:07] **RUNNING and healthy at ~11% of budget.** Job 438958 started 19:24:29 CEST on
+  `mlcbm004`, node-local staging 26 s, first GPU work 19:25:45. At step 17,300 / 2.69 h:
+  - **Arm identity holds on the cluster:** `gate_dmin_only.py` PASSED all 13 checks on the H100 with
+    values matching the 4070 run (row-3 grad 5.4022e-04 vs 5.4023e-04 local; rows 0,1,2 exactly 0).
+    Every logged line shows `B_self=0` and `boot_mse=0.000000`. Conversion + split-disjointness
+    validation passed.
+  - **Health:** 971 telemetry samples, **98.76% mean GPU utilization** (control 98.69%), 36,499 MiB
+    HBM (control 36,550), 608 W (control 613). Only 0.82% of samples below 90%; longest sub-20%
+    interval 10 s. Passes the >=90% gate.
+  - **Action conditioning is live:** matched-noise `action_shuffle` ratio 3.7-4.4 (untrained = 1.0).
+  - **Throughput: 1.775-1.796 steps/s vs the control's 1.7255 — only ~3% faster, NOT the 15-20%
+    predicted above.** The prediction was wrong and the writeup must use the measured number. Cause:
+    the estimate counted only the transformer, but every step also pays the frozen tokenizer encode
+    of 128x32 frames, which is identical in both arms and dilutes a saving that applies to just two
+    sub-forwards on 32 of 128 rows. Projection: ~153,000 steps in 24 h vs the control's 298,164 in
+    48 h, i.e. ~51% of its steps — so the step-matched control checkpoint will be near `step_0155000`.
+  - **The loss trap reproduces exactly as pre-registered.** At matched steps the arm's *total* loss is
+    consistently WORSE (step 17,200: 0.007594 vs 0.006212) while its **flow_mse is equal or better**
+    (0.022931 vs 0.025492; ratio across steps 1k-17.2k = 0.90-1.02). The control's average is padded
+    down by its near-free bootstrap term (boot_mse ~0.005 against flow_mse ~0.025). Do not compare
+    the headline losses; `flow_mse` is the apples-to-apples diagnostic, since both arms compute it on
+    `step_idx=emax` rows over the same tau grid.
+  - Far too early to read: 17.3k of ~153k steps, and the control's FINAL flow_mse is 0.014994 against
+    the arm's current 0.023. Nothing here is a result; the rollout instrument decides.
+  NEXT: let it run to the 24 h stop, then sync ferranti to the eval commit and submit
+  `phase5_evaluate_dmin.sh`. Confirm there that the control's periodic `step_*.pt` checkpoints still
+  exist — the step-matched read-off degrades to a warning if they were cleaned.
