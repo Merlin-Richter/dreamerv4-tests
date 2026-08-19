@@ -44,6 +44,18 @@ applies the committed patch, and records the exact upstream diff and environment
 - `make_recon_sheet.py` and `summarize_checkpoint.py` provide held-out visual acceptance and stable
   checkpoint throughput/provenance summaries.
 
+- `gate_dmin_only.py` is the correctness gate for the d_min-only arm, run against the pinned
+  upstream checkout itself. It proves `--self_fraction 0` reduces upstream's
+  `dynamics_pretrain_loss` exactly to its finest-step flow term, and that the `step_embed` rows
+  for `K < k_max` then receive exactly zero gradient -- which is why that arm must be scored at
+  `K=8` (`--schedule finest`) and not at the default `K=4`, whose embedding row never trains.
+- `phase5_dynamics_dmin.sh` trains the d_min-only arm (24 active H100 hours; `--self_fraction 0.0`
+  and `--eval_schedule finest` are its ONLY differences from `phase3_dynamics.sh`).
+- `phase5_evaluate_dmin.sh` scores the arm against the immutable vanilla control at both `K=8` and
+  `K=4`, plus the control's own step-matched periodic checkpoint, through one instrument and seed.
+- `evaluate_dynamics.py` gained `--schedule`/`--eval-d`/`--sheet-sequences`; the defaults reproduce
+  the original 2026-08-02 protocol exactly.
+
 The cluster-free integration test passed locally against upstream `b8abafbf` on 2026-07-20.
 
 Submit the smoke only through the academic-cluster wrapper:

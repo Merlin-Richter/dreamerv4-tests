@@ -50,6 +50,17 @@ def main() -> None:
     ap.add_argument("--ctx", type=int, default=8)
     ap.add_argument("--horizon", type=int, default=16)
     ap.add_argument("--seed", type=int, default=20260729)
+    # Shortcut sampling schedule.  Defaults reproduce the original 2026-08-02 protocol
+    # (shortcut, d=0.25 -> K=4).  "finest" gives K=k_max (=8), which is the only step size a
+    # d_min-only arm ever trains: upstream keys the step size through
+    # nn.Embedding(log2(k_max)+1, d_model), so scoring such a model at K=4 reads an embedding
+    # row that never received a gradient.  K=8 is in-distribution for the vanilla control too
+    # (it trains d_min on 1-self_fraction = 75% of its rows), so it is the fair setting.
+    ap.add_argument("--schedule", choices=["shortcut", "finest"], default="shortcut")
+    ap.add_argument("--eval-d", dest="eval_d", type=float, default=0.25)
+    # Metrics run over all --n-sequences; the PNG only renders the first few, so raising
+    # --n-sequences for statistical power does not produce an unviewable 30-megapixel sheet.
+    ap.add_argument("--sheet-sequences", dest="sheet_sequences", type=int, default=4)
     ap.add_argument("--device", default="cuda")
     args = ap.parse_args()
 
@@ -146,7 +157,9 @@ def main() -> None:
         raise AssertionError("wrong-action control did not change any rollout actions")
 
     schedule = make_tau_schedule(
-        k_max=int(cfg.get("k_max", 8)), schedule="shortcut", d=0.25
+        k_max=int(cfg.get("k_max", 8)),
+        schedule=args.schedule,
+        d=(args.eval_d if args.schedule == "shortcut" else None),
     )
     with torch.inference_mode():
         latent, _ = encoder(temporal_patchify(frames, patch))
@@ -192,7 +205,7 @@ def main() -> None:
     wrong_u8 = _to_u8(pred_wrong)
     copy_u8 = _to_u8(copy_last)
     rows = []
-    for i in range(args.n_sequences):
+    for i in range(min(args.n_sequences, max(1, args.sheet_sequences))):
         rows.extend([
             _filmstrip(gt_u8[i], f"SEQ {i} - HELD-OUT GT", args.ctx),
             _filmstrip(correct_u8[i], "MODEL - CORRECT ACTIONS", args.ctx),
@@ -217,6 +230,10 @@ def main() -> None:
         "context_frames": args.ctx,
         "rollout_frames": args.horizon,
         "shortcut_steps": int(schedule["K"]),
+        "schedule": args.schedule,
+        "n_sequences": int(args.n_sequences),
+        "schedule_d": float(schedule["d"]),
+        "train_self_fraction": float(cfg.get("self_fraction", 0.25)),
         "wrong_action_fraction": wrong_fraction,
         "mse_correct_actions": mse_correct,
         "mse_wrong_actions": mse_wrong,
