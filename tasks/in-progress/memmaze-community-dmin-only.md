@@ -181,3 +181,43 @@ self-distillation term — and 415103 had val 0.0043 with h1 0.0226. The rollout
   NEXT: let it run to the 24 h stop, then sync ferranti to the eval commit and submit
   `phase5_evaluate_dmin.sh`. Confirm there that the control's periodic `step_*.pt` checkpoints still
   exist — the step-matched read-off degrades to a warning if they were cleaned.
+- [2026-08-25] **COMPLETE. The answer is NO: the objective does not transfer, and the effect has the
+  opposite sign.** Job 438958 finished rc=0 at step **154,681** after exactly **86,400.28 s**
+  (24.000077 h) active, 1.790 steps/s (**3.8% faster** than the control's 1.7255 — the ~15-20% I
+  predicted was wrong; the frozen tokenizer encode of 128x32 frames is paid identically by both arms
+  and dilutes the saving). `boot_mse_nonzero_log_lines=0` across the whole run; checkpoint records
+  `self_fraction: 0.0`; SHA `9d6619cf…`; 98.76% mean GPU utilization.
+
+  **Rollout-error instrument** (community adapter, same tokenizer `347052fa…`, same 24 samples/seeds,
+  128-frame prefill + 32 generated), against the **budget-matched** control (the baseline's own
+  step-155k checkpoint, so the 24 h vs 48 h gap is removed):
+
+  | | h1 | h4 | h8 | h16 | h24 | h32 | mean32 |
+  |---|---|---|---|---|---|---|---|
+  | vanilla @155k (matched) | 0.00618 | 0.00762 | 0.00925 | 0.02390 | 0.04222 | 0.04997 | 0.02843 |
+  | **d_min-only (24 h)** | 0.00683 | 0.00960 | 0.01214 | 0.02648 | 0.05551 | 0.05523 | 0.03283 |
+  | ratio (>1 = worse) | 1.106 | 1.260 | 1.312 | 1.108 | 1.315 | 1.105 | **1.155** |
+
+  **In-window instrument** (`phase5_evaluate_dmin.sh`, ferranti 442649, 64 held-out sequences,
+  8 ctx + 16 horizon), mse_correct_actions: dmin_final K1/K4/K8 = 0.011587 / 0.012086 / 0.011534;
+  control_stepmatched = 0.011044 / 0.011922 / 0.011931; control_final (48 h) = 0.010797 / 0.011113 /
+  0.010620. Same story: a wash to mildly worse, sign flipping with K.
+
+  **Instrument is trustworthy:** the historic 4-sequence K=4 reproduction returned **0.007988 /
+  20.98 dB**, bit-identical to the recorded 2026-08-02 value. Arm-identity assertions passed
+  (dmin self_fraction 0.0, control 0.25, all 16 shared config fields equal).
+
+  **The pre-registered prediction was wrong in an informative way.** It allowed "helps them, by less
+  than our 15x" or "helps by the same factor => we misattributed". Neither: it *hurts* them by 1.15x.
+  Three escape routes are closed — (a) not under-training, since the control's step-155k checkpoint
+  matches its own 48 h final (0.02843 vs 0.02890), so the baseline had saturated; (b) not the dead
+  `step_embed` row, since scoring at K=1 moves it ~5% and not in direction (h1 0.00642 vs 0.00683);
+  (c) not a training failure, since matched-step `flow_mse` tracked the control within 0.96-1.01 for
+  the whole run (final matched-step 0.017353 vs 0.017155).
+
+  **Conclusion: "the shortcut bootstrap term is harmful" is dead as a general claim.** At the
+  community's 25% share it is mildly *helpful*. Our 15.3x came from our 83% allocation interacting
+  with something their code does not share — our own win is real and still unexplained, so
+  `agent/EXPERIMENTS.md` (`vanilla-dmin-only`) point 7 must be read as "pinning d fixed OUR vanilla",
+  not as a mechanism. NEXT (Merlin's call): find what our vanilla does that theirs does not, rather
+  than shipping the bootstrap story.
